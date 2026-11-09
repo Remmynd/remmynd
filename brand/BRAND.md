@@ -47,7 +47,7 @@ Both are free from Google Fonts and Vercel under the SIL Open Font License.
 
 ## Voice
 
-Plain, short, calm. Say what happens: "Remind me", "Copy link", "Saved". Lead with the three facts: free, no sign-up, nothing stored.
+Plain, short, calm. Say what happens: "Remind me", "Copy link", "Saved". Lead with the three facts: free, no sign-up, no tracking.
 
 ## Accounts and sizes
 

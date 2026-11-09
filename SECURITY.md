@@ -21,6 +21,7 @@ Reminder links are written by anyone, so the page treats everything in them as u
 - Links that make the page open a different site without the visitor choosing it
 - Malformed `.ics` output from the `/ics` Worker or the library
 - Anything that would let remmynd.space learn what is inside a link
+- Abuse of `/push/schedule` or `/push/cancel`: sending pushes to addresses that aren't push services, cancelling another device's alerts, or storing anything beyond id, push address and time
 
 ## Out of scope
 

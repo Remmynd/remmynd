@@ -57,6 +57,7 @@
     "ship": "npm test && npx --yes wrangler@4 deploy",
     "deploy": "npx --yes wrangler@4 deploy",
     "release": "node scripts/release.mjs",
-    "release:notes": "node scripts/release-notes.mjs"
+    "release:notes": "node scripts/release-notes.mjs",
+    "push:setup": "node scripts/push-setup.mjs"
   }
 }

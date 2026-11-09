@@ -24,3 +24,17 @@ custom_domain = true
 [[routes]]
 pattern = "www.remmynd.space"
 custom_domain = true
+
+# --- Push notifications: filled in by `npm run push:setup` ---
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "remmynd"
+# database_id = ""
+#
+# [triggers]
+# crons = ["* * * * *"]
+#
+# [vars]
+# VAPID_PUBLIC_KEY = ""
+# VAPID_SUBJECT = "mailto:connect@zoof04.com"
+# --- end push ---

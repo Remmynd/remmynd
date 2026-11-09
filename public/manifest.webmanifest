@@ -1,7 +1,7 @@
 {
   "name": "remmynd",
   "short_name": "remmynd",
-  "description": "Reminders, as a link. Type what and when, share the link, and anyone saves it to their calendar in one tap. Free, no sign-up, nothing stored.",
+  "description": "Reminders, as a link. Type what and when, share the link, and anyone saves it to their calendar in one tap. Free, no sign-up, no tracking.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
