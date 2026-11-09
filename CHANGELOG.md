@@ -11,6 +11,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - Automatic deploys: every push to `main` deploys remmynd.space through Cloudflare Workers Builds. A scheduled live check confirms the site's routes every six hours.
 - Release pipeline: merging a version bump tags the release, publishes GitHub release notes from this changelog and publishes the npm package with provenance. `npm run release -- <patch|minor|major>` prepares the bump.
 - Documentation: [principles](docs/PRINCIPLES.md), [architecture](docs/ARCHITECTURE.md) with diagrams, and a [release and operations runbook](docs/RELEASING.md).
+- Install helper: one-tap Install on Android and desktop Chrome or Edge; step-by-step guide with a pointer for iPhone (iOS 26 and earlier layouts); open-in-browser help inside Instagram, LinkedIn and similar apps. Offered once, right after someone saves a reminder or copies a link.
+- App screenshots and description in the manifest for Android's richer install dialog.
 
 ### Changed
 
