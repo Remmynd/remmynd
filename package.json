@@ -1,0 +1,54 @@
+{
+  "name": "remmynd",
+  "version": "1.0.0",
+  "description": "Reminders, as a link. Turn any event into a link people save to their calendar in one tap. Zero dependencies.",
+  "keywords": [
+    "reminder",
+    "calendar",
+    "add-to-calendar",
+    "ics",
+    "icalendar",
+    "google-calendar",
+    "outlook",
+    "event",
+    "link",
+    "badge",
+    "cli"
+  ],
+  "homepage": "https://remmynd.space",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Remmynd/remmynd.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Remmynd/remmynd/issues"
+  },
+  "license": "MIT",
+  "author": "zoof04 (https://zoof04.com)",
+  "type": "module",
+  "main": "./lib/remmynd.js",
+  "types": "./lib/remmynd.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/remmynd.d.ts",
+      "default": "./lib/remmynd.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "remmynd": "bin/remmynd.js"
+  },
+  "files": [
+    "lib",
+    "bin"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "dev": "npx --yes serve public",
+    "deploy": "npx --yes wrangler pages deploy public --project-name remmynd"
+  }
+}
