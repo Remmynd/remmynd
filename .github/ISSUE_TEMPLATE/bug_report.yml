@@ -1,0 +1,34 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: link
+    attributes:
+      label: Reminder link
+      description: The remmynd link that shows the problem, if you are happy to share it.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did it happen?
+      options:
+        - iPhone or iPad, Safari
+        - iPhone, inside another app (Instagram, LinkedIn, WhatsApp…)
+        - Android, Chrome
+        - Desktop browser
+        - npm package or CLI
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Device, browser and version
+      placeholder: iOS 26.1, Safari

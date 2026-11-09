@@ -1,0 +1,40 @@
+name: Publish to npm
+
+# Runs when a GitHub release is published.
+# Uses npm trusted publishing (OIDC): no npm token is stored in GitHub.
+# Set it up once on npmjs.com → remmynd → Settings → Trusted publishing.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
+      - run: npm test
+      - name: Check tag matches package version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then echo "Release tag v$TAG does not match package.json $PKG"; exit 1; fi
+      - name: Skip if this version is already on npm
+        id: check
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "remmynd@$VERSION" version >/dev/null 2>&1; then
+            echo "remmynd@$VERSION is already on npm, nothing to publish."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.check.outputs.skip != 'true'
+        run: npm publish --access public

@@ -1,0 +1,21 @@
+name: Idea
+description: Suggest an improvement
+labels: [idea]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Fits the project
+      options:
+        - label: It works without accounts, tracking or storing reminders
+          required: true
