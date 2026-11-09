@@ -13,7 +13,7 @@ Type what and when. Share the link. Anyone who taps it saves it to their calenda
 <p align="center">
   <a href="https://www.npmjs.com/package/remmynd"><img src="https://img.shields.io/npm/v/remmynd?color=0e0f11&label=npm" alt="npm version"></a>
   <a href="https://github.com/Remmynd/remmynd/actions/workflows/ci.yml"><img src="https://github.com/Remmynd/remmynd/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/Remmynd/remmynd/actions/workflows/deploy.yml"><img src="https://github.com/Remmynd/remmynd/actions/workflows/deploy.yml/badge.svg" alt="Deploy"></a>
+  <a href="https://github.com/Remmynd/remmynd/actions/workflows/live-check.yml"><img src="https://github.com/Remmynd/remmynd/actions/workflows/live-check.yml/badge.svg" alt="Live check"></a>
   <img src="https://img.shields.io/badge/dependencies-0-0e0f11" alt="Zero dependencies">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-0e0f11" alt="MIT licence"></a>
 </p>
@@ -159,7 +159,7 @@ npx wrangler login
 npm run ship      # runs the tests, then deploys
 ```
 
-Change `name` and the `routes` in `wrangler.toml` to your own Worker name and domain first. To deploy on every push to `main`, add the `CLOUDFLARE_API_TOKEN` secret and `CLOUDFLARE_ACCOUNT_ID` variable to your fork; the included Deploy workflow does the rest ([details](docs/RELEASING.md#automatic-deploys)).
+Change `name` and the `routes` in `wrangler.toml` to your own Worker name and domain first. To deploy on every push to `main`, connect your fork in Cloudflare (Workers & Pages → your Worker → Settings → Builds) with `main` as the production branch ([details](docs/RELEASING.md#automatic-deploys)).
 
 Any static host works for the site alone. Without the Worker, everything works except the iPhone in-app browser fallback.
 

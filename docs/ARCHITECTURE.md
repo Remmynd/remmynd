@@ -95,8 +95,9 @@ flowchart LR
     PR[Pull request] --> CI["CI<br/>tests on Node 20, 22, 24<br/>Worker build check"]
     CI --> RV[Review and merge]
     RV --> MAIN[(main)]
-    MAIN --> DEP["Deploy workflow<br/>test → wrangler deploy → smoke test"]
+    MAIN --> DEP["Cloudflare Workers Builds<br/>wrangler deploy"]
     DEP --> LIVE([remmynd.space])
+    LIVE -.-> CHK["Live check<br/>every 6 hours"]
     MAIN -- "package.json version changed" --> REL["Release workflow<br/>tag → GitHub release → npm publish"]
     REL --> NPM([npm: remmynd])
 ```

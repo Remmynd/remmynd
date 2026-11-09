@@ -8,7 +8,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
-- Automatic deploys: every push to `main` runs the tests, deploys remmynd.space to Cloudflare and smoke-tests the live site.
+- Automatic deploys: every push to `main` deploys remmynd.space through Cloudflare Workers Builds. A scheduled live check confirms the site's routes every six hours.
 - Release pipeline: merging a version bump tags the release, publishes GitHub release notes from this changelog and publishes the npm package with provenance. `npm run release -- <patch|minor|major>` prepares the bump.
 - Documentation: [principles](docs/PRINCIPLES.md), [architecture](docs/ARCHITECTURE.md) with diagrams, and a [release and operations runbook](docs/RELEASING.md).
 
@@ -18,7 +18,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - `www.remmynd.space` redirects to the bare domain on every path, including the home page.
 - Each static file sends exactly one `Cache-Control` header: the service worker always revalidates, icons cache for a year, badges for a day.
 - Per-version preview URLs are turned off.
-- CI and release workflows use `actions/checkout` and `actions/setup-node` v7.
+- CI and release workflows use `actions/checkout` and `actions/setup-node` v7. CI also builds the Worker on every pull request.
 
 ### Fixed
 

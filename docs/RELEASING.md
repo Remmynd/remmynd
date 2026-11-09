@@ -18,9 +18,7 @@ How remmynd gets from a pull request to remmynd.space and npm, and what to do wh
 2. Make the change, add a test, and add a line under **Unreleased** in `CHANGELOG.md`.
 3. `npm run check` runs the tests and a Worker build check, the same as CI.
 4. Open a pull request. CI runs the tests on Node 20, 22 and 24 and builds the Worker.
-5. Merge. The **Deploy** workflow tests again, deploys to Cloudflare and smoke-tests the live site. Watch it under **Actions → Deploy**; the run links to remmynd.space.
-
-Docs-only changes (`*.md`, `docs/`, `brand/`) don't trigger a deploy.
+5. Merge. Cloudflare Workers Builds deploys `main` to remmynd.space within a minute or two. Its result shows as the **Workers Builds: remmynd** check on the commit, with a link to the build log in Cloudflare.
 
 ## Cutting a release
 
@@ -70,7 +68,7 @@ Then revert the bad commit on `main` with a pull request, so the next deploy doe
 
 ## Manual deploy
 
-For emergencies, or before automatic deploys are set up:
+For emergencies, or if Workers Builds is down:
 
 ```sh
 npx wrangler@4 login   # once per machine
@@ -81,14 +79,18 @@ npm run ship           # tests, then deploy
 
 ### Automatic deploys
 
-The **Deploy** workflow needs two repository settings (GitHub → Settings → Secrets and variables → Actions):
+Deploys run in Cloudflare Workers Builds, which is connected to this repository. Cloudflare → Workers & Pages → `remmynd` → Settings → Build:
 
-| Type | Name | Value |
-|---|---|---|
-| Variable | `CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account that owns the `remmynd` Worker |
-| Secret | `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → Create Token → **Edit Cloudflare Workers** template, limited to this account and the remmynd.space zone |
+| Setting | Value |
+|---|---|
+| Git repository | `Remmynd/remmynd` |
+| Production branch | `main` |
+| Build command | `npm test` |
+| Deploy command | `npx wrangler deploy` |
+| Root directory | `/` |
+| Builds for non-production branches | Off (pull requests are checked by GitHub Actions CI) |
 
-Optionally add required reviewers to the `production` environment (Settings → Environments) to approve each deploy.
+No API tokens are stored in GitHub. The **Live check** workflow (`.github/workflows/live-check.yml`) checks the live routes every six hours and can be run by hand from **Actions → Live check → Run workflow**.
 
 ### npm trusted publishing
 
@@ -106,7 +108,8 @@ Require a pull request, require the CI checks to pass, require linear history, a
 | Worker | Cloudflare → Workers & Pages → `remmynd` |
 | DNS | Cloudflare → `remmynd.space` → DNS (records for the site are created by the Worker's custom domains) |
 | npm package | https://www.npmjs.com/package/remmynd |
-| Deploy and release runs | GitHub → Actions |
+| Deploy builds | Cloudflare → Workers & Pages → `remmynd` → Deployments, or the **Workers Builds** check on each commit |
+| Release and live-check runs | GitHub → Actions |
 | Search | Google Search Console → `remmynd.space` (sitemap: `/sitemap.xml`) |
 | Security reports | GitHub → Security → Report a vulnerability, or connect@zoof04.com |
 
@@ -117,4 +120,4 @@ Require a pull request, require the CI checks to pass, require linear history, a
 - `/example` opens the sample reminder; `/nope` shows the 404 page.
 - **Remind me** works on iPhone Safari, inside an iPhone in-app browser, and on Android Chrome.
 
-The Deploy workflow's smoke test covers the first three automatically.
+The **Live check** workflow covers the first three; run it from Actions right after a deploy if you want the answer immediately.
