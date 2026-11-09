@@ -11,10 +11,22 @@
 Type what and when. Share the link. Anyone who taps it saves it to their calendar in one tap.</p>
 
 <p align="center">
-  <a href="https://remmynd.space">remmynd.space</a> ·
   <a href="https://www.npmjs.com/package/remmynd"><img src="https://img.shields.io/npm/v/remmynd?color=0e0f11&label=npm" alt="npm version"></a>
   <a href="https://github.com/Remmynd/remmynd/actions/workflows/ci.yml"><img src="https://github.com/Remmynd/remmynd/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Remmynd/remmynd/actions/workflows/live-check.yml"><img src="https://github.com/Remmynd/remmynd/actions/workflows/live-check.yml/badge.svg" alt="Live check"></a>
+  <img src="https://img.shields.io/badge/dependencies-0-0e0f11" alt="Zero dependencies">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-0e0f11" alt="MIT licence"></a>
+</p>
+
+<p align="center">
+  <a href="https://remmynd.space"><strong>remmynd.space</strong></a> ·
+  <a href="docs/PRINCIPLES.md">Principles</a> ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+<p align="center">
+  <a href="https://remmynd.space"><img src="brand/social/github-social-preview-1280x640.png" width="720" alt="remmynd: reminders, as a link"></a>
 </p>
 
 ---
@@ -122,6 +134,15 @@ Times are stored in UTC and shown in each visitor's own time zone.
 
 Saved events include the reminder link and a short "Made with remmynd.space" line in their notes. Nothing about the person saving the event is collected or added.
 
+```mermaid
+flowchart LR
+    A["Make a link<br/>remmynd.space or npx remmynd"] --> B["Share it<br/>chat, email, a Remind me badge"]
+    B --> C["Someone taps it<br/>the event shows in their time zone"]
+    C --> D["Remind me<br/>Apple Calendar, Google Calendar, Outlook"]
+```
+
+The full picture, including how requests are routed and how the `/ics` fallback works, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Privacy
 
 - No database, no accounts, no cookies, no analytics.
@@ -138,7 +159,7 @@ npx wrangler login
 npm run ship      # runs the tests, then deploys
 ```
 
-Change `name` and the `routes` in `wrangler.toml` to your own Worker name and domain first. Or connect your fork in the Cloudflare dashboard (Workers & Pages → Create → Import a repository) and every push to `main` deploys.
+Change `name` and the `routes` in `wrangler.toml` to your own Worker name and domain first. To deploy on every push to `main`, connect your fork in Cloudflare (Workers & Pages → your Worker → Settings → Builds) with `main` as the production branch ([details](docs/RELEASING.md#automatic-deploys)).
 
 Any static host works for the site alone. Without the Worker, everything works except the iPhone in-app browser fallback.
 
@@ -147,11 +168,24 @@ Any static host works for the site alone. Without the Worker, everything works e
 ```sh
 git clone https://github.com/Remmynd/remmynd.git
 cd remmynd
-npm test        # library, CLI and site checks
-npm run dev     # runs the site and Worker locally
+npm test         # library, CLI, site and Worker checks
+npm run dev      # runs the site and Worker locally
+npm run check    # tests plus a Worker build check, the same as CI
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+No install step: there are no dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Documentation
+
+| Doc | What's in it |
+|---|---|
+| [Principles](docs/PRINCIPLES.md) | Why remmynd exists, what it will and won't do, and how changes are decided |
+| [Architecture](docs/ARCHITECTURE.md) | The link format, request routing, hosting and the delivery pipeline, with diagrams |
+| [Releasing and operations](docs/RELEASING.md) | Deploys, releases, versioning, rollback and one-time setup |
+| [Changelog](CHANGELOG.md) | Every release, newest first |
+| [Contributing](CONTRIBUTING.md) | How to propose and test a change |
+| [Security](SECURITY.md) | How to report a vulnerability |
+| [Brand](brand/BRAND.md) | Logo, colours, type and voice |
 
 ## Limits
 

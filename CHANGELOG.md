@@ -1,12 +1,28 @@
 # Changelog
 
-All notable changes to this project are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
+All notable changes to remmynd are listed here, newest first. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/). The reminder link format is a public contract: old links keep working in every release.
+
+How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- Automatic deploys: every push to `main` deploys remmynd.space through Cloudflare Workers Builds. A scheduled live check confirms the site's routes every six hours.
+- Release pipeline: merging a version bump tags the release, publishes GitHub release notes from this changelog and publishes the npm package with provenance. `npm run release -- <patch|minor|major>` prepares the bump.
+- Documentation: [principles](docs/PRINCIPLES.md), [architecture](docs/ARCHITECTURE.md) with diagrams, and a [release and operations runbook](docs/RELEASING.md).
+
 ### Changed
 
-- Runs on Cloudflare Workers with static assets instead of Pages. `npm run ship` tests and deploys; `www` redirects to the bare domain; branded 404 page.
+- Runs on Cloudflare Workers with static assets instead of Pages, served at remmynd.space.
+- `www.remmynd.space` redirects to the bare domain on every path, including the home page.
+- Each static file sends exactly one `Cache-Control` header: the service worker always revalidates, icons cache for a year, badges for a day.
+- Per-version preview URLs are turned off.
+- CI and release workflows use `actions/checkout` and `actions/setup-node` v7. CI also builds the Worker on every pull request.
+
+### Fixed
+
+- Branded 404 page for unknown paths.
 
 ## [1.0.0] - 2026-11-09
 

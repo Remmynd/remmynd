@@ -127,11 +127,26 @@ test("package version matches the library", () => {
 });
 
 test("repository credits zoof04 only", () => {
-  const skip = new Set([".git", "node_modules", "test"]);
+  // Checks every tracked file (or every file on disk when git isn't available), except this test folder.
+  const skip = new Set([".git", "node_modules", "test", ".wrangler"]);
   const walk = d => readdirSync(d).flatMap(f => skip.has(f) ? [] : statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]);
-  const banned = new RegExp(["sig", "ship"].join(""), "i");
-  for (const f of walk(root)) {
-    if (/\.(png|ico)$/.test(f)) continue;
-    assert.ok(!banned.test(readFileSync(f, "utf8")), "unexpected product mention in " + f);
+  let files;
+  try { files = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean).map(f => join(root, f)); }
+  catch { files = walk(root); }
+  // Other product and tool names must not appear anywhere in the repository.
+  const banned = new RegExp([["sig", "ship"], ["cla", "ude"], ["anth", "ropic"]].map(p => p.join("")).join("|"), "i");
+  for (const f of files) {
+    if (/\.(png|ico)$/.test(f) || f.startsWith(join(root, "test"))) continue;
+    assert.ok(!banned.test(readFileSync(f, "utf8")), "unexpected mention in " + f);
   }
 });
+
+test("git history credits zoof04 only", { skip: !existsGit() }, () => {
+  const log = execFileSync("git", ["log", "--format=%an%n%ae%n%B"], { cwd: root, encoding: "utf8" });
+  const banned = new RegExp([["cla", "ude"], ["anth", "ropic"]].map(p => p.join("")).join("|"), "i");
+  assert.ok(!banned.test(log), "a commit message or author mentions another tool");
+});
+
+function existsGit() {
+  try { execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root, stdio: "ignore" }); return true; } catch { return false; }
+}

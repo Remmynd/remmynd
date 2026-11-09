@@ -1,0 +1,33 @@
+name: Live check
+
+# Checks that remmynd.space answers the way it should. Deploys themselves run in
+# Cloudflare Workers Builds on every push to main (see docs/RELEASING.md).
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check remmynd.space
+    runs-on: ubuntu-latest
+    steps:
+      - name: Routes answer as expected
+        run: |
+          set -e
+          fail=0
+          check() {
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$1")
+            if [ "$code" = "$2" ]; then echo "ok   $code $1"; else echo "FAIL $code $1 (expected $2)"; fail=1; fi
+          }
+          check https://remmynd.space/ 200
+          check https://www.remmynd.space/ 301
+          check https://remmynd.space/example 302
+          check https://remmynd.space/badge.svg 200
+          check https://remmynd.space/nope-not-a-page 404
+          check "https://remmynd.space/ics?d=broken" 400
+          exit $fail

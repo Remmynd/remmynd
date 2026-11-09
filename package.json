@@ -46,10 +46,17 @@
   "engines": {
     "node": ">=20"
   },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "test": "node --test",
     "dev": "npx --yes wrangler@4 dev",
+    "check": "npm test && npx --yes wrangler@4 deploy --dry-run --outdir .wrangler/check",
     "ship": "npm test && npx --yes wrangler@4 deploy",
-    "deploy": "npx --yes wrangler@4 deploy"
+    "deploy": "npx --yes wrangler@4 deploy",
+    "release": "node scripts/release.mjs",
+    "release:notes": "node scripts/release-notes.mjs"
   }
 }
