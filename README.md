@@ -1,8 +1,11 @@
 <p align="center">
-  <a href="https://remmynd.space"><img src="public/icon.svg" width="72" height="72" alt="remmynd"></a>
+  <a href="https://remmynd.space">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="brand/logo/remmynd-logo-white.svg">
+      <img src="brand/logo/remmynd-logo.svg" height="56" alt="remmynd">
+    </picture>
+  </a>
 </p>
-
-<h1 align="center">remmynd</h1>
 
 <p align="center"><strong>Reminders, as a link.</strong><br>
 Type what and when. Share the link. Anyone who taps it saves it to their calendar in one tap.</p>
@@ -152,6 +155,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 - Calendar apps always ask for one confirming tap. No website can add an event silently.
 - A saved event does not update if the original link changes. Make a new link for a new time.
 - A web page cannot schedule a phone notification on its own, so remmynd uses your calendar's alerts.
+
+## Brand
+
+Logos, icons and banners are in [`brand/`](brand/). See [brand/BRAND.md](brand/BRAND.md) for colours, type and usage.
 
 ## Licence
 

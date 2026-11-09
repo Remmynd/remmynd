@@ -1,6 +1,6 @@
 // remmynd service worker: caches the page so saved links open offline. Sends nothing anywhere.
-const CACHE = "remmynd-v3";
-const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon.svg", "./badge.svg", "./badge-dark.svg", "./og.png"];
+const CACHE = "remmynd-v4";
+const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg", "./favicon.ico", "./apple-touch-icon.png", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./badge.svg", "./badge-dark.svg"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {

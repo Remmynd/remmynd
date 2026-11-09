@@ -15,8 +15,13 @@
 <meta name="theme-color" content="#f5f6f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0b0c0e" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.ico" sizes="48x48">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="remmynd: Reminders, as a link.">
+<meta name="twitter:image" content="https://remmynd.space/og.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
@@ -174,7 +179,7 @@ footer a:hover{color:var(--fg)}
 <div class="app">
   <nav class="top">
     <a class="brand" href="#" id="home-link" aria-label="remmynd home">
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 12V6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="2.4" fill="var(--dot)"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--dot)"/></svg>
       remmynd
     </a>
     <a class="ghost" href="#example" id="nav-right">See an example</a>
@@ -258,8 +263,6 @@ const TZ=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 const OWN=/(^|\.)remmynd\.space$|\.pages\.dev$|^localhost$|^127\./.test(location.hostname);
 const BASE=OWN?location.origin+"/":"https://remmynd.space/";
 
-};
-
 /* ---------- link encoding: the URL fragment is the database ---------- */
 const enc=o=>{const b=new TextEncoder().encode(JSON.stringify(o));let s="";b.forEach(x=>s+=String.fromCharCode(x));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");};
 const dec=s=>{try{const bin=atob(s.replace(/-/g,"+").replace(/_/g,"/"));const o=JSON.parse(new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0))));return o&&typeof o.t==="string"&&o.t&&o.s?o:null;}catch(e){return null;}};
@@ -283,6 +286,7 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"
 /* Named pages: remmynd.space/<name>. Each returns a reminder object. */
 const PRESETS={
   example:()=>{const p=parts(new Date(Date.now()+3*864e5),TZ);return{t:"Example: launch day",s:pack(zonedToUTC(p.y,p.mo,p.d,18,0,TZ)),d:60,l:"https://remmynd.space",n:"This is a sample reminder. Make your own in a few seconds."};}
+};
 /* ---------- calendar payloads (credit lives in the description; nothing about the viewer is included) ---------- */
 const stamp=d=>d.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
 const iesc=s=>String(s).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
@@ -314,7 +318,7 @@ const I={
   bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
   link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>',
-  mark:'<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 12V6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="2.4" fill="var(--dot)"/></svg>'
+  mark:'<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--dot)"/></svg>'
 };
 
 /* ---------- ticket ---------- */
@@ -406,7 +410,7 @@ F.link.addEventListener("focus",()=>F.link.select());
 
 /* ---------- badge ---------- */
 function badgeSVG(theme){const dk=theme==="dark",bg=dk?"#0e0f11":"#ffffff",st=dk?"#2a2c31":"#e3e5e8",fg=dk?"#f2f3f5":"#0e0f11",mu=dk?"#9aa0a8":"#666c75",dot=dk?"#ffb52e":"#f2a000";
-  return'<svg xmlns="http://www.w3.org/2000/svg" width="172" height="44" viewBox="0 0 172 44" role="img" aria-label="Remind me, with remmynd"><rect x=".5" y=".5" width="171" height="43" rx="21.5" fill="'+bg+'" stroke="'+st+'"/><g transform="translate(13 10)" fill="none"><circle cx="12" cy="12" r="9" stroke="'+fg+'" stroke-width="2"/><path d="M12 12V6.5" stroke="'+fg+'" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="2.4" fill="'+dot+'"/></g><text x="47" y="18.5" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="8.5" font-weight="600" letter-spacing=".9" fill="'+mu+'">REMMYND</text><text x="47" y="33" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="600" letter-spacing="-.2" fill="'+fg+'">Remind me</text></svg>';}
+  return'<svg xmlns="http://www.w3.org/2000/svg" width="172" height="44" viewBox="0 0 172 44" role="img" aria-label="Remind me, with remmynd"><rect x=".5" y=".5" width="171" height="43" rx="21.5" fill="'+bg+'" stroke="'+st+'"/><g transform="translate(13 10)" fill="none"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="'+fg+'" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="'+fg+'" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="'+fg+'"/><circle cx="17.785" cy="5.106" r="2.1" fill="'+dot+'"/></g><text x="47" y="18.5" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="8.5" font-weight="600" letter-spacing=".9" fill="'+mu+'">REMMYND</text><text x="47" y="33" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="600" letter-spacing="-.2" fill="'+fg+'">Remind me</text></svg>';}
 $("#badges").innerHTML='<a href="#example" aria-label="Light badge example">'+badgeSVG("light")+'</a><a href="#example" aria-label="Dark badge example">'+badgeSVG("dark")+'</a>';
 function snippet(){const L=F.link.value||"https://remmynd.space/#your-link",img="https://remmynd.space/badge"+(SNIP.theme==="dark"?"-dark":"")+".svg";
   $("#snip").textContent=SNIP.fmt==="md"?"[![Remind me]("+img+")]("+L+")":'<a href="'+L+'" target="_blank" rel="noopener">\n  <img src="'+img+'" alt="Remind me" width="172" height="44">\n</a>';}

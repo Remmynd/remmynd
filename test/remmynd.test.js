@@ -71,6 +71,17 @@ test("website and library produce the same links", () => {
   assert.equal(lib.start.toISOString(), "2026-12-24T10:00:00.000Z");
 });
 
+test("website script parses", () => {
+  const html = readFileSync(join(root, "public/index.html"), "utf8");
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  assert.ok(scripts.length > 0, "no inline script found");
+  for (const js of scripts) assert.doesNotThrow(() => new Function(js), "inline script has a syntax error");
+  for (const f of ["public/sw.js", "functions/ics.js"]) {
+    const src = readFileSync(join(root, f), "utf8").replace(/^export /gm, "");
+    assert.doesNotThrow(() => new Function(src), f + " has a syntax error");
+  }
+});
+
 test("published badge files match the library", () => {
   assert.equal(readFileSync(join(root, "public/badge.svg"), "utf8"), R.badgeSVG());
   assert.equal(readFileSync(join(root, "public/badge-dark.svg"), "utf8"), R.badgeSVG({ theme: "dark" }));

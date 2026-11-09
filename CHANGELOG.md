@@ -17,6 +17,8 @@ All notable changes to this project are listed here. The format follows [Keep a 
 - `functions/ics.js` fallback for iPhone in-app browsers.
 - `remmynd` npm package: `createLink`, `decode`, `toICS`, `googleCalendarUrl`, `outlookUrl`, badge helpers, TypeScript types.
 - `npx remmynd` command-line tool.
+- Brand kit in `brand/`: logo, mark, wordmark, avatars, social banners and a brand guide.
+- Favicon set, maskable app icon and link-preview image.
 
 [Unreleased]: https://github.com/Remmynd/remmynd/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/Remmynd/remmynd/releases/tag/v1.0.0
