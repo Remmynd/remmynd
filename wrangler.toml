@@ -1,3 +1,22 @@
+# remmynd on Cloudflare Workers: static files from public/, plus a tiny Worker for /ics.
+# Deploy: npm run ship   (or push to main if the repo is connected to Workers Builds)
 name = "remmynd"
-pages_build_output_dir = "public"
+main = "worker/index.js"
 compatibility_date = "2025-10-01"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "404-page"
+
+# Custom domain: once remmynd.space shows "Active" in Cloudflare, remove the # from the
+# six lines below, commit and push (or run npm run ship). Deploys fail if the domain
+# isn't on this Cloudflare account yet, so they stay off until then.
+# [[routes]]
+# pattern = "remmynd.space"
+# custom_domain = true
+#
+# [[routes]]
+# pattern = "www.remmynd.space"
+# custom_domain = true

@@ -19,7 +19,7 @@ Reminder links are written by anyone, so the page treats everything in them as u
 
 - Script injection through a crafted link (title, notes, place, host)
 - Links that make the page open a different site without the visitor choosing it
-- Malformed `.ics` output from `functions/ics.js` or the library
+- Malformed `.ics` output from the `/ics` Worker or the library
 - Anything that would let remmynd.space learn what is inside a link
 
 ## Out of scope

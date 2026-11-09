@@ -260,7 +260,7 @@ footer a:hover{color:var(--fg)}
 (()=>{"use strict";
 const $=s=>document.querySelector(s);
 const TZ=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
-const OWN=/(^|\.)remmynd\.space$|\.pages\.dev$|^localhost$|^127\./.test(location.hostname);
+const OWN=/(^|\.)remmynd\.space$|\.workers\.dev$|\.pages\.dev$|^localhost$|^127\./.test(location.hostname);
 const BASE=OWN?location.origin+"/":"https://remmynd.space/";
 
 /* ---------- link encoding: the URL fragment is the database ---------- */

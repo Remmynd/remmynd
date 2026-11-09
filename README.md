@@ -125,19 +125,22 @@ Saved events include the reminder link and a short "Made with remmynd.space" lin
 ## Privacy
 
 - No database, no accounts, no cookies, no analytics.
-- The site is static. One small server function, `functions/ics.js`, exists only for iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), which ignore calendar files made inside the page. It builds the file from the link in memory and stores nothing.
+- The site is static files served by Cloudflare. A tiny Worker (`worker/`) handles one route, `/ics`, used only by iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), which ignore calendar files made inside the page. It builds the file from the link in memory and stores nothing.
 
 ## Self-host
 
-The site is the `public/` folder plus `functions/ics.js`. On Cloudflare Pages:
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles `/ics`, the `www` redirect and named pages like `/example`.
 
-1. Fork this repo.
-2. Cloudflare dashboard → Workers & Pages → Create → Pages → Connect to Git.
-3. Build command: none. Build output directory: `public`.
+```sh
+git clone https://github.com/Remmynd/remmynd.git
+cd remmynd
+npx wrangler login
+npm run ship      # runs the tests, then deploys
+```
 
-Or deploy from your machine with `npm run deploy` (uses Wrangler).
+Change `name` and the `routes` in `wrangler.toml` to your own Worker name and domain first. Or connect your fork in the Cloudflare dashboard (Workers & Pages → Create → Import a repository) and every push to `main` deploys.
 
-Any static host works for the site itself. Without `functions/ics.js`, everything works except the iPhone in-app browser fallback.
+Any static host works for the site alone. Without the Worker, everything works except the iPhone in-app browser fallback.
 
 ## Develop
 
@@ -145,7 +148,7 @@ Any static host works for the site itself. Without `functions/ics.js`, everythin
 git clone https://github.com/Remmynd/remmynd.git
 cd remmynd
 npm test        # library, CLI and site checks
-npm run dev     # serves public/ locally
+npm run dev     # runs the site and Worker locally
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -25,7 +25,7 @@ Node 20 or later. No install step is needed; there are no dependencies.
 
 1. Open an issue first for anything bigger than a small fix, so we can agree on the approach.
 2. Create a branch from `main`.
-3. Keep the website (`public/index.html`), the library (`lib/remmynd.js`) and the server function (`functions/ics.js`) in step. `npm test` checks that the site and library produce identical links and that the published badge files match the library.
+3. Keep the website (`public/index.html`), the library (`lib/remmynd.js`) and the Worker (`worker/`) in step. `npm test` checks that the site and library produce identical links and that the published badge files match the library.
 4. Add or update tests in `test/`.
 5. Add a line to `CHANGELOG.md` under "Unreleased".
 6. Open a pull request and fill in the template.

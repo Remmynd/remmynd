@@ -76,10 +76,36 @@ test("website script parses", () => {
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
   assert.ok(scripts.length > 0, "no inline script found");
   for (const js of scripts) assert.doesNotThrow(() => new Function(js), "inline script has a syntax error");
-  for (const f of ["public/sw.js", "functions/ics.js"]) {
-    const src = readFileSync(join(root, f), "utf8").replace(/^export /gm, "");
-    assert.doesNotThrow(() => new Function(src), f + " has a syntax error");
-  }
+  const sw = readFileSync(join(root, "public/sw.js"), "utf8");
+  assert.doesNotThrow(() => new Function(sw), "public/sw.js has a syntax error");
+});
+
+test("worker: /ics file, www redirect, named pages, static passthrough", async () => {
+  const worker = (await import("../worker/index.js")).default;
+  const env = { ASSETS: { fetch: () => new Response("static", { status: 200 }) } };
+  const s = Math.round(Date.parse("2026-12-05T12:30:00Z") / 60000).toString(36);
+  const d = Buffer.from(JSON.stringify({ t: "Demo day", s, l: "https://lu.ma/demo", u: "https://remmynd.space/#x" })).toString("base64url");
+
+  const ics = await worker.fetch(new Request("https://remmynd.space/ics?d=" + d), env);
+  assert.equal(ics.status, 200);
+  assert.match(ics.headers.get("content-type"), /text\/calendar/);
+  const body = await ics.text();
+  assert.match(body, /SUMMARY:Demo day/);
+  assert.match(body, /DTSTART:20261205T123000Z/);
+  assert.match(body.replace(/\r\n /g, ""), /Made with remmynd\.space/);
+
+  assert.equal((await worker.fetch(new Request("https://remmynd.space/ics?d=broken"), env)).status, 400);
+  assert.equal((await worker.fetch(new Request("https://remmynd.space/ics", { method: "POST" }), env)).status, 405);
+
+  const www = await worker.fetch(new Request("https://www.remmynd.space/abc?x=1"), env);
+  assert.equal(www.status, 301);
+  assert.equal(www.headers.get("location"), "https://remmynd.space/abc?x=1");
+
+  const ex = await worker.fetch(new Request("https://remmynd.space/example"), env);
+  assert.equal(ex.status, 302);
+  assert.equal(ex.headers.get("location"), "https://remmynd.space/#example");
+
+  assert.equal(await (await worker.fetch(new Request("https://remmynd.space/badge.svg"), env)).text(), "static");
 });
 
 test("published badge files match the library", () => {

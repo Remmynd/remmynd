@@ -48,7 +48,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "dev": "npx --yes serve public",
-    "deploy": "npx --yes wrangler pages deploy public --project-name remmynd"
+    "dev": "npx --yes wrangler@4 dev",
+    "ship": "npm test && npx --yes wrangler@4 deploy",
+    "deploy": "npx --yes wrangler@4 deploy"
   }
 }

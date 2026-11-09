@@ -4,6 +4,10 @@ All notable changes to this project are listed here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Changed
+
+- Runs on Cloudflare Workers with static assets instead of Pages. `npm run ship` tests and deploys; `www` redirects to the bare domain; branded 404 page.
+
 ## [1.0.0] - 2026-11-09
 
 ### Added
@@ -14,7 +18,7 @@ All notable changes to this project are listed here. The format follows [Keep a 
 - Sleep-safe option: remind at 9 AM local time when an event falls overnight.
 - Remind me badges (`/badge.svg`, `/badge-dark.svg`) with HTML and Markdown snippets.
 - Installable as an app (PWA), works offline once opened.
-- `functions/ics.js` fallback for iPhone in-app browsers.
+- `/ics` Worker fallback for iPhone in-app browsers.
 - `remmynd` npm package: `createLink`, `decode`, `toICS`, `googleCalendarUrl`, `outlookUrl`, badge helpers, TypeScript types.
 - `npx remmynd` command-line tool.
 - Brand kit in `brand/`: logo, mark, wordmark, avatars, social banners and a brand guide.

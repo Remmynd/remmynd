@@ -1,4 +1,4 @@
-// Cloudflare Pages Function: GET /ics?d=<base64url JSON>
+// GET /ics?d=<base64url JSON> — builds an .ics file from a reminder link.
 // Used only for iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), where a client-made .ics file does nothing.
 // Builds the file in memory from the link itself. Nothing is stored or logged by this code.
 const te = new TextEncoder();
@@ -9,7 +9,7 @@ function fold(l) { const out = []; let cur = "", n = 0; for (const ch of l) { co
 function hash(s) { let h = 5381; for (const c of s) h = (h * 33) ^ c.charCodeAt(0); return (h >>> 0).toString(36); }
 const clip = (s, n) => (typeof s === "string" ? s.slice(0, n) : "");
 
-export async function onRequestGet({ request }) {
+export function icsResponse(request) {
   const d = new URL(request.url).searchParams.get("d") || "";
   if (d.length > 4000) return new Response("Link too long", { status: 414 });
   let r;
@@ -22,7 +22,7 @@ export async function onRequestGet({ request }) {
   const mins = Math.min(Math.max(+r.d || 60, 5), 1440);
   const end = new Date(start.getTime() + mins * 60000);
   const title = clip(r.t, 160), loc = clip(r.l, 200), notes = clip(r.n, 300);
-  const share = isHttp(r.u) && /^https:\/\/([a-z0-9-]+\.)*(remmynd\.space|pages\.dev)\//.test(r.u) ? clip(r.u, 3000) : "https://remmynd.space/";
+  const share = isHttp(r.u) && /^https:\/\/([a-z0-9-]+\.)*(remmynd\.space|workers\.dev|pages\.dev)\//.test(r.u) ? clip(r.u, 3000) : "https://remmynd.space/";
   const head = [notes, isHttp(loc) ? "Join: " + loc : ""].filter(Boolean);
   const desc = (head.length ? head.join("\n") + "\n\n" : "") + "Reminder link: " + share + "\nMade with remmynd.space · free reminder links, no sign-up";
   const uid = "rm-" + clip(r.k, 12) + "-" + hash(clip(r.o, 160) || title) + "@remmynd.space";
