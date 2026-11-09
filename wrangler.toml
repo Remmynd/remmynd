@@ -9,10 +9,12 @@ workers_dev = true
 directory = "./public"
 binding = "ASSETS"
 not_found_handling = "404-page"
+# Send every request through worker/index.js first, so the www → bare-domain redirect also
+# covers paths that are files (like / and /index.html). The Worker hands the rest to ASSETS.
+run_worker_first = true
 
-# Custom domain: once remmynd.space shows "Active" in Cloudflare, remove the # from the
-# six lines below, commit and push (or run npm run ship). Deploys fail if the domain
-# isn't on this Cloudflare account yet, so they stay off until then.
+# Custom domains. Cloudflare creates their DNS records on deploy; these hostnames must not
+# have any other A, AAAA or CNAME records in the remmynd.space DNS zone.
 [[routes]]
 pattern = "remmynd.space"
 custom_domain = true

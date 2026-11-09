@@ -4,12 +4,17 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
   X-Frame-Options: DENY
   Cache-Control: public, max-age=600
+# "! Cache-Control" drops the default above, so each file below gets exactly one Cache-Control.
 /sw.js
+  ! Cache-Control
   Cache-Control: no-cache
 /icon*
+  ! Cache-Control
   Cache-Control: public, max-age=31536000, immutable
 /badge*.svg
+  ! Cache-Control
   Cache-Control: public, max-age=86400
   Access-Control-Allow-Origin: *
 /og.png
+  ! Cache-Control
   Cache-Control: public, max-age=86400
