@@ -1,2 +1,26 @@
+# Normalise text to LF in the repository and on checkout.
 * text=auto eol=lf
-*.png binary
+
+# Binary files: never diff or convert.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.webp   binary
+*.ico    binary
+*.woff   binary
+*.woff2  binary
+*.tgz    binary
+
+# SVGs are text (logos and badges are reviewed as code).
+*.svg    text eol=lf diff=html
+
+# Language stats on GitHub: count the product, not the brand kit or docs.
+brand/**     linguist-documentation
+docs/**      linguist-documentation
+*.md         linguist-documentation
+
+# Keep repository-only files out of `git archive` source downloads.
+.github/     export-ignore
+.gitattributes export-ignore
+.editorconfig  export-ignore

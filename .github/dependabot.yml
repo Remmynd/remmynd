@@ -1,6 +1,12 @@
 version: 2
 updates:
+  # remmynd has no runtime or dev dependencies, so only the GitHub Actions are tracked.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "Bump"

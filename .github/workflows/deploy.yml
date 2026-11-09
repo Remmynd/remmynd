@@ -1,0 +1,54 @@
+name: Deploy
+
+# Every push to main deploys remmynd.space once the tests pass.
+# Needs two settings on the repository (Settings → Secrets and variables → Actions):
+#   secret   CLOUDFLARE_API_TOKEN   a Cloudflare API token from the "Edit Cloudflare Workers" template
+#   variable CLOUDFLARE_ACCOUNT_ID  the Cloudflare account that owns the remmynd Worker
+# See docs/RELEASING.md for setup, rollback and manual deploys.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "brand/**"
+      - ".github/ISSUE_TEMPLATE/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://remmynd.space
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm test
+      - name: Deploy Worker and static assets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4"
+          command: deploy --message "${{ github.sha }}"
+      - name: Smoke test
+        run: |
+          set -e
+          check() { code=$(curl -s -o /dev/null -w "%{http_code}" "$1"); echo "$1 → $code"; [ "$code" = "$2" ]; }
+          check https://remmynd.space/ 200
+          check https://www.remmynd.space/ 301
+          check https://remmynd.space/example 302
+          check https://remmynd.space/badge.svg 200
+          check "https://remmynd.space/ics?d=broken" 400
