@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://remmynd.space/</loc></url>
+  <url><loc>https://remmynd.space/why</loc></url>
+  <url><loc>https://remmynd.space/hosts</loc></url>
+  <url><loc>https://remmynd.space/docs</loc></url>
+  <url><loc>https://remmynd.space/install</loc></url>
+  <url><loc>https://remmynd.space/roadmap</loc></url>
+  <url><loc>https://remmynd.space/changelog</loc></url>
+  <url><loc>https://remmynd.space/privacy</loc></url>
+  <url><loc>https://remmynd.space/press</loc></url>
 </urlset>

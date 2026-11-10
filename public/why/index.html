@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Why remmynd · remmynd</title>
+<meta name="description" content="You don't have a memory problem. You have two gaps. What the research says about forgetting and follow-through, and what remmynd does about each.">
+<link rel="canonical" href="https://remmynd.space/why">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://remmynd.space/why">
+<meta property="og:title" content="Why remmynd · remmynd">
+<meta property="og:description" content="You don't have a memory problem. You have two gaps. What the research says about forgetting and follow-through, and what remmynd does about each.">
+<meta property="og:image" content="https://remmynd.space/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="remmynd: Reminders, as a link.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://remmynd.space/og.png">
+<meta name="theme-color" id="tc-light" content="#F5F6F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" id="tc-dark" content="#0B0C0E" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<script>try{var t=localStorage.getItem("rm:theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preload" href="/fonts/geist-5.3-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/site.css">
+<script src="/site.js" defer></script>
+</head>
+<body class="site">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-head">
+  <a class="brand" href="/" aria-label="remmynd home"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>remmynd</a>
+  <nav class="site-nav" aria-label="Site">
+    <a href="/why" aria-current="page">Why</a>
+    <a href="/hosts">For hosts</a>
+    <a href="/docs">Docs</a>
+    <a href="/roadmap">Roadmap</a>
+    <a href="https://github.com/Remmynd/remmynd">GitHub</a>
+    <a class="pill" href="/install">Install</a>
+  </nav>
+  <button type="button" class="ghost menu-btn" id="menu-btn" aria-haspopup="dialog" aria-controls="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h16M4 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Menu</button>
+</header>
+<main id="main">
+<section class="sec narrow opening flow">
+  <p class="kicker">Why remmynd</p>
+  <h1>You don't have a memory problem. You have two gaps.</h1>
+  <p class="lede">A reminder can fail before the moment, and after it. Most tools only look at the first. Here is what the research says, and what remmynd does about each.</p>
+</section>
+
+<section class="sec tight" aria-labelledby="gap-1">
+  <div class="cols">
+    <div class="flow">
+      <p class="kicker">Gap one</p>
+      <h2 id="gap-1">You forget at the moment.</h2>
+      <div class="body">
+        <p>Remembering to do something later has a name: prospective memory. Failures of it make up 50 to 80 percent of everyday memory failures.<sup><a href="#s1" aria-label="Source 1">1</a></sup></p>
+        <p>It gets worse when you are busy. In one experiment, 8 percent of healthy young adults forgot an intended action. With their attention divided, 24 percent did.<sup><a href="#s2" aria-label="Source 2">2</a></sup></p>
+      </div>
+    </div>
+    <div class="card">
+      <p class="kicker">What remmynd does</p>
+      <h3>Remind in layers</h3>
+      <p>Text reminders lifted clinic attendance from 54 to 67 percent across 21 studies. Several notifications raised attendance by 25 percent, a single one by 6.<sup><a href="#s3" aria-label="Source 3">3</a></sup></p>
+      <div class="inset">
+        <div class="tickrow"><svg viewBox="0 0 24 24" aria-hidden="true"><circle class="disc" cx="12" cy="12" r="10"/><path class="mark" d="M7.5 12.5l3 3 6-6.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Calendar</div>
+        <div class="tickrow"><svg viewBox="0 0 24 24" aria-hidden="true"><circle class="disc" cx="12" cy="12" r="10"/><path class="mark" d="M7.5 12.5l3 3 6-6.5" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Notification, an hour before and at the start</div>
+      </div>
+      <p class="refs">Sources <a href="#s1">1</a>, <a href="#s2">2</a> and <a href="#s3">3</a> below</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec tight" aria-labelledby="gap-2">
+  <div class="cols">
+    <div class="flow">
+      <p class="kicker">Gap two</p>
+      <h2 id="gap-2">You remember, and still don't do it.</h2>
+      <div class="body">
+        <p>Intentions turn into action about half the time. Wanting to attend is not attending.<sup><a href="#s2" aria-label="Source 2">2</a></sup></p>
+        <p>What helps is a specific plan. When voters were asked what time they would vote, where they would be coming from and what they would do before, turnout rose 4.1 points among those reached. The plain reminder call did nothing.<sup><a href="#s4" aria-label="Source 4">4</a></sup></p>
+      </div>
+    </div>
+    <div class="card">
+      <p class="kicker">What remmynd does</p>
+      <h3>Follow through</h3>
+      <p>At the moment, the reminder carries the action: one tap opens the link. Afterwards it asks once: done, or not yet? If you want, it nudges up to three times.</p>
+      <div class="choice" aria-hidden="true"><span>Not yet</span><span class="solid">Done</span></div>
+      <p class="refs">Sources <a href="#s2">2</a> and <a href="#s4">4</a> below</p>
+    </div>
+  </div>
+</section>
+
+<section class="band" aria-labelledby="brain">
+  <div class="sec flow">
+    <p class="kicker">A very small second brain</p>
+    <h2 id="brain">A notebook can be part of your memory, if you can trust it.</h2>
+    <p class="body">In 1998 the philosophers Andy Clark and David Chalmers argued that a notebook counts as part of a person's memory when three things hold. Those three things are our product rules.<sup><a href="#s5" aria-label="Source 5">5</a></sup></p>
+    <div class="trio">
+      <div><b>Always there</b><span>Works offline, on every device, from any link.</span></div>
+      <div><b>Easy to reach</b><span>One line to put something in. One tap to save it.</span></div>
+      <div><b>Trusted</b><span>It never loses a reminder and never cries wolf.</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec narrow flow" aria-labelledby="sources">
+  <h2 id="sources">Sources</h2>
+  <ol class="sources">
+    <li id="s1"><a href="https://doi.org/10.1007/s00426-020-01357-6">Zuber and colleagues (2021)</a>, Psychological Research.</li>
+    <li id="s2"><a href="https://eprints.whiterose.ac.uk/id/eprint/107519/">Sheeran and Webb (2016)</a>, The Intention–Behavior Gap, Social and Personality Psychology Compass 10(9).</li>
+    <li id="s3"><a href="https://bmjopen.bmj.com/content/6/10/e012116.full">Robotham and colleagues (2016)</a>, BMJ Open 6(10).</li>
+    <li id="s4"><a href="https://marketing.wharton.upenn.edu/wp-content/uploads/2016/10/nickerson20and20rogers_FINAL.pdf">Nickerson and Rogers (2010)</a>, Psychological Science 21(2).</li>
+    <li id="s5"><a href="https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2020.01278/full">Piredda and Di Francesco (2020)</a> on Clark and Chalmers (1998), Frontiers in Psychology.</li>
+  </ol>
+  <p class="note">An honest limit: these studies come from clinics, elections and laboratories, not from reminder links. They tell us what to build. They do not promise a number for remmynd.</p>
+</section>
+
+<section class="sec tight">
+  <div class="cta">
+    <h2>Hand it over. Get it back at the right moment.</h2>
+    <a class="btn" href="/">Make a reminder</a>
+  </div>
+</section>
+</main>
+<footer class="site-foot">
+  <div class="foot-grid">
+    <div class="foot-brand">
+      <span class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>remmynd</span>
+      <p>A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.</p>
+    </div>
+    <nav aria-labelledby="f-product"><span class="label" id="f-product">Product</span><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/install">Install</a><a href="/roadmap">Roadmap</a><a href="/changelog">Changelog</a></nav>
+    <nav aria-labelledby="f-dev"><span class="label" id="f-dev">Developers</span><a href="/docs">Docs</a><a href="https://github.com/Remmynd/remmynd">GitHub</a><a href="https://www.npmjs.com/package/remmynd">npm</a><a href="/docs#self-host">Self-host</a></nav>
+    <nav aria-labelledby="f-company"><span class="label" id="f-company">Company</span><a href="https://zoof04.com">About</a><a href="/press">Press</a><a href="/privacy">Privacy</a></nav>
+  </div>
+  <div class="foot-row">
+    <span>Free, no sign-up, no tracking.</span>
+    <div class="theme" role="group" aria-labelledby="theme-f"><span class="label" id="theme-f">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+  </div>
+</footer>
+<div class="sheet" id="menu" hidden role="dialog" aria-modal="true" aria-label="Menu">
+  <div class="sheet-card menu-card">
+    <button type="button" class="sheet-x" id="menu-x" aria-label="Close">×</button>
+    <nav class="menu-links" aria-label="Menu"><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/docs">Docs</a><a href="/roadmap">Roadmap</a><a href="https://github.com/Remmynd/remmynd">GitHub</a></nav>
+    <div class="theme" role="group" aria-labelledby="theme-m"><span class="label" id="theme-m">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+  </div>
+</div>
+</body>
+</html>

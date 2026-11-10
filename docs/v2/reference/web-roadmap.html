@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>remmynd website, roadmap and changelog</title>
+<!-- remmynd 2.0 design reference. A static mock-up: copy structure, sizes and values from it.
+     Do not ship this file. Colours here are the light theme; see ../tokens.css for both themes.
+     The fonts are Geist and Geist Mono; until they are self-hosted this page falls back to system fonts. -->
+<style>
+body{margin:0;background:#E9EBEE}
+a{color:#0E0F11;text-decoration:none}a:hover{color:#3A3D42}
+</style>
+</head>
+<body>
+<div style="box-sizing: border-box; background: #F5F6F7; color: #0E0F11; font-family: 'Geist', system-ui, sans-serif; display: flex; flex-direction: column">
+
+<header style="padding: 20px 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 28px">
+<a href="web-home.html" style="display: flex; align-items: center; gap: 8px">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="#0E0F11" stroke-width="2" stroke-linecap="round"></path><path d="M12 12L15.214 8.17" stroke="#0E0F11" stroke-width="2" stroke-linecap="round"></path><circle cx="12" cy="12" r="1.24" fill="#0E0F11"></circle><circle cx="17.785" cy="5.106" r="2.1" fill="#F2A000"></circle></svg>
+<span style="font-size: 19px; font-weight: 600; letter-spacing: -0.01em">remmynd</span>
+</a>
+<nav style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; font-size: 15px; font-weight: 500">
+<a href="web-why.html">Why</a>
+<a href="web-home.html">For hosts</a>
+<a href="#">Docs</a>
+<a href="web-roadmap.html" aria-current="page" style="text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px">Roadmap</a>
+<a href="#">GitHub</a>
+<a href="#" style="height: 44px; padding: 0 18px; display: flex; align-items: center; background: #0E0F11; color: #F5F6F7; border-radius: 22px; font-weight: 600">Install</a>
+</nav>
+</header>
+
+<section style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 64px 32px 32px; display: flex; flex-direction: column; gap: 18px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.08em; color: #666C75">ROADMAP</div>
+<h1 style="margin: 0; font-size: clamp(36px, 5vw, 64px); line-height: 1; font-weight: 600; letter-spacing: -0.04em">What we're building, in the open.</h1>
+<p style="margin: 0; max-width: 640px; font-size: 19px; line-height: 1.5; color: #666C75">Now is what ships in 2.0. Next follows in December. Later needs more signal first. Vote or suggest on GitHub.</p>
+<a href="#" style="align-self: flex-start; height: 48px; padding: 0 20px; display: flex; align-items: center; background: #FFFFFF; border: 1px solid #E3E5E8; border-radius: 18px; font-size: 15px; font-weight: 600">Open GitHub Discussions</a>
+</section>
+
+<section style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 24px 32px 64px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px">
+
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="height: 40px; display: flex; align-items: center; gap: 10px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #F2A000"></span><span style="font-size: 17px; font-weight: 600">Now</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">remmynd 2.0</span></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">One-line capture</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Type it the way you'd say it.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">The moment ring</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">The logo becomes a live dial on every reminder.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">The reminder stack</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Calendar and notification from one tap.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Close the loop</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Done or not yet, plus optional nudges.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Desk to phone</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">A QR code on every reminder.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Writable links</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Make a reminder from a plain web address.</div></div>
+</div>
+
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="height: 40px; display: flex; align-items: center; gap: 10px"><span style="width: 10px; height: 10px; border-radius: 5px; background: #0E0F11"></span><span style="font-size: 17px; font-weight: 600">Next</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">December</span></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Smart paste</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">On-device AI reads an email or a poster.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Email reminders</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Opt-in, and deleted once sent.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Connector for AI assistants</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Ask your assistant for a reminder link.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">My plan line</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Say when and where. The alert repeats it back.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; background: #FFFFFF; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Embed button</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Open the reminder on your own site.</div></div>
+</div>
+
+<div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+<div style="height: 40px; display: flex; align-items: center; gap: 10px"><span style="width: 10px; height: 10px; box-sizing: border-box; border-radius: 5px; border: 2px solid #666C75"></span><span style="font-size: 17px; font-weight: 600">Later</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">2027</span></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; border: 1px dashed #B9BEC6; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Wallet pass</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">On the Lock Screen at the right time.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; border: 1px dashed #B9BEC6; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">iPhone and Android apps</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">The remmynd sound, widgets and a live countdown.</div></div>
+<div style="padding: 18px; display: flex; flex-direction: column; gap: 6px; border: 1px dashed #B9BEC6; border-radius: 20px"><div style="font-size: 16px; font-weight: 600">Links a host can update</div><div style="font-size: 14px; line-height: 1.45; color: #666C75">Change the time and every saved reminder follows.</div></div>
+</div>
+
+</section>
+
+<section style="width: 100%; max-width: 920px; margin: 0 auto; box-sizing: border-box; padding: 0 32px 72px; display: flex; flex-direction: column; gap: 20px">
+<h2 style="margin: 0; font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">Changelog</h2>
+<div style="padding: 20px 22px; display: flex; flex-wrap: wrap; gap: 8px 24px; background: #FFFFFF; border-radius: 20px">
+<div style="flex: 0 0 170px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; line-height: 1.6">v2.0.0<br><span style="color: #666C75">[RELEASE DATE]</span></div>
+<div style="flex: 1 1 320px; min-width: 0; font-size: 15px; line-height: 1.55; color: #4A4F57">One-line capture, the moment ring, the reminder stack, follow-through, and this website.</div>
+</div>
+<div style="padding: 20px 22px; display: flex; flex-wrap: wrap; gap: 8px 24px; background: #FFFFFF; border-radius: 20px">
+<div style="flex: 0 0 170px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; line-height: 1.6">v1.0.0<br><span style="color: #666C75">November 2026</span></div>
+<div style="flex: 1 1 320px; min-width: 0; font-size: 15px; line-height: 1.55; color: #4A4F57">First public release: reminder links, one-tap calendar save, an installable web app, the npm package and the command-line tool.</div>
+</div>
+</section>
+
+<footer style="border-top: 1px solid #E3E5E8">
+<div style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; font-size: 14px">
+<div style="color: #666C75">A free tool by <a href="https://zoof04.com" style="font-weight: 600; text-decoration: underline; text-underline-offset: 3px">zoof04</a>. MIT licence.</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px 24px"><a href="web-home.html">Home</a><a href="web-why.html">Why</a><a href="#">Docs</a><a href="#">Privacy</a><a href="#">Press</a><a href="#">GitHub</a></div>
+</div>
+</footer>
+
+</div>
+</body>
+</html>

@@ -12,12 +12,12 @@
 <meta property="og:description" content="Reminders, as a link. Free, no sign-up, no tracking.">
 <meta property="og:image" content="https://remmynd.space/og.png">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#f5f6f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0b0c0e" media="(prefers-color-scheme: dark)">
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="favicon.ico" sizes="48x48">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" id="tc-light" content="#F5F6F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" id="tc-dark" content="#0B0C0E" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-title" content="remmynd">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -25,264 +25,94 @@
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="remmynd: Reminders, as a link.">
 <meta name="twitter:image" content="https://remmynd.space/og.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
-<style>
-/* Layout: one narrow column. The event is a ticket stub, the only object on the page with a border and a shadow. Ink button, one amber dot. */
-:root{
-  --bg:#f5f6f7; --surface:#ffffff; --fg:#0e0f11; --muted:#666c75; --faint:#9aa0a8; --line:#e3e5e8; --chip:#eef0f2;
-  --dot:#f2a000; --btn:#0e0f11; --btn-fg:#ffffff;
-  --shadow:0 1px 2px rgba(14,15,17,.04),0 14px 36px -14px rgba(14,15,17,.14);
-  --sans:"Geist",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
-  --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0b0c0e; --surface:#141518; --fg:#f2f3f5; --muted:#949aa3; --faint:#62686f; --line:#25272c; --chip:#1d1f23;
-  --dot:#ffb52e; --btn:#f2f3f5; --btn-fg:#0b0c0e; --shadow:0 1px 2px rgba(0,0,0,.3),0 18px 44px -18px rgba(0,0,0,.7); color-scheme:dark}}
-:root[data-theme="dark"]{
-  --bg:#0b0c0e; --surface:#141518; --fg:#f2f3f5; --muted:#949aa3; --faint:#62686f; --line:#25272c; --chip:#1d1f23;
-  --dot:#ffb52e; --btn:#f2f3f5; --btn-fg:#0b0c0e; --shadow:0 1px 2px rgba(0,0,0,.3),0 18px 44px -18px rgba(0,0,0,.7); color-scheme:dark}
-*{box-sizing:border-box}
-html,body{margin:0}
-body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
-a{color:inherit}
-button{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--fg);outline-offset:2px;border-radius:6px}
-.app{max-width:560px;margin:0 auto}
-[hidden]{display:none!important}
-
-/* top bar */
-.top{display:flex;align-items:center;justify-content:space-between;height:60px}
-.brand{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:17px;letter-spacing:-.03em;text-decoration:none}
-.brand svg{width:22px;height:22px}
-.ghost{font-size:14px;color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:999px}
-.ghost:hover{color:var(--fg);background:var(--chip)}
-
-/* hero */
-.hero{padding:36px 0 28px}
-.hero h1{font-size:clamp(40px,10vw,60px);line-height:1;letter-spacing:-.05em;font-weight:600;margin:0 0 16px;text-wrap:balance}
-.hero h1 span{color:var(--faint)}
-.hero p{font-size:17px;color:var(--muted);margin:0;max-width:40ch}
-
-/* composer */
-.composer{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden}
-.composer .cell{display:grid;gap:2px;padding:12px 16px;border-top:1px solid var(--line);min-width:0}
-.composer .cell:first-child{border-top:0}
-.composer label{font-size:12px;color:var(--muted)}
-.composer input,.composer select,.composer textarea{border:0;background:transparent;padding:2px 0;font:400 16px var(--sans);color:var(--fg);width:100%;min-width:0;outline:none}
-.composer input::placeholder,.composer textarea::placeholder{color:var(--faint)}
-.composer .cell:focus-within{background:color-mix(in srgb,var(--chip) 55%,transparent)}
-#f-title{font-size:21px;font-weight:500;letter-spacing:-.02em;padding:6px 0}
-.split{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--line)}
-.split .cell{border-top:0}
-.split .cell+.cell{border-left:1px solid var(--line)}
-@media (max-width:480px){.split{grid-template-columns:1fr}.split .cell+.cell{border-left:0;border-top:1px solid var(--line)}}
-.composer textarea{resize:vertical;min-height:52px}
-.subbar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
-.linkish{background:none;border:0;padding:0;color:var(--fg);cursor:pointer;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
-#f-tz{font-size:13px;width:auto;max-width:220px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--surface)}
-#more-box{display:grid}
-
-.eyebrow{display:flex;align-items:center;gap:8px;font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:28px 0 10px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--dot);flex:none}
-
-/* output */
-.out{display:grid;gap:8px;margin-top:14px}
-#f-link{font:400 13px var(--mono);color:var(--fg);background:var(--chip);border:0;border-radius:12px;padding:13px 14px;width:100%;min-width:0;text-overflow:ellipsis}
-#f-link::placeholder{color:var(--faint)}
-.btnrow{display:grid;grid-template-columns:1fr auto;gap:8px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:50px;padding:0 20px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:600 15px var(--sans);letter-spacing:-.01em;cursor:pointer;text-decoration:none;transition:transform .12s ease}
-.btn:active{transform:scale(.985)}
-.btn.ink{background:var(--btn);color:var(--btn-fg);border-color:var(--btn)}
-.btn[aria-disabled="true"]{opacity:.45;pointer-events:none}
-.btn svg{width:18px;height:18px}
-
-/* ticket */
-.ticket{background:var(--surface);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;animation:rise .5s cubic-bezier(.2,.7,.2,1)}
-@keyframes rise{from{transform:translateY(8px)}to{transform:none}}
-.t-top{padding:22px 22px 18px;display:grid;gap:14px}
-.t-host{display:flex;align-items:center;gap:8px;font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.t-title{margin:0;font-size:25px;line-height:1.15;font-weight:600;letter-spacing:-.03em;text-wrap:balance;overflow-wrap:anywhere}
-.t-title.ph{color:var(--faint)}
-.t-date{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.t-time{font:500 clamp(46px,14vw,62px)/1 var(--mono);letter-spacing:-.06em;font-variant-numeric:tabular-nums;margin-top:4px}
-.t-time small{font-size:.32em;letter-spacing:0;margin-left:8px;color:var(--muted);font-weight:500}
-.t-zone{font-size:13px;color:var(--muted);margin-top:6px}
-.t-count{display:flex;gap:6px;flex-wrap:wrap}
-.t-count div{background:var(--chip);border-radius:10px;padding:7px 10px;min-width:54px;display:grid;line-height:1.2}
-.t-count b{font:500 17px var(--mono);font-variant-numeric:tabular-nums}
-.t-count i{font-style:normal;font-size:11px;color:var(--muted)}
-.live{display:inline-flex;align-items:center;gap:8px;font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;background:var(--chip);padding:8px 12px;border-radius:999px}
-.t-where{display:flex;gap:8px;align-items:flex-start;font-size:14px;min-width:0}
-.t-where svg{width:16px;height:16px;flex:none;margin-top:3px;color:var(--muted)}
-.t-where a,.t-where span{overflow-wrap:anywhere;min-width:0}
-.t-where a{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
-.t-notes{margin:0;color:var(--muted);font-size:14px;overflow-wrap:anywhere}
-.t-perf{position:relative;height:22px}
-.t-perf::before,.t-perf::after{content:"";position:absolute;top:0;width:22px;height:22px;border-radius:50%;background:var(--bg);border:1px solid var(--line)}
-.t-perf::before{left:-12px}.t-perf::after{right:-12px}
-.t-perf span{position:absolute;left:20px;right:20px;top:50%;border-top:1px dashed var(--line)}
-.t-bottom{padding:14px 22px 18px;display:grid;gap:12px}
-.remind{display:flex;align-items:center;justify-content:center;gap:10px;height:56px;border-radius:15px;background:var(--btn);color:var(--btn-fg);font:600 16px var(--sans);letter-spacing:-.01em;text-decoration:none;border:0;cursor:pointer;transition:transform .12s ease}
-.remind:active{transform:scale(.985)}
-.remind svg{width:20px;height:20px;transform-origin:50% 10%}
-.remind.rung svg{animation:ring .7s ease}
-@keyframes ring{0%,100%{transform:rotate(0)}20%{transform:rotate(16deg)}40%{transform:rotate(-14deg)}60%{transform:rotate(9deg)}80%{transform:rotate(-5deg)}}
-.t-sub{text-align:center;font-size:12px;color:var(--muted);margin-top:-4px}
-.alts{display:flex;flex-wrap:wrap;justify-content:center;gap:2px}
-.alts a,.alts button{font:500 13px var(--sans);color:var(--muted);background:none;border:0;padding:6px 9px;border-radius:8px;cursor:pointer;text-decoration:none}
-.alts a:hover,.alts button:hover{background:var(--chip);color:var(--fg)}
-.sleep{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--chip);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.4}
-.sleep b{font-weight:600}
-.switch{position:relative;width:40px;height:24px;flex:none}
-.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
-.switch span{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:background .2s}
-.switch span::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s}
-.switch input:checked+span{background:var(--fg)}
-.switch input:checked+span::after{transform:translateX(16px)}
-.switch input:focus-visible+span{outline:2px solid var(--fg);outline-offset:2px}
-.via{display:flex;justify-content:center;align-items:center;gap:6px;font:500 11px var(--mono);letter-spacing:.04em;color:var(--faint);text-decoration:none}
-.via svg{width:13px;height:13px}
-.preview .remind{pointer-events:none}
-
-.fine{text-align:center;font-size:13px;color:var(--muted);margin:16px auto 0;max-width:44ch}
-.fine a{color:var(--fg)}
-
-/* badge */
-.section{margin-top:56px}
-.section h2{font-size:22px;letter-spacing:-.03em;font-weight:600;margin:0 0 6px}
-.section > p{color:var(--muted);margin:0 0 16px}
-.badges{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.badges a{display:block;line-height:0;border-radius:22px}
-.seg{display:inline-flex;background:var(--chip);border-radius:10px;padding:3px;gap:2px}
-.seg button{border:0;background:none;padding:6px 12px;border-radius:8px;font:500 13px var(--sans);color:var(--muted);cursor:pointer}
-.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.snip-bar{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;margin-bottom:8px}
-pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;overflow-x:auto;white-space:pre}
-.small{height:36px;padding:0 14px;font-size:13px;border-radius:10px}
-/* notify me + coming up */
-.notify{border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:grid;gap:10px}
-.nrow{display:flex;align-items:center;gap:12px}
-.nrow>svg{width:20px;height:20px;flex:none}
-.ntext{flex:1;min-width:0;display:grid}
-.ntext b{font-size:15px;font-weight:600}
-.ntext span{font-size:13px;color:var(--muted)}
-.nchips{display:flex;gap:6px;flex-wrap:wrap}
-.nchips span{font-size:12px;font-weight:500;background:var(--chip);border-radius:999px;padding:4px 10px}
-.cu{margin:0 0 28px}
-.cu h2{font-size:22px;letter-spacing:-.03em;font-weight:600;margin:0}
-.cu-note{font-size:13px;color:var(--muted);margin:2px 0 12px}
-.cu-list{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden}
-.cu-item{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid var(--line);text-decoration:none;color:var(--fg)}
-.cu-item:first-child{border-top:0}
-.cu-item:hover{background:var(--chip)}
-.cu-date{width:44px;display:grid;text-align:center;flex:none}
-.cu-date i{font:500 11px var(--mono);letter-spacing:.06em;color:var(--muted);font-style:normal}
-.cu-date b{font:500 22px var(--mono);letter-spacing:-.04em}
-.cu-main{flex:1;min-width:0;display:grid}
-.cu-main b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cu-main span{font-size:13px;color:var(--muted)}
-.cu-chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;background:var(--chip);border-radius:999px;padding:4px 10px;flex:none}
-.cu-chip.muted{background:none;color:var(--muted)}
-
-/* facts */
-.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:56px;padding-top:24px;border-top:1px solid var(--line)}
-.facts h3{font-size:14px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
-.facts p{font-size:13px;color:var(--muted);margin:0}
-@media (max-width:520px){.facts{grid-template-columns:1fr;gap:14px}}
-
-footer{margin-top:40px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
-footer a{color:var(--muted);text-decoration:none}
-footer a:hover{color:var(--fg)}
-
-.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);background:var(--fg);color:var(--bg);padding:11px 16px;border-radius:999px;font-size:14px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center;z-index:20}
-.toast.show{opacity:1;transform:translate(-50%,0)}
-/* install helper */
-.chip{display:inline-flex;align-items:center;gap:8px;margin-top:18px;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:500 13px var(--sans);cursor:pointer}
-.chip svg{width:15px;height:15px}
-.sheet{position:fixed;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;background:rgba(14,15,17,.32);padding:0 max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
-.sheet-card{position:relative;width:100%;max-width:440px;background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 24px 60px -20px rgba(0,0,0,.45);animation:sheetUp .28s cubic-bezier(.2,.7,.2,1);margin-bottom:64px}
-@keyframes sheetUp{from{transform:translateY(24px)}to{transform:none}}
-.sheet-x{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;border:0;background:var(--chip);color:var(--muted);font-size:20px;line-height:1;cursor:pointer}
-.sheet-head{display:flex;gap:14px;align-items:center;margin:0 36px 16px 0}
-.sheet-head img{width:52px;height:52px;border-radius:13px;flex:none}
-.sheet-head b{display:block;font-size:17px;letter-spacing:-.02em}
-.sheet-head span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
-.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:s}
-.steps li{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;font-size:15px;counter-increment:s}
-.steps li::before{content:counter(s);width:26px;height:26px;border-radius:50%;background:var(--chip);display:grid;place-items:center;font:600 13px var(--mono);flex:none}
-.kbd{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;background:var(--chip);border-radius:8px;padding:3px 8px;font-weight:600}
-.kbd svg{width:16px;height:16px}
-.sheet .btn{width:100%;margin-top:4px}
-.sheet-note{font-size:12px;color:var(--muted);margin:12px 0 0}
-.arrow{position:fixed;z-index:31;width:44px;height:44px;color:#fff;filter:drop-shadow(0 2px 6px rgba(0,0,0,.4));animation:bob 1.1s ease-in-out infinite;pointer-events:none}
-.arrow.br{right:calc(22px + env(safe-area-inset-right,0px));bottom:calc(6px + env(safe-area-inset-bottom,0px))}
-.arrow.bc{left:50%;margin-left:-22px;bottom:calc(4px + env(safe-area-inset-bottom,0px))}
-.arrow.tr{right:calc(16px + env(safe-area-inset-right,0px));top:calc(4px + env(safe-area-inset-top,0px));transform:rotate(180deg);animation-name:bobUp}
-@keyframes bob{0%,100%{translate:0 0}50%{translate:0 8px}}
-@keyframes bobUp{0%,100%{translate:0 0}50%{translate:0 -8px}}
-@media (prefers-reduced-motion:reduce){.ticket,.remind.rung svg,.sheet-card,.arrow{animation:none}.toast,.switch span,.switch span::after{transition:none}}
-</style>
+<script>try{var t=localStorage.getItem("rm:theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preload" href="/fonts/geist-5.3-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/geist-mono-5.3-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/app.css">
 </head>
 <body>
 <div class="app">
   <nav class="top">
-    <a class="brand" href="#" id="home-link" aria-label="remmynd home">
-      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--dot)"/></svg>
+    <a class="brand" href="/" id="home-link" aria-label="remmynd home">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>
       remmynd
     </a>
-    <a class="ghost" href="#example" id="nav-right">See an example</a>
+    <span class="top-r"><a class="ghost" href="/#example" id="nav-right">See an example</a><button type="button" class="ghost menu-btn icon" id="menu-btn" aria-label="Menu" aria-haspopup="dialog" aria-controls="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h16M4 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></span>
   </nav>
 
   <!-- Visitor -->
   <main id="view" hidden>
     <article class="ticket" id="t-view"></article>
-    <p class="fine">No account needed. This reminder lives in its link, so you can forward it. <a href="#" id="make-own">Make one for your event</a></p>
+    <p class="fine">No account needed. This reminder lives in its link, so you can forward it. <a href="/" id="make-own">Make one for your event</a></p>
   </main>
 
-  <!-- Maker -->
+  <!-- Maker: one line in, a link out -->
   <main id="home" hidden>
-    <header class="hero">
-      <h1>Reminders, <span>as a link.</span></h1>
-      <p>Type what and when, then share the link. Anyone who taps it saves it to their calendar in one tap.</p>
+   <div class="maker">
+    <header class="hero" id="hero">
+      <div class="label">Free · open source · no sign-up</div>
+      <h1>Reminders that make sure it happens.</h1>
+      <p>Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.</p>
       <button type="button" class="chip" id="hero-install" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>Add to Home Screen</button>
     </header>
 
-    <section class="cu" id="coming-up" hidden></section>
-
-    <form class="composer" id="f" autocomplete="off">
-      <div class="cell"><label for="f-title">What</label><input id="f-title" maxlength="120" placeholder="Launch day, live stream, sale ends…" enterkeyhint="next"></div>
-      <div class="split">
-        <div class="cell"><label for="f-when">When</label><input id="f-when" type="datetime-local" required></div>
-        <div class="cell"><label for="f-loc">Where <span style="color:var(--faint)">(optional)</span></label><input id="f-loc" maxlength="200" placeholder="Link or place"></div>
-      </div>
-      <div id="more-box" hidden>
-        <div class="cell"><label for="f-notes">Notes</label><textarea id="f-notes" maxlength="300" placeholder="One line on why it matters"></textarea></div>
-        <div class="split">
-          <div class="cell"><label for="f-host">Hosted by</label><input id="f-host" maxlength="40" placeholder="You or your company"></div>
-          <div class="cell"><label for="f-dur">Length</label><select id="f-dur"><option value="15">15 min</option><option value="30">30 min</option><option value="60" selected>1 hour</option><option value="120">2 hours</option><option value="240">4 hours</option></select></div>
-        </div>
-      </div>
-      <div class="subbar">
-        <span>Time zone: <button type="button" class="linkish" id="tz-btn"></button><select id="f-tz" aria-label="Time zone" hidden></select></span>
-        <button type="button" class="linkish" id="more-btn" aria-expanded="false">Add notes and host</button>
+    <form class="capture" id="cap-form" autocomplete="off" hidden>
+      <label for="cap" class="label" id="cap-l">New reminder</label>
+      <div class="cap-bar">
+        <input id="cap" type="text" placeholder="Demo day Fri 5pm zoom.us/j/123" enterkeyhint="go" autocapitalize="sentences" spellcheck="false" maxlength="600">
+        <button type="submit" class="cap-go" aria-label="Make the link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
       </div>
     </form>
 
-    <div class="eyebrow"><span class="dot"></span>What people see</div>
-    <article class="ticket preview" id="t-preview"></article>
+    <section class="lists" id="lists" hidden>
+      <nav class="tabs" aria-label="Your lists"><a href="/#coming-up" id="tab-coming">Coming up</a><a href="/#links" id="tab-links">My links</a></nav>
+      <div class="li-body" id="list-body"></div>
+      <p class="hint" id="list-hint" hidden></p>
+    </section>
 
-    <div class="out">
-      <input id="f-link" readonly aria-label="Your reminder link" placeholder="Add a title to get your link">
-      <div class="btnrow">
-        <button class="btn ink" id="f-copy" type="button" aria-disabled="true">Copy link</button>
-        <button class="btn" id="f-share" type="button" aria-disabled="true" aria-label="Share link">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v13M7 8l5-5 5 5"/></svg>Share
-        </button>
+    <section class="try" id="try" aria-labelledby="try-l">
+      <div class="label" id="try-l">Try one</div>
+      <div class="rows" id="try-list"></div>
+    </section>
+
+    <!-- While typing: the live preview and what was found in the line -->
+    <section class="draft" id="draft" hidden>
+      <div class="label" id="found-l">Found in your line</div>
+      <div class="chips" role="group" aria-labelledby="found-l">
+        <button type="button" class="fchip" id="c-what"><span>What</span><b></b></button>
+        <label class="fchip when" id="c-when"><span>When</span><b></b><input type="datetime-local" id="c-when-in" aria-label="When"></label>
+        <button type="button" class="fchip" id="c-where"><span>Where</span><b></b></button>
+        <button type="button" class="fchip add" id="c-note">+ Note</button>
       </div>
-    </div>
+      <div class="edit" id="edit" hidden>
+        <label class="label" for="edit-in" id="edit-l">What</label>
+        <div class="edit-row"><input id="edit-in" maxlength="300" enterkeyhint="done"><button type="button" class="btn ink small" id="edit-ok">Done</button></div>
+      </div>
+    </section>
+
+    <!-- After Enter: the link, already copied -->
+    <section class="ready" id="ready" hidden>
+      <a class="mini" id="ready-card" href="/"></a>
+      <div class="out">
+        <div class="linkbox"><input id="f-link" readonly aria-label="Your reminder link"><span class="copied" id="copied" hidden>Copied</span></div>
+        <div class="btnrow">
+          <button class="btn ink" id="f-copy" type="button">Copy link</button>
+          <button class="btn" id="f-share" type="button" aria-label="Share link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v13M7 8l5-5 5 5"/></svg>Share
+          </button>
+          <button class="btn" id="f-qr" type="button" aria-label="Show a QR code for this link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg>QR
+          </button>
+        </div>
+        <div class="label">How it looks in chats</div>
+        <div class="chat" id="chat-card"></div>
+        <label class="opt-row">
+          <span class="opt-text"><b id="priv-l">Private link</b><span id="priv-d">Keeps the title and time out of link previews.</span></span>
+          <span class="switch"><input type="checkbox" id="f-private" role="switch" aria-labelledby="priv-l" aria-describedby="priv-d"><span></span></span>
+        </label>
+      </div>
+      <a class="row-link" href="#badge">Get the Remind me badge<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+    </section>
 
     <section class="section" id="badge">
       <h2>A Remind me button for your site</h2>
@@ -293,7 +123,7 @@ footer a:hover{color:var(--fg)}
         <div class="seg" role="group" aria-label="Badge colour"><button type="button" data-theme-b="light" aria-pressed="true">Light</button><button type="button" data-theme-b="dark" aria-pressed="false">Dark</button></div>
       </div>
       <pre id="snip"></pre>
-      <div style="margin-top:8px"><button class="btn small" type="button" id="snip-copy">Copy code</button></div>
+      <div class="mt-8"><button class="btn small" type="button" id="snip-copy">Copy code</button></div>
     </section>
 
     <section class="facts">
@@ -301,252 +131,73 @@ footer a:hover{color:var(--fg)}
       <div><h3>Private by design</h3><p>Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.</p></div>
       <div><h3>Free and open source</h3><p>MIT licensed. Host your own copy if you like.</p></div>
     </section>
+   </div>
+
+    <!-- The ticket: below the line on phones while typing; always on the right from 960 px -->
+    <aside class="pane" id="pane" aria-live="polite">
+      <div class="label" id="pane-l">Live preview</div>
+      <article class="ticket preview" id="t-preview"></article>
+      <p class="hint" id="draft-hint">Not a link yet. Press Enter to make it.</p>
+    </aside>
   </main>
 
-  <footer>
-    <span>remmynd is a free, open-source tool by <a href="https://zoof04.com">zoof04</a></span>
-    <span><a href="https://github.com/Remmynd/remmynd">Source</a> <button type="button" class="linkish" id="install" hidden style="margin-left:12px;color:var(--muted)">Install app</button></span>
+  <footer class="site-foot">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <span class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>remmynd</span>
+        <p>A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.</p>
+      </div>
+      <nav aria-labelledby="f-product"><span class="label" id="f-product">Product</span><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/install">Install</a><a href="/roadmap">Roadmap</a><a href="/changelog">Changelog</a></nav>
+      <nav aria-labelledby="f-dev"><span class="label" id="f-dev">Developers</span><a href="/docs">Docs</a><a href="https://github.com/Remmynd/remmynd">GitHub</a><a href="https://www.npmjs.com/package/remmynd">npm</a><a href="/docs#self-host">Self-host</a></nav>
+      <nav aria-labelledby="f-company"><span class="label" id="f-company">Company</span><a href="https://zoof04.com">About</a><a href="/press">Press</a><a href="/privacy">Privacy</a></nav>
+    </div>
+    <div class="foot-row">
+      <span>Free, no sign-up, no tracking.</span>
+      <div class="theme" role="group" aria-labelledby="theme-f"><span class="label" id="theme-f">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+    </div>
   </footer>
 </div>
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-t">
   <div class="sheet-card">
     <button type="button" class="sheet-x" id="sheet-x" aria-label="Close">×</button>
-    <div class="sheet-head"><img src="icon-192.png" alt=""><div><b id="sheet-t">Add remmynd to your Home Screen</b><span>Opens like an app, works offline. No account.</span></div></div>
+    <div class="sheet-head"><img src="/icon-192.png" alt=""><div><b id="sheet-t">Add remmynd to your Home Screen</b><span>Opens like an app, works offline. No account.</span></div></div>
     <div id="sheet-body"></div>
+  </div>
+</div>
+<div class="sheet" id="replan" hidden role="dialog" aria-modal="true" aria-labelledby="rp-t">
+  <div class="sheet-card rp">
+    <button type="button" class="sheet-x" id="rp-x" aria-label="Close">×</button>
+    <div class="rp-head" id="rp-head"></div>
+    <h2 id="rp-t">Not yet? Pick when.</h2>
+    <p class="rp-sub">We'll bring it back then, one tap from the link.</p>
+    <div class="rp-grid" id="rp-grid"></div>
+    <label class="btn rp-pick">Pick a time<input type="datetime-local" id="rp-pick" aria-label="Pick a time"></label>
+    <button type="button" class="more rp-drop" id="rp-drop">Drop this reminder</button>
+  </div>
+</div>
+<div class="sheet" id="qr-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="qr-t">
+  <div class="sheet-card qr-card">
+    <button type="button" class="sheet-x" id="qr-x" aria-label="Close">×</button>
+    <h2 id="qr-t">Scan to send it to your phone</h2>
+    <p class="rp-sub">No account. The reminder travels in the link.</p>
+    <div class="qr-box" id="qr-box"></div>
+    <button type="button" class="btn ink" id="qr-save">Download QR code</button>
+  </div>
+</div>
+<div class="sheet" id="menu" hidden role="dialog" aria-modal="true" aria-label="Menu">
+  <div class="sheet-card menu-card">
+    <button type="button" class="sheet-x" id="menu-x" aria-label="Close">×</button>
+    <nav class="menu-links" aria-label="Menu"><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/docs">Docs</a><a href="/roadmap">Roadmap</a><a href="https://github.com/Remmynd/remmynd">GitHub</a></nav>
+    <div class="theme" role="group" aria-labelledby="theme-m"><span class="label" id="theme-m">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+    <div class="theme" role="group" aria-labelledby="sound-m"><span class="label" id="sound-m">Sound</span><div class="seg"><button type="button" data-sound="on" aria-pressed="true">On</button><button type="button" data-sound="off" aria-pressed="false">Off</button></div></div>
+    <button type="button" class="btn" id="install" hidden>Install app</button>
   </div>
 </div>
 <div class="arrow" id="arrow" hidden aria-hidden="true"><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17M5 13l7 7 7-7"/></svg></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script>
-(()=>{"use strict";
-const $=s=>document.querySelector(s);
-const TZ=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
-const OWN=/(^|\.)remmynd\.space$|\.workers\.dev$|\.pages\.dev$|^localhost$|^127\./.test(location.hostname);
-const BASE=OWN?location.origin+"/":"https://remmynd.space/";
-
-/* ---------- link encoding: the URL fragment is the database ---------- */
-const enc=o=>{const b=new TextEncoder().encode(JSON.stringify(o));let s="";b.forEach(x=>s+=String.fromCharCode(x));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");};
-const dec=s=>{try{const bin=atob(s.replace(/-/g,"+").replace(/_/g,"/"));const o=JSON.parse(new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0))));return o&&typeof o.t==="string"&&o.t&&o.s?o:null;}catch(e){return null;}};
-const startOf=r=>/T/.test(String(r.s))?new Date(r.s):new Date(parseInt(r.s,36)*6e4);
-const pack=d=>Math.round(d.getTime()/6e4).toString(36);
-const linkFor=(r,key)=>key?BASE+key:BASE+"#"+enc(r);
-
-/* ---------- time ---------- */
-function parts(date,tz){const g={};new Intl.DateTimeFormat("en-US",{timeZone:tz,hourCycle:"h23",year:"numeric",month:"numeric",day:"numeric",hour:"numeric",minute:"numeric",second:"numeric"}).formatToParts(date).forEach(x=>g[x.type]=x.value);return{y:+g.year,mo:+g.month,d:+g.day,h:(+g.hour)%24,mi:+g.minute,s:+g.second};}
-function offsetMin(date,tz){const p=parts(date,tz);return(Date.UTC(p.y,p.mo-1,p.d,p.h,p.mi,p.s)-Math.floor(date.getTime()/1000)*1000)/6e4;}
-function zonedToUTC(y,mo,d,h,mi,tz){const guess=Date.UTC(y,mo-1,d,h,mi);let off=offsetMin(new Date(guess),tz);off=offsetMin(new Date(guess-off*6e4),tz);return new Date(guess-off*6e4);}
-function morningOf(start,tz){const p=parts(start,tz);let m=zonedToUTC(p.y,p.mo,p.d,9,0,tz);if(m<=start)m=zonedToUTC(p.y,p.mo,p.d+1,9,0,tz);return m;}
-const fDate=(d,tz)=>new Intl.DateTimeFormat(undefined,{timeZone:tz,weekday:"short",day:"numeric",month:"short"}).format(d);
-const fShort=(d,tz)=>new Intl.DateTimeFormat(undefined,{timeZone:tz,hour:"numeric",minute:"2-digit"}).format(d);
-function fTime(d,tz){let main="",per="";new Intl.DateTimeFormat(undefined,{timeZone:tz,hour:"numeric",minute:"2-digit"}).formatToParts(d).forEach(x=>{if(x.type==="dayPeriod")per=x.value;else main+=x.value;});return{main:main.trim(),per};}
-const fZone=(d,tz)=>{const p=new Intl.DateTimeFormat("en-US",{timeZone:tz,timeZoneName:"short"}).formatToParts(d).find(x=>x.type==="timeZoneName");return p?p.value:"";};
-const city=tz=>(tz.split("/").pop()||tz).replace(/_/g," ");
-const pad=n=>String(n).padStart(2,"0");
-const isHttp=s=>/^https?:\/\//i.test(s||"");
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-/* Named pages: remmynd.space/<name>. Each returns a reminder object. */
-const PRESETS={
-  example:()=>{const p=parts(new Date(Date.now()+3*864e5),TZ);return{t:"Example: launch day",s:pack(zonedToUTC(p.y,p.mo,p.d,18,0,TZ)),d:60,l:"https://remmynd.space",n:"This is a sample reminder. Make your own in a few seconds."};}
-};
-/* ---------- calendar payloads (credit lives in the description; nothing about the viewer is included) ---------- */
-const stamp=d=>d.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
-const iesc=s=>String(s).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
-const te=new TextEncoder();
-function fold(l){const out=[];let cur="",n=0;for(const ch of l){const b=te.encode(ch).length;if(n+b>73){out.push(cur);cur=" ";n=1;}cur+=ch;n+=b;}out.push(cur);return out.join("\r\n");}
-function hash(s){let h=5381;for(const c of s)h=(h*33)^c.charCodeAt(0);return(h>>>0).toString(36);}
-function eventOf(r,key,start,title,mins){
-  const share=linkFor(r,key),end=new Date(start.getTime()+mins*6e4);
-  const head=[r.n,isHttp(r.l)?"Join: "+r.l:""].filter(Boolean);
-  const desc=(head.length?head.join("\n")+"\n\n":"")+"Reminder link: "+share+"\nMade with remmynd.space · free reminder links, no sign-up";
-  return{title,start,end,loc:r.l||"",desc,url:isHttp(r.l)?r.l:share,uid:"rm-"+pack(startOf(r))+"-"+hash(r.t)+"@remmynd.space"};
-}
-function ics(ev){const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//zoof04//remmynd//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT","UID:"+ev.uid,"DTSTAMP:"+stamp(new Date()),"DTSTART:"+stamp(ev.start),"DTEND:"+stamp(ev.end),"SUMMARY:"+iesc(ev.title),"DESCRIPTION:"+iesc(ev.desc)];
-  if(ev.loc)L.push("LOCATION:"+iesc(ev.loc));L.push("URL:"+ev.url);
-  L.push("BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+iesc(ev.title),"TRIGGER:-PT1H","END:VALARM","BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+iesc(ev.title),"TRIGGER:PT0M","END:VALARM","END:VEVENT","END:VCALENDAR");
-  return L.map(fold).join("\r\n")+"\r\n";}
-const gcal=ev=>"https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(ev.title)+"&dates="+stamp(ev.start)+"/"+stamp(ev.end)+"&details="+encodeURIComponent(ev.desc)+"&location="+encodeURIComponent(ev.loc);
-const outlook=(ev,host)=>"https://"+host+"/calendar/0/action/compose?rru=addevent&subject="+encodeURIComponent(ev.title)+"&startdt="+ev.start.toISOString()+"&enddt="+ev.end.toISOString()+"&body="+encodeURIComponent(ev.desc)+"&location="+encodeURIComponent(ev.loc);
-
-/* ---------- device: pick the one-tap default ---------- */
-const UA=navigator.userAgent;
-const IOS=/iPhone|iPad|iPod/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1);
-const MAC_SAFARI=!IOS&&/Macintosh/.test(UA)&&/Safari/.test(UA)&&!/Chrome|Chromium|Edg|Firefox/.test(UA);
-const IN_APP=/FBAN|FBAV|Instagram|LinkedInApp|Line\/|Twitter|CriOS|FxiOS|EdgiOS|GSA\//.test(UA);
-const PREF=(IOS||MAC_SAFARI)?"apple":"google";
-
-/* ---------- icons ---------- */
-const I={
-  bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
-  link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
-  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>',
-  mark:'<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--dot)"/></svg>'
-};
-
-/* ---------- ticket ---------- */
-const S={r:null,key:null,morning:null,blob:null};
-function countHTML(start){return'<div class="t-count" data-until="'+start.getTime()+'"></div>';}
-function tick(){document.querySelectorAll("[data-until]").forEach(el=>{const ms=+el.dataset.until-Date.now();
-  if(ms<=0){if(!el.dataset.done){el.innerHTML='<span class="live"><span class="dot"></span>Live now</span>';el.dataset.done=1;}return;}
-  delete el.dataset.done;const d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4),s=Math.floor(ms%6e4/1e3);
-  el.innerHTML=(d?'<div><b>'+d+'</b><i>days</i></div>':'')+'<div><b>'+pad(h)+'</b><i>hrs</i></div><div><b>'+pad(m)+'</b><i>min</i></div><div><b>'+pad(s)+'</b><i>sec</i></div>';});}
-setInterval(tick,1000);
-
-function renderTicket(el,r,o){
-  const start=startOf(r),p=parts(start,TZ),night=p.h>=23||p.h<7;
-  if(o.interactive&&S.morning===null)S.morning=night;
-  const morning=o.interactive&&night&&S.morning;
-  const when=morning?morningOf(start,TZ):start;
-  const t=fTime(start,TZ);
-  const where=r.l?'<div class="t-where">'+(isHttp(r.l)?I.link+'<a href="'+esc(r.l)+'" target="_blank" rel="noopener">'+esc(r.l.replace(/^https?:\/\//,"").replace(/\/$/,""))+'</a>':I.pin+'<span>'+esc(r.l)+'</span>')+'</div>':'';
-  const sub=PREF==="apple"?"Adds to your calendar with alerts":"Opens Google Calendar · tap Save";
-  el.innerHTML=
-   '<div class="t-top">'+
-     '<div class="t-host"><span class="dot"></span>'+(r.h?"From "+esc(r.h):"Reminder")+'</div>'+
-     '<h2 class="t-title'+(o.ph?" ph":"")+'">'+esc(r.t)+'</h2>'+
-     '<div><div class="t-date">'+esc(fDate(start,TZ))+'</div><div class="t-time">'+esc(t.main)+(t.per?'<small>'+esc(t.per)+'</small>':'')+'</div>'+
-     '<div class="t-zone">Your time · '+esc(city(TZ))+' ('+esc(fZone(start,TZ))+')</div></div>'+
-     countHTML(start)+where+(r.n?'<p class="t-notes">'+esc(r.n)+'</p>':'')+
-   '</div><div class="t-perf" aria-hidden="true"><span></span></div>'+
-   '<div class="t-bottom">'+
-     (o.interactive&&night?'<div class="sleep"><span>That’s <b>'+esc(fShort(start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(start,TZ),TZ))+'</b> instead.</span><label class="switch"><input type="checkbox" id="sleep"'+(morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
-     (o.interactive?'<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+sub+'</div>'+
-       '<div class="alts"><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button></div><div id="notify-row"></div>'
-     :'<div class="remind" aria-hidden="true">'+I.bell+'Remind me</div>')+
-     '<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I.mark+'remmynd</a>'+
-   '</div>';
-  tick();
-  if(!o.interactive)return;
-  const title=morning?r.t+" (live since "+fShort(start,TZ)+")":r.t;
-  const ev=eventOf(r,S.key,when,title,morning?15:(r.d||60));
-  const file=(r.t.replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase().slice(0,40)||"reminder")+".ics";
-  let icsHref,useDownload;
-  if(IN_APP&&IOS&&OWN){icsHref="/ics?d="+enc({t:title,s:pack(when),d:morning?15:(r.d||60),l:r.l,n:r.n,u:linkFor(r,S.key),k:pack(start),o:r.t});useDownload=false;}
-  else{if(S.blob)URL.revokeObjectURL(S.blob);S.blob=URL.createObjectURL(new Blob([ics(ev)],{type:"text/calendar;charset=utf-8"}));icsHref=S.blob;useDownload=true;}
-  const setApple=a=>{a.href=icsHref;if(useDownload)a.download=file;};
-  const g=gcal(ev);
-  $("#a-google").href=g;setApple($("#a-apple"));
-  $("#a-outlook").href=outlook(ev,"outlook.live.com");$("#a-o365").href=outlook(ev,"outlook.office.com");
-  const btn=$("#remind");
-  if(PREF==="apple")setApple(btn);else{btn.href=g;btn.target="_blank";btn.rel="noopener";}
-  const after=msg=>()=>{btn.classList.remove("rung");void btn.offsetWidth;btn.classList.add("rung");setTimeout(()=>toast(msg),250);};
-  btn.addEventListener("click",after(PREF==="apple"?"Your calendar will ask you to add it":"Google Calendar opened. Tap Save to finish."));
-  $("#a-google").addEventListener("click",()=>setTimeout(()=>toast("Tap Save in Google Calendar"),250));
-  $("#a-apple").addEventListener("click",()=>setTimeout(()=>toast("Open the file to add it to your calendar"),250));
-  $("#a-share").addEventListener("click",()=>shareIt({title:r.t,text:r.t+" · "+fDate(start,TZ)+", "+fShort(start,TZ),url:linkFor(r,S.key)},"Pick Reminders or Notes to save it"));
-  $("#a-copy").addEventListener("click",()=>copy(r.t+"\n"+fDate(start,TZ)+", "+fShort(start,TZ)+" ("+fZone(start,TZ)+")"+(r.l?"\n"+r.l:"")+"\n"+linkFor(r,S.key),"Copied"));
-  const sw=$("#sleep");if(sw)sw.addEventListener("change",()=>{S.morning=sw.checked;renderTicket(el,r,o);});
-  const nd={el:$("#notify-row"),r,key:S.key,start,share:linkFor(r,S.key),morningAt:morning?when:null};window.__rmLast={type:"ticket",detail:nd};window.dispatchEvent(new CustomEvent("rm:ticket",{detail:nd}));
-}
-
-/* ---------- utilities ---------- */
-function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2400);}
-function copy(text,msg){const ok=()=>toast(msg||"Copied");const fb=()=>{const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy")?ok():toast("Select the text and copy it");}catch(e){toast("Select the text and copy it");}ta.remove();};
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,fb);else fb();}
-async function shareIt(data,msg){if(navigator.share){try{await navigator.share(data);toast(msg);return;}catch(e){if(e&&e.name==="AbortError")return;}}copy(data.url,"Link copied. Paste it into Reminders or Notes.");}
-
-/* ---------- maker ---------- */
-const F={title:$("#f-title"),when:$("#f-when"),loc:$("#f-loc"),notes:$("#f-notes"),host:$("#f-host"),dur:$("#f-dur"),tz:$("#f-tz"),tzBtn:$("#tz-btn"),link:$("#f-link"),copy:$("#f-copy"),share:$("#f-share")};
-(function initTZ(){let list=[TZ];try{if(Intl.supportedValuesOf)list=Intl.supportedValuesOf("timeZone");}catch(e){}if(!list.includes(TZ))list.unshift(TZ);
-  F.tz.innerHTML=list.map(z=>'<option'+(z===TZ?" selected":"")+'>'+esc(z)+'</option>').join("");setTZLabel();})();
-function setTZLabel(){const z=F.tz.value||TZ;F.tzBtn.textContent=city(z)+" ("+fZone(new Date(),z)+")";}
-F.tzBtn.addEventListener("click",()=>{F.tzBtn.hidden=true;F.tz.hidden=false;F.tz.focus();});
-F.tz.addEventListener("change",()=>{setTZLabel();update();});
-F.tz.addEventListener("blur",()=>{F.tz.hidden=true;F.tzBtn.hidden=false;});
-$("#more-btn").addEventListener("click",e=>{const box=$("#more-box");box.hidden=!box.hidden;e.currentTarget.setAttribute("aria-expanded",String(!box.hidden));e.currentTarget.textContent=box.hidden?"Add notes and host":"Hide notes and host";if(!box.hidden)F.notes.focus();});
-(function defaultWhen(){const p=parts(new Date(Date.now()+864e5),TZ);F.when.value=p.y+"-"+pad(p.mo)+"-"+pad(p.d)+"T10:00";})();
-function readForm(){if(!F.when.value)return null;const[dt,tm]=F.when.value.split("T");const[y,mo,d]=dt.split("-").map(Number);const[h,mi]=tm.split(":").map(Number);
-  const start=zonedToUTC(y,mo,d,h,mi,F.tz.value||TZ);if(isNaN(start))return null;
-  const r={t:F.title.value.trim(),s:pack(start)};if(+F.dur.value!==60)r.d=+F.dur.value;
-  const l=F.loc.value.trim(),n=F.notes.value.trim(),hh=F.host.value.trim();if(l)r.l=l;if(n)r.n=n;if(hh)r.h=hh;return r;}
-let SNIP={fmt:"html",theme:"light"};
-function update(){const r=readForm();const prev=$("#t-preview");
-  if(r){renderTicket(prev,r.t?r:{...r,t:"Your event"},{interactive:false,ph:!r.t});}
-  const link=r&&r.t?linkFor(r,null):"";F.link.value=link;
-  [F.copy,F.share].forEach(b=>b.setAttribute("aria-disabled",String(!link)));snippet();}
-["input","change"].forEach(ev=>$("#f").addEventListener(ev,update));
-$("#f").addEventListener("submit",e=>e.preventDefault());
-F.title.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();F.when.focus();}});
-F.copy.addEventListener("click",()=>F.link.value&&copy(F.link.value,"Link copied. Share it anywhere."));
-F.share.addEventListener("click",()=>{if(!F.link.value)return;const r=readForm();shareIt({title:r.t,text:"Get a reminder: "+r.t,url:F.link.value},"Shared");});
-F.link.addEventListener("focus",()=>F.link.select());
-
-/* ---------- badge ---------- */
-function badgeSVG(theme){const dk=theme==="dark",bg=dk?"#0e0f11":"#ffffff",st=dk?"#2a2c31":"#e3e5e8",fg=dk?"#f2f3f5":"#0e0f11",mu=dk?"#9aa0a8":"#666c75",dot=dk?"#ffb52e":"#f2a000";
-  return'<svg xmlns="http://www.w3.org/2000/svg" width="172" height="44" viewBox="0 0 172 44" role="img" aria-label="Remind me, with remmynd"><rect x=".5" y=".5" width="171" height="43" rx="21.5" fill="'+bg+'" stroke="'+st+'"/><g transform="translate(13 10)" fill="none"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="'+fg+'" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="'+fg+'" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="'+fg+'"/><circle cx="17.785" cy="5.106" r="2.1" fill="'+dot+'"/></g><text x="47" y="18.5" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="8.5" font-weight="600" letter-spacing=".9" fill="'+mu+'">REMMYND</text><text x="47" y="33" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="600" letter-spacing="-.2" fill="'+fg+'">Remind me</text></svg>';}
-$("#badges").innerHTML='<a href="#example" aria-label="Light badge example">'+badgeSVG("light")+'</a><a href="#example" aria-label="Dark badge example">'+badgeSVG("dark")+'</a>';
-function snippet(){const L=F.link.value||"https://remmynd.space/#your-link",img="https://remmynd.space/badge"+(SNIP.theme==="dark"?"-dark":"")+".svg";
-  $("#snip").textContent=SNIP.fmt==="md"?"[![Remind me]("+img+")]("+L+")":'<a href="'+L+'" target="_blank" rel="noopener">\n  <img src="'+img+'" alt="Remind me" width="172" height="44">\n</a>';}
-document.querySelectorAll("[data-fmt],[data-theme-b]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.fmt?"fmt":"theme";SNIP[k]=b.dataset.fmt||b.dataset.themeB;
-  b.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));snippet();}));
-$("#snip-copy").addEventListener("click",()=>copy($("#snip").textContent,"Code copied"));
-
-/* ---------- routing ---------- */
-function showHome(){$("#view").hidden=true;$("#home").hidden=false;const n=$("#nav-right");n.textContent="See an example";n.href="#example";document.title="remmynd";update();window.__rmLast={type:"home"};window.dispatchEvent(new Event("rm:home"));}
-function showView(r,key){S.r=r;S.key=key;S.morning=null;$("#home").hidden=true;$("#view").hidden=false;const n=$("#nav-right");n.textContent="Make your own";n.href="#";
-  renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
-function route(){const h=decodeURIComponent(location.hash.slice(1));if(PRESETS[h])return showView(PRESETS[h](),h);const r=h&&dec(h);if(r)return showView(r,null);showHome();}
-const goHome=e=>{e.preventDefault();if(location.hash){location.hash="";}else showHome();};
-$("#home-link").addEventListener("click",goHome);$("#make-own").addEventListener("click",goHome);
-$("#nav-right").addEventListener("click",e=>{if($("#nav-right").getAttribute("href")==="#")goHome(e);});
-window.addEventListener("hashchange",route);route();
-
-/* ---------- install (PWA) ---------- */
-const STANDALONE=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
-const IOS_VER=(()=>{const m=UA.match(/OS (\d+)_/)||UA.match(/Version\/(\d+)/);return m?+m[1]:0;})();
-const IPAD=/iPad/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1);
-const SOCIAL_APP=/FBAN|FBAV|Instagram|LinkedInApp|Line\/|Twitter|Snapchat|Pinterest|GSA\//.test(UA);
-const IOS_OTHER=IOS&&/CriOS|FxiOS|EdgiOS/.test(UA);
-let deferred=null,installMode=null;
-const ICON={share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v13M7 8l5-5 5 5"/></svg>',
-  dots:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
-  plus:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>'};
-const k=(icon,label)=>'<span class="kbd">'+(icon?ICON[icon]:"")+label+'</span>';
-function detectInstall(){
-  if(STANDALONE)return null;
-  if(deferred)return"prompt";
-  if(SOCIAL_APP)return"social";
-  if(IOS&&IOS_OTHER)return IOS_VER>=16?"ios-other":null;
-  if(IOS)return IOS_VER>=26?"ios26":"ios";
-  return null;
-}
-function sheetBody(mode){
-  if(mode==="prompt")return'<button type="button" class="btn ink" id="do-install">Install remmynd</button><p class="sheet-note">Free. Adds an icon to your home screen. Remove it any time.</p>';
-  if(mode==="ios26")return'<ol class="steps"><li>Tap '+k("dots","")+' next to the address bar</li><li>Tap '+k("share","Share")+'</li><li>Scroll and tap '+k("plus","Add to Home Screen")+'</li><li>Tap <b>Add</b></li></ol>';
-  if(mode==="ios")return'<ol class="steps"><li>Tap '+k("share","Share")+(IPAD?' at the top':' at the bottom')+'</li><li>Scroll and tap '+k("plus","Add to Home Screen")+'</li><li>Tap <b>Add</b></li></ol>';
-  if(mode==="ios-other")return'<ol class="steps"><li>Tap '+k("share","Share")+' in the address bar</li><li>Tap '+k("plus","Add to Home Screen")+'</li><li>Tap <b>Add</b></li></ol>';
-  if(mode==="social")return'<ol class="steps"><li>Apps like Instagram and LinkedIn can\'t add pages to your home screen</li><li>Tap '+k("dots","")+' at the top and choose <b>Open in browser</b>, or copy the link</li></ol><button type="button" class="btn" id="copy-page" style="margin-top:14px">Copy link</button>';
-  return"";
-}
-function arrowFor(mode){const a=$("#arrow");a.classList.remove("br","bc","tr");
-  const pos=mode==="ios26"?(IPAD?"tr":"br"):mode==="ios"?(IPAD?"tr":"bc"):mode==="ios-other"?"tr":null;
-  if(pos){a.classList.add(pos);a.hidden=false;}else a.hidden=true;}
-function openSheet(){const mode=detectInstall();if(!mode)return false;
-  $("#toast").classList.remove("show");$("#sheet-body").innerHTML=sheetBody(mode);$("#sheet").hidden=false;arrowFor(mode);
-  const di=$("#do-install");if(di){di.focus();di.addEventListener("click",async()=>{if(!deferred)return;closeSheet();deferred.prompt();try{await deferred.userChoice;}catch(e){}deferred=null;refreshInstall();});}
-  const cp=$("#copy-page");if(cp)cp.addEventListener("click",()=>copy(location.href,"Link copied. Paste it into Safari or Chrome."));
-  return true;}
-function closeSheet(){$("#sheet").hidden=true;$("#arrow").hidden=true;}
-$("#sheet-x").addEventListener("click",closeSheet);
-$("#sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet();});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#sheet").hidden)closeSheet();});
-const inst=$("#install"),heroInst=$("#hero-install");
-function refreshInstall(){installMode=detectInstall();const show=!!installMode&&OWN;inst.hidden=!show;heroInst.hidden=!show;}
-[inst,heroInst].forEach(b=>b.addEventListener("click",()=>{if(!openSheet())toast("Open remmynd.space in Safari or Chrome to install it");}));
-window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferred=e;refreshInstall();});
-window.addEventListener("appinstalled",()=>{deferred=null;closeSheet();refreshInstall();toast("Added. Find remmynd on your home screen.");});
-/* Offer it once, right after someone gets value: saved a reminder or copied a link. */
-const NUDGE_KEY="remmynd-install-nudge";
-function nudgeInstall(){if(!OWN||STANDALONE)return;let last=0;try{last=+localStorage.getItem(NUDGE_KEY)||0;}catch(e){}
-  if(Date.now()-last<14*864e5)return;
-  setTimeout(()=>{if(document.hidden)return;if(openSheet()){try{localStorage.setItem(NUDGE_KEY,String(Date.now()));}catch(e){}}},1800);}
-document.addEventListener("click",e=>{if(e.target.closest("#remind,#a-google,#a-apple,#f-copy,#f-share"))nudgeInstall();});
-refreshInstall();
-/* shared with push.js */
-window.__rm={OWN,IOS,STANDALONE,TZ,openSheet,toast,fShort};
-if("serviceWorker" in navigator&&OWN&&location.protocol==="https:")navigator.serviceWorker.register("sw.js").catch(()=>{});
-})();
-</script>
-<script src="push.js" defer></script>
+<script src="/db.js" defer></script>
+<script type="module" src="/app.js"></script>
+<script src="/push.js" defer></script>
 </body>
 </html>

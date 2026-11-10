@@ -2,24 +2,73 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Not found · remmynd</title>
+<meta name="description" content="This page doesn't exist. If someone sent you a reminder, the link may have been cut short.">
 <meta name="robots" content="noindex">
+<meta property="og:title" content="Not found · remmynd">
+<meta property="og:description" content="This page doesn't exist. If someone sent you a reminder, the link may have been cut short.">
+<meta property="og:image" content="https://remmynd.space/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="remmynd: Reminders, as a link.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://remmynd.space/og.png">
+<meta name="theme-color" id="tc-light" content="#F5F6F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" id="tc-dark" content="#0B0C0E" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
-<style>
-:root{--bg:#f5f6f7;--fg:#0e0f11;--muted:#666c75;--dot:#f2a000}
-@media (prefers-color-scheme:dark){:root{--bg:#0b0c0e;--fg:#f2f3f5;--muted:#949aa3;--dot:#ffb52e}}
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--fg);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;padding:24px;text-align:center}
-svg{width:56px;height:56px}h1{font-size:28px;letter-spacing:-.03em;margin:18px 0 6px}p{color:var(--muted);margin:0 0 20px}
-a{display:inline-block;background:var(--fg);color:var(--bg);text-decoration:none;font-weight:600;padding:12px 18px;border-radius:12px}
-</style>
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<script>try{var t=localStorage.getItem("rm:theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preload" href="/fonts/geist-5.3-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/site.css">
+<script src="/site.js" defer></script>
 </head>
-<body>
-<main>
-<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--dot)"/></svg>
-<h1>This page doesn't exist</h1>
-<p>If someone sent you a reminder, the link may have been cut short.</p>
-<a href="/">Make a reminder</a>
+<body class="site">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-head">
+  <a class="brand" href="/" aria-label="remmynd home"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>remmynd</a>
+  <nav class="site-nav" aria-label="Site">
+    <a href="/why">Why</a>
+    <a href="/hosts">For hosts</a>
+    <a href="/docs">Docs</a>
+    <a href="/roadmap">Roadmap</a>
+    <a href="https://github.com/Remmynd/remmynd">GitHub</a>
+    <a class="pill" href="/install">Install</a>
+  </nav>
+  <button type="button" class="ghost menu-btn" id="menu-btn" aria-haspopup="dialog" aria-controls="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h16M4 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Menu</button>
+</header>
+<main id="main">
+<section class="sec narrow opening flow">
+  <p class="kicker">Not found</p>
+  <h1>This page doesn't exist.</h1>
+  <p class="lede">If someone sent you a reminder, the link may have been cut short. Ask them to send it again.</p>
+  <div class="btns"><a class="btn ink" href="/">Make a reminder</a><a class="btn" href="/why">Why remmynd</a></div>
+</section>
 </main>
+<footer class="site-foot">
+  <div class="foot-grid">
+    <div class="foot-brand">
+      <span class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>remmynd</span>
+      <p>A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.</p>
+    </div>
+    <nav aria-labelledby="f-product"><span class="label" id="f-product">Product</span><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/install">Install</a><a href="/roadmap">Roadmap</a><a href="/changelog">Changelog</a></nav>
+    <nav aria-labelledby="f-dev"><span class="label" id="f-dev">Developers</span><a href="/docs">Docs</a><a href="https://github.com/Remmynd/remmynd">GitHub</a><a href="https://www.npmjs.com/package/remmynd">npm</a><a href="/docs#self-host">Self-host</a></nav>
+    <nav aria-labelledby="f-company"><span class="label" id="f-company">Company</span><a href="https://zoof04.com">About</a><a href="/press">Press</a><a href="/privacy">Privacy</a></nav>
+  </div>
+  <div class="foot-row">
+    <span>Free, no sign-up, no tracking.</span>
+    <div class="theme" role="group" aria-labelledby="theme-f"><span class="label" id="theme-f">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+  </div>
+</footer>
+<div class="sheet" id="menu" hidden role="dialog" aria-modal="true" aria-label="Menu">
+  <div class="sheet-card menu-card">
+    <button type="button" class="sheet-x" id="menu-x" aria-label="Close">×</button>
+    <nav class="menu-links" aria-label="Menu"><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/docs">Docs</a><a href="/roadmap">Roadmap</a><a href="https://github.com/Remmynd/remmynd">GitHub</a></nav>
+    <div class="theme" role="group" aria-labelledby="theme-m"><span class="label" id="theme-m">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+  </div>
+</div>
 </body>
 </html>

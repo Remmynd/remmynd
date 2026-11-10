@@ -43,12 +43,13 @@ write("CHANGELOG.md", log);
 
 // package.json and the library's VERSION constant stay in step (a test checks this).
 write("package.json", pkg.replace(`"version": "${current}"`, `"version": "${next}"`));
-const lib = read("lib/remmynd.js");
-write("lib/remmynd.js", lib.replace(`export const VERSION = "${current}";`, `export const VERSION = "${next}";`));
+const lib = read("lib/remmynd.js").replace(`export const VERSION = "${current}";`, `export const VERSION = "${next}";`);
+write("lib/remmynd.js", lib);
+write("public/remmynd.js", lib); // the site serves the library itself; a test keeps the two identical
 
 console.log(`remmynd ${current} → ${next}
 
-Updated package.json, lib/remmynd.js and CHANGELOG.md. Next:
+Updated package.json, lib/remmynd.js, public/remmynd.js and CHANGELOG.md. Next:
 
   npm test
   git switch -c release/v${next}

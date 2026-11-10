@@ -7,8 +7,8 @@
   </a>
 </p>
 
-<p align="center"><strong>Reminders, as a link.</strong><br>
-Type what and when. Share the link. Anyone who taps it saves it to their calendar in one tap.</p>
+<p align="center"><strong>Reminders that make sure it happens.</strong><br>
+Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/remmynd"><img src="https://img.shields.io/npm/v/remmynd?color=0e0f11&label=npm" alt="npm version"></a>
@@ -20,6 +20,8 @@ Type what and when. Share the link. Anyone who taps it saves it to their calenda
 
 <p align="center">
   <a href="https://remmynd.space"><strong>remmynd.space</strong></a> ·
+  <a href="https://remmynd.space/why">Why</a> ·
+  <a href="https://remmynd.space/docs">Docs</a> ·
   <a href="docs/PRINCIPLES.md">Principles</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
   <a href="CHANGELOG.md">Changelog</a>
@@ -36,17 +38,20 @@ Type what and when. Share the link. Anyone who taps it saves it to their calenda
 Most "add to calendar" tools want an account, a dashboard and your visitors' data. remmynd wants none of that.
 
 - **No sign-up**, for you or for the people you share with.
-- **Private by design.** The whole reminder lives in the link, after the `#`, which browsers never send to a server. remmynd.space can't see what anyone is reminded about.
-- **One tap to save.** "Remind me" picks the right calendar for the device: Apple Calendar on iPhone, iPad and Mac Safari, Google Calendar everywhere else. Outlook, Microsoft 365, the phone's share sheet (Reminders, Notes) and plain text are one tap away.
+- **One line in.** Write `Demo day Fri 5pm zoom.us/j/123`, or paste an invitation. The ticket fills in as you type, and Enter makes the link.
+- **Reminded in layers.** One tap on Remind me sends the event to the calendar (Apple Calendar on iPhone, iPad and Mac Safari, Google Calendar elsewhere, with Outlook, Office 365 and more one tap away), turns on phone alerts an hour before and at the start where the device allows, and holds the reminder on the device.
+- **Followed through.** At the start the ticket offers Open the link, Not yet and Done. It asks once whether you made it, and nudges up to three times if you want.
+- **Private where it counts.** The reminder lives in the link. A shared link passes through remmynd.space only to fill its chat preview, and is never stored or logged; a private link never reaches a server. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
 - **Sleep-safe.** If an event falls between 11 PM and 7 AM for a visitor, they can be reminded at 9 AM their time instead.
-- **Phone notifications.** Turn on Notify me and get an alert 1 hour before and when it starts, with Snooze on Android and desktop. The event details stay on your device.
 - **Free and open source** under the MIT licence. Host your own copy if you like.
 
 ## Use it
 
 ### On the web
 
-Go to [remmynd.space](https://remmynd.space), fill in **what**, **when** and optionally **where**, then copy or share the link.
+Go to [remmynd.space](https://remmynd.space) and write it in one line, like `Demo day Fri 5pm zoom.us/j/123`. The ticket fills in as you type, and the What, When and Where chips let you fix any part. Press Enter: the link is made and copied, ready to share. Pasting an invitation works too.
+
+Whoever opens the link taps **Remind me** once: the event goes to their calendar (they confirm it there), notifications turn on where their device allows, and the ticket shows their reminder stack. **Coming up** lists the reminders held on that device and **My links** the links made on it; both stay on the device.
 
 ### Put a Remind me button on your site
 
@@ -80,6 +85,7 @@ Options
   --notes, -n    One line of notes
   --host         Who is hosting
   --length, -l   Minutes (default 60)
+  --private, -p  Make a private link (/#…): no preview, never reaches a server
   --ics [file]   Also write an .ics file ("-" prints it)
   --badge <fmt>  Print a Remind me badge snippet: html or md
   --dark         Use the dark badge
@@ -87,8 +93,28 @@ Options
   --json         Print everything as JSON
   --base <url>   Use your own remmynd host
 
-remmynd read <link>   Show what is inside a remmynd link
+remmynd read <link>   Show what is inside a remmynd link (shared or private)
 ```
+
+### From a script, a spreadsheet or an AI assistant
+
+Write the reminder into the address. remmynd turns it into a link:
+
+```text
+https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&l=https://lu.ma/demo
+```
+
+| Parameter | Meaning |
+|---|---|
+| `t` | Title (required) |
+| `at` | When, `YYYY-MM-DDTHH:mm`, optionally with `Z` or an offset like `+05:30` (required) |
+| `tz` | IANA time zone for `at`, like `Asia/Kolkata` |
+| `d` | Length in minutes (default 60) |
+| `l` | Place or link |
+| `n` | Notes |
+| `h` | Host |
+
+With `tz`, or a `Z` or offset in `at`, the address redirects to the shared link straight away. Without one, the time is read in the visitor's own time zone. If the title or time is missing, the maker opens with what was given.
 
 ### In your code
 
@@ -97,7 +123,7 @@ npm install remmynd
 ```
 
 ```js
-import { createLink, toICS, googleCalendarUrl, decode } from "remmynd";
+import { createLink, toICS, googleCalendarUrl, decode, fromQuery, parse } from "remmynd";
 
 const event = {
   title: "Demo day",
@@ -107,20 +133,29 @@ const event = {
   durationMinutes: 90
 };
 
-createLink(event);         // https://remmynd.space/#eyJ0Ijoi...
-toICS(event);              // .ics text with alerts 1 hour before and at the start
-googleCalendarUrl(event);  // Google Calendar "add event" link
-decode(link);              // { title, start: Date, durationMinutes, location, notes, host }
+createLink(event);                     // https://remmynd.space/r/eyJ0Ijoi...  shared: chat apps preview it
+createLink(event, { private: true });  // https://remmynd.space/#eyJ0Ijoi...   private: never reaches a server
+toICS(event);                          // .ics text with alerts 1 hour before and at the start
+googleCalendarUrl(event);              // Google Calendar "add event" link
+decode(link);                          // { title, start: Date, durationMinutes, location, notes, host, timeZone }
+fromQuery("t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata");  // an event, from /new-style parameters
+parse("Demo day Fri 5pm zoom.us/j/123");  // { title: "Demo day", start: Date, dur: null, place, tokens }
 ```
 
 Zero dependencies. Works in Node 20+, Deno, Bun, Cloudflare Workers and browsers. Types included.
 
 ## How a link works
 
+Every reminder is a small JSON object, base64url-encoded into the link. It comes in two forms with the same payload:
+
 ```text
-https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ
-                       └──────── base64url JSON ─────────┘
+https://remmynd.space/r/eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ   shared (the default)
+https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and every 1.x link
+                        └──────── base64url JSON ─────────┘
 ```
+
+- **Shared** links put the payload in the path, so chat apps can show the title and time in a preview card. The Worker reads it only to fill those preview tags. It stores and logs nothing, and the page is never cached.
+- **Private** links keep the payload after `#`, which browsers never send to a server. Turn on **Private link** in the maker, use `createLink(event, { private: true })`, or `npx remmynd … --private`.
 
 | Key | Meaning |
 |---|---|
@@ -130,8 +165,9 @@ https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ
 | `l` | Place or link |
 | `n` | Notes |
 | `h` | Host |
+| `z` | The host's IANA time zone, like `Asia/Kolkata` (optional; shows "Host time" and makes the preview readable) |
 
-Times are stored in UTC and shown in each visitor's own time zone.
+Times are stored in UTC and shown in each visitor's own time zone. Readers ignore keys they don't know, so old links keep working and new keys stay optional.
 
 Saved events include the reminder link and a short "Made with remmynd.space" line in their notes. Nothing about the person saving the event is collected or added.
 
@@ -149,13 +185,13 @@ The full picture, including how requests are routed, how the `/ics` fallback wor
 Free, no sign-up, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
 
 - No accounts, no cookies, no analytics, no tracking.
-- The reminder lives in the link. Opening it sends nothing about the event to remmynd.space.
-- **Notifications** (optional, only when you turn on Notify me): the event's title, time and link are saved on your device, in the browser's own storage. The server stores only three things per alert: a random id, your browser's anonymous push address, and when to ping it. At that time it sends an empty push; your device looks up what's due and shows it. The row is deleted as soon as it's sent. See [`worker/push.js`](worker/push.js) and [`worker/schema.sql`](worker/schema.sql).
+- The reminder lives in the link. A shared link (`/r/…`) passes through remmynd.space so chat apps can show its title and time; the Worker reads it only to fill those preview tags, and stores and logs nothing. A private link (`/#…`) keeps everything after `#`, which browsers never send to a server.
+- **Notifications** (optional, only when you allow them after Remind me): the event's title, time and link are saved on your device, in the browser's own storage. The server stores only three things per alert: a random id, your browser's anonymous push address, and when to ping it. At that time it sends an empty push; your device looks up what's due and shows it. The row is deleted as soon as it's sent. See [`worker/push.js`](worker/push.js) and [`worker/schema.sql`](worker/schema.sql).
 - `/ics` is used only by iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), which ignore calendar files made inside the page. It builds the file from the link in memory and keeps nothing.
 
 ## Self-host
 
-remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles `/ics`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
 
 ```sh
 git clone https://github.com/Remmynd/remmynd.git
@@ -172,7 +208,7 @@ To turn on notifications, run this once. It creates the D1 database and its tabl
 npm run push:setup
 ```
 
-Any static host works for the site alone. Without the Worker, everything works except the iPhone in-app browser fallback.
+Any static host works for the site alone, with private links: shared `/r/` links, `/new`, phone alerts and the iPhone in-app browser fallback need the Worker.
 
 ## Develop
 
@@ -190,6 +226,7 @@ No install step: there are no dependencies. See [CONTRIBUTING.md](CONTRIBUTING.m
 
 | Doc | What's in it |
 |---|---|
+| [remmynd.space/docs](https://remmynd.space/docs) | The same guide on the website, with [why remmynd](https://remmynd.space/why), [for hosts](https://remmynd.space/hosts) and the [roadmap](https://remmynd.space/roadmap) |
 | [Principles](docs/PRINCIPLES.md) | Why remmynd exists, what it will and won't do, and how changes are decided |
 | [Architecture](docs/ARCHITECTURE.md) | The link format, request routing, hosting and the delivery pipeline, with diagrams |
 | [Releasing and operations](docs/RELEASING.md) | Deploys, releases, versioning, rollback and one-time setup |

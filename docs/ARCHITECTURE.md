@@ -4,21 +4,28 @@ remmynd has three parts that share one link format:
 
 | Part | Where | What it does |
 |---|---|---|
-| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the app, `push.js` adds Notify me, `sw.js` works offline and shows alerts. No build step. |
-| **Worker** | `worker/` | Serves the site on Cloudflare, redirects `www`, builds `.ics` files for iPhone in-app browsers, and wakes devices for phone alerts. |
+| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the markup, `app.js` the app (an ES module that imports `remmynd.js`, an exact copy of the library, to read typed lines and make links, and `ring.js`, the moment ring; `qr.js` draws QR codes and loads only when one is asked for), `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `db.js` the on-device storage, `push.js` turns on notifications and fills the stack's Notification row, `sw.js` works offline and shows alerts. The website pages (`why/`, `hosts/`, `docs/`, `install/`, `roadmap/`, `privacy/`, `press/`, `changelog/`, one `index.html` each, and `404.html`) share the app's styles plus `site.css`, and `site.js` for the theme, the menu and the live numbers. No build step. |
+| **Worker** | `worker/` | Serves the site on Cloudflare, adds link-preview tags to shared `/r/` links (`preview.js`), turns `/new` addresses into links, redirects `www`, builds `.ics` files for iPhone in-app browsers, renders `CHANGELOG.md` at `/changelog` (`changelog.js`), serves GitHub and npm numbers at `/stats` (`stats.js`), and wakes devices for phone alerts. It reads links with the library itself. |
 | **Library and CLI** | `lib/`, `bin/` | The `remmynd` npm package and `npx remmynd`. Zero dependencies. |
 
-The tests in `test/` check that the website and the library produce identical links, so the three never drift apart.
+The tests in `test/` check that the website, the library and the Worker produce identical links, so the three never drift apart.
 
 ## The link
 
-Everything about a reminder lives in the URL fragment, the part after `#`. Browsers never send the fragment to a server, so remmynd.space never sees what anyone is reminded about.
+Everything about a reminder lives in the link, as base64url-encoded JSON. The same payload comes in two forms:
 
 ```text
-https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ
-└──────── page ──────┘ └──── base64url-encoded JSON ────────┘
-                         {"t":"Demo day","s":"htqsu"}
+https://remmynd.space/r/eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ   shared (the default)
+https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and every 1.x link
+└──────── page ──────┘  └──── base64url-encoded JSON ────────┘
+                          {"t":"Demo day","s":"htqsu"}
 ```
+
+| Form | Reaches the server? | Used for |
+|---|---|---|
+| Shared `/r/<payload>` | Yes, in passing: the Worker reads it to fill the preview tags, then forgets it. Never stored, logged or cached. | Links meant to be shared in chat |
+| Private `/#<payload>` | No. Browsers never send what follows `#`. | The **Private link** switch, and every 1.x link |
+| Written by hand `/new?t=…&at=…` | Yes, in passing | Scripts, spreadsheets and AI assistants. Redirects to the shared form. |
 
 | Key | Meaning | Notes |
 |---|---|---|
@@ -28,8 +35,9 @@ https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ
 | `l` | Place or link | Optional |
 | `n` | Notes | Optional |
 | `h` | Host | Optional |
+| `z` | The host's IANA time zone | Optional. The ticket shows "Host time"; the preview prints the time in this zone, or UTC without it |
 
-The format is a public contract. New keys must be optional and old links must keep working.
+The format is a public contract. New keys must be optional, readers ignore keys they don't know, and old links must keep working.
 
 ## What happens when someone taps a link
 
@@ -41,10 +49,16 @@ sequenceDiagram
     participant E as Cloudflare edge (Worker)
     participant C as Calendar app
 
-    V->>B: Taps https://remmynd.space/#eyJ0Ij…
-    B->>E: GET /  (the #fragment is never sent)
-    E-->>B: index.html, from static assets
-    B->>B: Decodes the fragment, shows the event in the visitor's time zone
+    alt Shared link
+        V->>B: Taps https://remmynd.space/r/eyJ0Ij…
+        B->>E: GET /r/eyJ0Ij…
+        E-->>B: index.html with this reminder's preview tags, no-store
+    else Private link
+        V->>B: Taps https://remmynd.space/#eyJ0Ij…
+        B->>E: GET /  (the #fragment is never sent)
+        E-->>B: index.html, from static assets
+    end
+    B->>B: Decodes the link, shows the event in the visitor's time zone
     V->>B: Taps "Remind me"
     alt Apple device in Safari
         B->>C: .ics file made in the page
@@ -60,7 +74,7 @@ sequenceDiagram
 
 ## How phone alerts work
 
-Notify me is optional and needs the person's permission. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
+Notifications are optional and need the person's permission: Remind me asks once, inside the tap, and the stack's Notification row turns them on or off. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
 
 ```mermaid
 sequenceDiagram
@@ -72,7 +86,7 @@ sequenceDiagram
     participant DB as D1 table pings
     participant S as Service worker (sw.js)
 
-    V->>P: Taps "Notify me" and allows notifications
+    V->>P: Taps "Remind me" and allows notifications
     P->>D: Saves title, time and link, one row per alert
     P->>E: POST /push/schedule (push address, random ids, times)
     E->>DB: Stores id, push address and time only
@@ -86,13 +100,43 @@ sequenceDiagram
 
 | Detail | Value |
 |---|---|
-| Alerts per reminder | 1 hour before and at the start, or one 9 AM alert when sleep-safe is on |
+| Alerts per reminder | 1 hour before, at the start, and a "did you make it?" check when it ends (start plus its length, or 30 minutes); with nudges on, 10, 20 and 30 minutes after the start. Sleep-safe: one 9 AM alert. Not yet: one alert at the chosen time |
+| Stopping alerts | Done, re-planning or dropping cancels what's left; opening the link (or a nudge) stops the nudges. The device forgets them at once and tells the server with `POST /push/cancel` |
 | Server row | `id`, `endpoint`, `at`, `created` (`worker/schema.sql`); nothing about the event |
 | Limits | 8 pings per request, 200 rows per device, at most 400 days ahead |
 | Push services accepted | Google (FCM), Mozilla, Apple and Windows push hosts only |
 | Cancelling | `POST /push/cancel` with the same push address; a device can only cancel its own pings |
 | Gone devices | A 400, 403, 404 or 410 from the push service deletes every row for that address |
 | iPhone | Needs remmynd on the Home Screen (iOS 16.4 and later); no Snooze or Open buttons |
+
+### On-device storage
+
+IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the page and the service worker share. Nothing in it leaves the device.
+
+| Store | Key | Holds |
+|---|---|---|
+| `alerts` | `id` (index `rkey`) | Phone alerts waiting to be shown |
+| `reminders` | `rkey` | Reminders held on this device, shown in Coming up (`/#coming-up`). On the upgrade from version 1 it is built from the existing alerts, one per `rkey` |
+| `links` | `share` | Links made on this device, shown in My links (`/#links`): title, start, when it was made, and whether it is private |
+
+## The moment ring
+
+`public/ring.js` draws the logo as a 24-hour dial of the viewer's own day (spec section 8): noon at the top, midnight at the bottom, the night from 22:00 to 06:00 shaded, and the reminder's time as the dot. It returns SVG markup; `app.css` colours it from the tokens and switches between states with one class, so Open to Held animates the gap closing.
+
+| State | When |
+|---|---|
+| Open | Not held on this device |
+| Held | Held (Remind me or a calendar option was tapped); kept in `reminders`, with which calendar it went to and the nudge switch |
+| Soon | Held, and starting within the hour; a countdown shows beside it |
+| Now | From the start until it ends |
+| Kept | Marked done: Done on the ticket, or Done on the check alert |
+| Missed | Ended, not done and not re-planned, or dropped |
+
+Every ring is an image with a label that says the time and the state in words, for example "Day dial showing 5:00 in the afternoon, reminder set".
+
+## Accessibility
+
+The tests hold the app and the website to WCAG AA: every text and background pair from the design tokens meets 4.5:1 (3:1 for large text) in both themes, controls are at least 44 px (`--tap`), every sheet is a named modal dialog that keeps Tab inside it and gives focus back when it closes, every image has alt text, headings never skip a level, and all motion stops under `prefers-reduced-motion`. Every ring says its time and state to screen readers.
 
 ## How requests are routed
 
@@ -107,12 +151,26 @@ flowchart TD
     I -- other method --> M405[405]
     I -- no --> PU{Path starts with /push/?}
     PU -- yes --> PR["/push/key, /push/schedule, /push/cancel<br/>JSON, Cache-Control: no-store"]
-    PU -- no --> P{Named page, e.g. /example?}
+    PU -- no --> SR{Path starts with /r/?}
+    SR -- "valid payload" --> PV["index.html + preview tags (HTMLRewriter)<br/>no-store, noindex"]
+    SR -- "bad payload" --> SH["Plain index.html, no-store"]
+    SR -- no --> NW{Path is /new?}
+    NW -- "exact time (tz, Z or offset)" --> RN["302 to the /r/ link"]
+    NW -- "no zone or missing parts" --> SN["Plain index.html, no-store;<br/>the page reads the time in the visitor's zone"]
+    NW -- no --> CL{Path is /changelog?}
+    CL -- yes --> CR["changelog/index.html with CHANGELOG.md<br/>rendered into it (HTMLRewriter)"]
+    CL -- no --> ST{Path is /stats?}
+    ST -- yes --> SS["Stars and downloads, asked of GitHub and npm<br/>by the Worker, cached an hour"]
+    ST -- no --> P{Named page, e.g. /example?}
     P -- yes --> RP["302 to /#example"]
     P -- no --> A[(Static assets<br/>public/)]
     A -- found --> OK[200 + headers from public/_headers]
     A -- not found --> NF[404 page]
 ```
+
+Website pages live in folders (`public/why/index.html`) and are served without the slash (`html_handling = "drop-trailing-slash"`): `/why/` redirects to `/why`. `CHANGELOG.md` is bundled into the Worker as text by a `[[rules]]` entry in `wrangler.toml`; `npm test` reads it the same way through `scripts/text-loader.mjs`.
+
+The page never asks another host for anything. The live numbers on For hosts come from `/stats`: the Worker asks `api.github.com` and `api.npmjs.org`, sends nothing about the visitor, and keeps the answer in Cloudflare's cache for an hour (five minutes when one number is missing). The service worker never caches `/stats`.
 
 Headers for static files live in `public/_headers`: security headers on every response, `no-cache` on the service worker so updates arrive immediately, a year of caching for icons and a day for badges.
 
@@ -128,7 +186,7 @@ Headers for static files live in `public/_headers`: security headers on every re
 | Push storage | D1 database `remmynd`, table `pings`, bound as `DB` |
 | Push timing | Cron trigger every minute (`scheduled` in `worker/index.js`) |
 | Push keys | VAPID public key in `wrangler.toml`, private key as the Worker secret `VAPID_PRIVATE_JWK` |
-| Logs | Workers observability isn't turned on in `wrangler.toml`, and the Worker never logs request addresses |
+| Logs | Workers observability is off in `wrangler.toml` (`[observability] enabled = false`, kept off by a test), and the Worker never logs request addresses |
 
 ## Delivery pipeline
 
@@ -149,12 +207,15 @@ Details, setup and rollback: [RELEASING.md](RELEASING.md).
 ## Repository layout
 
 ```text
-public/          the website: index.html, push.js, sw.js, icons, badges, manifest, _headers
-worker/          Cloudflare Worker: routing, the /ics route and push (push.js, schema.sql)
+public/          the app (index.html, app.js, app.css, remmynd.js, ring.js, qr.js, db.js, push.js, sw.js), the website pages
+                 (why/ hosts/ docs/ install/ roadmap/ privacy/ press/ changelog/, 404.html, site.css, site.js),
+                 fonts/, icons, badges, manifest, llms.txt, sitemap.xml, _headers
+worker/          Cloudflare Worker: routing, /r/ previews and /new (preview.js), /changelog (changelog.js), /stats (stats.js),
+                 the /ics route and push (push.js, schema.sql)
 lib/             the npm library (remmynd.js) and its TypeScript types
 bin/             the npx remmynd command
-test/            node:test suite for the library, CLI, site and Worker
-scripts/         release helpers and push:setup
+test/            node:test suite for the library, CLI, site and Worker, plus guards for third parties, size and logs
+scripts/         release helpers, push:setup and the .md text loader for tests
 brand/           logo, mark, avatars, social images and the brand guide
 docs/            principles, architecture and the release runbook
 .github/         CI, release and live-check workflows, issue and PR templates
