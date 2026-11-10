@@ -1,6 +1,7 @@
 /* remmynd app: the maker, the ticket and routing. Loaded as an ES module by index.html.
  * The library (remmynd.js) reads typed lines and makes links, so the site and the npm package agree. */
 import * as R from "/remmynd.js";
+import { ringSVG, ringLabel } from "/ring.js";
 const $=s=>document.querySelector(s);
 const TZ=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
 const OWN=/(^|\.)remmynd\.space$|\.workers\.dev$|\.pages\.dev$|^localhost$|^127\./.test(location.hostname);
@@ -66,33 +67,45 @@ const I={
 };
 
 /* ---------- ticket ---------- */
-const S={r:null,key:null,priv:false,morning:null,blob:null};
+const S={r:null,key:null,priv:false,morning:null,blob:null,held:false,rkey:""};
+const rkeyOf=(t,start)=>pack(start)+"-"+hash(t);
 /* The host's own clock, when the link carries their zone (z) and it differs from the viewer's. */
-function hostTime(start,z){if(!z||z===TZ)return"";try{const t=fShort(start,z),day=fDate(start,z)!==fDate(start,TZ);if(!day&&t===fShort(start,TZ))return"";
-  return'<div class="t-zone">Host time · '+esc((day?new Intl.DateTimeFormat(undefined,{timeZone:z,weekday:"short"}).format(start)+" ":"")+t)+' · '+esc(city(z))+'</div>';}catch(e){return"";}}
-function countHTML(start){return'<div class="t-count" data-until="'+start.getTime()+'"></div>';}
-function tick(){document.querySelectorAll("[data-until]").forEach(el=>{const ms=+el.dataset.until-Date.now();
-  if(ms<=0){if(!el.dataset.done){el.innerHTML='<span class="live"><span class="dot"></span>Live now</span>';el.dataset.done=1;}return;}
-  delete el.dataset.done;const d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4),s=Math.floor(ms%6e4/1e3);
-  el.innerHTML=(d?'<div><b>'+d+'</b><i>days</i></div>':'')+'<div><b>'+pad(h)+'</b><i>hrs</i></div><div><b>'+pad(m)+'</b><i>min</i></div><div><b>'+pad(s)+'</b><i>sec</i></div>';});}
+function hostClock(start,z){if(!z||z===TZ)return"";try{const t=fShort(start,z),day=fDate(start,z)!==fDate(start,TZ);if(!day&&t===fShort(start,TZ))return"";
+  return(day?new Intl.DateTimeFormat(undefined,{timeZone:z,weekday:"short"}).format(start)+" ":"")+t+" · "+city(z);}catch(e){return"";}}
+const lengthText=m=>m<60?m+" min":m%60?Math.floor(m/60)+" h "+(m%60)+" min":(m/60)+(m===60?" hour":" hours");
+/* The ring's state comes from the clock and from whether this device holds the reminder (section 8). */
+function ringState(start,end,held){const now=Date.now();if(now>=end)return"missed";if(now>=start)return"now";if(held&&start-now<=36e5)return"soon";return held?"held":"open";}
+function ringFor(start,state,size){const p=parts(start,TZ);return ringSVG({h:p.h,m:p.mi,state,size});}
+function tick(){document.querySelectorAll(".ticket[data-start]").forEach(el=>{const start=+el.dataset.start,end=+el.dataset.end,st=ringState(start,end,el.dataset.held==="1");
+  const svg=el.querySelector(".t-when .ring");if(svg&&!svg.classList.contains("ring-"+st)){svg.setAttribute("class","ring ring-"+st);const p=parts(new Date(start),TZ);svg.setAttribute("aria-label",ringLabel(p.h,p.mi,st));}
+  const soon=el.querySelector(".t-soon");if(!soon)return;const ms=start-Date.now();
+  soon.textContent=st==="now"?"Live now":ms>0&&ms<=36e5?"starts in "+Math.floor(ms/6e4)+":"+pad(Math.floor(ms%6e4/1e3)):"";soon.hidden=!soon.textContent;});}
 setInterval(tick,1000);
+/* Held: the gap closes, then a quiet two-note chime (unless Sound is off) and a short buzz. */
+const soundOn=()=>{try{return localStorage.getItem("rm:sound")!=="off";}catch(e){return true;}};
+function chime(){if(!soundOn())return;try{const ac=new(window.AudioContext||window.webkitAudioContext)(),t=ac.currentTime;
+  [[659,0],[988,.09]].forEach(([f,dt])=>{const o=ac.createOscillator(),g=ac.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0,t+dt);g.gain.linearRampToValueAtTime(.05,t+dt+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dt+.09);o.connect(g);g.connect(ac.destination);o.start(t+dt);o.stop(t+dt+.1);});
+  setTimeout(()=>ac.close(),500);}catch(e){}}
+function hold(el,r,start){if(S.held)return;S.held=true;el.dataset.held="1";tick();setTimeout(chime,320);try{navigator.vibrate&&navigator.vibrate(20);}catch(e){}
+  const DB=window.remmyndDB;if(DB)DB.put("reminders",{rkey:S.rkey,title:r.t,start:start.getTime(),dur:r.d||60,place:r.l||"",host:r.h||"",z:r.z||"",share:linkFor(r,S.key,S.priv),state:"held",nudge:false,heldAt:Date.now(),doneAt:null,replanAt:null}).catch(()=>{});}
 
 function renderTicket(el,r,o){
-  const start=startOf(r),p=parts(start,TZ),night=p.h>=23||p.h<7;
+  const start=startOf(r),end=new Date(start.getTime()+(r.d||60)*6e4),p=parts(start,TZ),night=p.h>=23||p.h<7;
   if(o.interactive&&S.morning===null)S.morning=night;
   const morning=o.interactive&&night&&S.morning;
   const when=morning?morningOf(start,TZ):start;
-  const t=fTime(start,TZ);
+  const t=fTime(start,TZ),host=hostClock(start,r.z),H=o.interactive?"h1":"h2",held=o.interactive&&S.held;
+  el.dataset.start=start.getTime();el.dataset.end=end.getTime();el.dataset.held=held?"1":"0";
   const where=r.l?'<div class="t-where">'+(isHttp(r.l)?I.link+'<a href="'+esc(r.l)+'" target="_blank" rel="noopener">'+esc(r.l.replace(/^https?:\/\//,"").replace(/\/$/,""))+'</a>':I.pin+'<span>'+esc(r.l)+'</span>')+'</div>':'';
   const sub=PREF==="apple"?"Adds to your calendar with alerts":"Opens Google Calendar · tap Save";
   el.innerHTML=
    '<div class="t-top">'+
-     '<div class="t-host"><span class="dot"></span>'+(r.h?"From "+esc(r.h):"Reminder")+'</div>'+
-     '<h2 class="t-title'+(o.ph?" ph":"")+'">'+esc(r.t)+'</h2>'+
-     '<div><div class="t-date">'+esc(fDate(start,TZ))+'</div><div class="t-time">'+esc(t.main)+(t.per?'<small>'+esc(t.per)+'</small>':'')+'</div>'+
-     '<div class="t-zone">Your time · '+esc(city(TZ))+' ('+esc(fZone(start,TZ))+')</div>'+hostTime(start,r.z)+'</div>'+
-     countHTML(start)+where+(r.n?'<p class="t-notes">'+esc(r.n)+'</p>':'')+
+     '<div class="t-head"><span class="label">Reminder</span>'+(r.h?'<span class="t-from">from '+esc(r.h)+'</span>':'')+'</div>'+
+     '<div class="t-when">'+ringFor(start,ringState(start,end,held))+'<div class="t-clock"><div class="t-time">'+esc(t.main)+(t.per?'<small>'+esc(t.per)+'</small>':'')+'</div>'+
+       '<div class="t-date">'+esc(fDate(start,TZ))+'</div><div class="t-zone">your time · '+esc(city(TZ))+'</div><div class="t-soon" hidden></div></div></div>'+
+     '<'+H+' class="t-title'+(o.ph?" ph":"")+'">'+esc(r.t)+'</'+H+'>'+(r.n?'<p class="t-notes">'+esc(r.n)+'</p>':'')+where+
    '</div><div class="t-perf" aria-hidden="true"><span></span></div>'+
+   '<div class="t-meta">'+(host?'<div><span class="label">Host time</span><b>'+esc(host)+'</b></div>':'')+'<div class="t-len"><span class="label">Length</span><b>'+esc(lengthText(r.d||60))+'</b></div></div>'+
    '<div class="t-bottom">'+
      (o.interactive&&night?'<div class="sleep"><span>That’s <b>'+esc(fShort(start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(start,TZ),TZ))+'</b> instead.</span><label class="switch"><input type="checkbox" id="sleep"'+(morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
      (o.interactive?'<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+sub+'</div>'+
@@ -102,6 +115,9 @@ function renderTicket(el,r,o){
    '</div>';
   tick();
   if(!o.interactive)return;
+  S.rkey=rkeyOf(r.t,start);
+  /* Held already, from an earlier visit: show it without the animation. */
+  if(!S.held&&window.remmyndDB)window.remmyndDB.getAll("reminders").then(list=>{if(!S.held&&list.some(x=>x.rkey===S.rkey)&&el.dataset.start===String(start.getTime())){S.held=true;el.dataset.held="1";el.classList.add("still");tick();requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.remove("still")));}}).catch(()=>{});
   const title=morning?r.t+" (live since "+fShort(start,TZ)+")":r.t;
   const ev=eventOf(r,S.key,when,title,morning?15:(r.d||60));
   const file=(r.t.replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase().slice(0,40)||"reminder")+".ics";
@@ -116,6 +132,7 @@ function renderTicket(el,r,o){
   if(PREF==="apple")setApple(btn);else{btn.href=g;btn.target="_blank";btn.rel="noopener";}
   const after=msg=>()=>{btn.classList.remove("rung");void btn.offsetWidth;btn.classList.add("rung");setTimeout(()=>toast(msg),250);};
   btn.addEventListener("click",after(PREF==="apple"?"Your calendar will ask you to add it":"Google Calendar opened. Tap Save to finish."));
+  ["#remind","#a-google","#a-apple","#a-outlook","#a-o365"].forEach(sel=>$(sel).addEventListener("click",()=>hold(el,r,start)));
   $("#a-google").addEventListener("click",()=>setTimeout(()=>toast("Tap Save in Google Calendar"),250));
   $("#a-apple").addEventListener("click",()=>setTimeout(()=>toast("Open the file to add it to your calendar"),250));
   $("#a-share").addEventListener("click",()=>shareIt({title:r.t,text:r.t+" · "+fDate(start,TZ)+", "+fShort(start,TZ),url:linkFor(r,S.key,S.priv)},"Pick Reminders or Notes to save it"));
@@ -141,7 +158,10 @@ const webish=s=>/^(https?:\/\/|www\.)|^[\w-]+(\.[\w-]+)+(\/|$)/i.test(s);
 const nextHour=()=>new Date(Math.ceil((Date.now()+1)/36e5)*36e5);
 function draft(){const p=R.parse(D.line,{timeZone:TZ});return Object.assign({title:p.title,start:p.start,dur:p.dur,place:p.place,notes:""},D.set);}
 function whenText(d){return fDate(d,TZ)+" · "+fShort(d,TZ);}
-function setMode(m){D.mode=m;C.hero.hidden=C.try.hidden=m!=="home";C.draft.hidden=m!=="draft";C.ready.hidden=m!=="ready";$("#badge").hidden=$(".facts").hidden=m==="draft";
+/* Line to ticket: a same-document view transition where the browser has one, a plain swap elsewhere. */
+const STILL=matchMedia("(prefers-reduced-motion: reduce)");
+function swap(fn){if(document.startViewTransition&&!STILL.matches)document.startViewTransition(fn);else fn();}
+function setMode(m){D.mode=m;$("#home").dataset.mode=m;$("#pane-l").textContent=m==="draft"?"Live preview":m==="ready"?"Your link":"Example";C.hero.hidden=C.try.hidden=m!=="home";C.draft.hidden=m!=="draft";C.ready.hidden=m!=="ready";$("#badge").hidden=$(".facts").hidden=m==="draft";
   C.form.classList.toggle("typing",m==="draft");C.label.textContent=m==="draft"?"Enter makes the link":"New reminder";
   const n=$("#nav-right");if(m==="draft"){n.textContent="Cancel";n.href="/";n.dataset.act="cancel";}else{n.textContent="See an example";n.href="/#example";delete n.dataset.act;}}
 function chip(el,text,empty){el.querySelector("b").textContent=text;el.classList.toggle("empty",!!empty);}
@@ -151,9 +171,16 @@ function renderDraft(){const d=draft();
   C.note.textContent=d.notes?"Note: "+(d.notes.length>24?d.notes.slice(0,24)+"…":d.notes):"+ Note";C.note.classList.toggle("add",!d.notes);
   const s=d.start||nextHour(),p=parts(s,TZ);C.whenIn.value=p.y+"-"+pad(p.mo)+"-"+pad(p.d)+"T"+pad(p.h)+":"+pad(p.mi);
   C.hint.textContent=!d.title?"Add what it is to make the link.":!d.start?"Add a time to make the link.":"Not a link yet. Press Enter to make it.";}
-function renderMaker(){if(D.mode==="draft")renderDraft();snippet();}
-function clearDraft(){D.line="";D.set={};C.input.value="";closeEdit();setMode(D.made?"ready":"home");renderMaker();}
-C.input.addEventListener("input",()=>{D.line=C.input.value;if(D.line.trim()||Object.keys(D.set).length){if(D.mode!=="draft")setMode("draft");renderDraft();}else if(D.mode==="draft"){setMode(D.made?"ready":"home");}});
+/* The pane: the live preview while typing; otherwise the link just made, or an example (seen beside the maker from 960 px). */
+function renderPane(){if(D.mode==="draft")return renderDraft();
+  const x=D.mode==="ready"&&D.made?D.made.ev:EX[0];if(!x)return;
+  renderTicket(C.prev,{t:x.title,s:pack(x.start),...(x.durationMinutes&&x.durationMinutes!==60?{d:x.durationMinutes}:{}),...(x.location?{l:x.location}:{}),...(x.notes?{n:x.notes}:{}),z:TZ},{interactive:false});}
+function renderMaker(){renderPane();snippet();}
+function clearDraft(){swap(()=>{D.line="";D.set={};C.input.value="";closeEdit();setMode(D.made?"ready":"home");renderMaker();});}
+C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.line.trim()||Object.keys(D.set).length);
+  if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{setMode("draft");renderDraft();});}
+  else if(typing)renderDraft();
+  else if(D.mode==="draft"){const m=D.made?"ready":"home";D.mode=m;swap(()=>{setMode(m);renderMaker();});}});
 C.form.addEventListener("submit",e=>{e.preventDefault();make();});
 /* Chips: What, Where and Note open a small editor; When opens the device's own date and time picker. */
 const EDIT={title:"What",place:"Where",notes:"Note"};
@@ -172,13 +199,13 @@ function make(){if(D.editing)saveEdit();const d=draft();
   if(!d.start){if(D.mode!=="draft")setMode("draft");renderDraft();try{C.whenIn.showPicker();}catch(e){C.whenIn.focus();}return toast("Pick a time to make the link");}
   const ev={title:d.title,start:d.start,durationMinutes:d.dur||undefined,location:d.place,notes:d.notes,timeZone:TZ};
   let link;try{link=R.createLink(ev,{base:BASE,private:F.priv.checked});}catch(e){return toast("That reminder can't be made: "+e.message);}
-  D.made={ev,link};D.line="";D.set={};C.input.value="";closeEdit();
-  showReady();copy(link,"Link copied. Share it anywhere.");keepLink();}
+  swap(()=>{D.made={ev,link};D.line="";D.set={};C.input.value="";closeEdit();showReady();});
+  copy(link,"Link copied. Share it anywhere.");D.made={ev,link};keepLink();}
 function keepLink(prev){const m=D.made;if(!m||!window.remmyndDB)return;const DB=window.remmyndDB;
   (prev?DB.del("links",prev):Promise.resolve()).then(()=>DB.put("links",{share:m.link,title:m.ev.title,start:m.ev.start.getTime(),createdAt:Date.now(),private:F.priv.checked})).catch(()=>{});}
 function showReady(){const m=D.made;F.link.value=m.link;
-  F.card.href=m.link;F.card.innerHTML=I.mark+'<span><b>'+esc(m.ev.title)+'</b><i>'+esc(whenText(m.ev.start))+(m.ev.location?' · '+esc(short(m.ev.location)):'')+'</i></span>';
-  F.copied.hidden=false;clearTimeout(F.copied._t);F.copied._t=setTimeout(()=>{F.copied.hidden=true;},2600);setMode("ready");snippet();}
+  F.card.href=m.link;F.card.innerHTML=ringFor(m.ev.start,"open",28)+'<span><b>'+esc(m.ev.title)+'</b><i>'+esc(whenText(m.ev.start))+(m.ev.location?' · '+esc(short(m.ev.location)):'')+'</i></span>';
+  F.copied.hidden=false;clearTimeout(F.copied._t);F.copied._t=setTimeout(()=>{F.copied.hidden=true;},2600);setMode("ready");renderMaker();}
 F.priv.addEventListener("change",()=>{const m=D.made;if(!m)return;const prev=m.link;m.link=R.createLink(m.ev,{base:BASE,private:F.priv.checked});
   showReady();copy(m.link,F.priv.checked?"Private link copied":"Link copied");keepLink(prev);});
 F.copy.addEventListener("click",()=>F.link.value&&copy(F.link.value,"Link copied. Share it anywhere."));
@@ -188,8 +215,9 @@ F.link.addEventListener("focus",()=>F.link.select());
 if(window.visualViewport){const vv=window.visualViewport,kb=()=>document.documentElement.style.setProperty("--kb",Math.max(0,Math.round(innerHeight-vv.height-vv.offsetTop))+"px");vv.addEventListener("resize",kb);vv.addEventListener("scroll",kb);}
 let SNIP={fmt:"html",theme:"light"};
 /* Try one: three examples worked out from today, so they are never in the past. */
-(function tryOne(){const list=["Demo day Fri 5pm","Rent due 1st","Call Mum Sun 7:30pm"].map(line=>{const p=R.parse(line,{timeZone:TZ});return{p,link:R.createLink({title:p.title,start:p.start,timeZone:TZ},{base:BASE})};});
-  $("#try-list").innerHTML=list.map(x=>'<a class="row" href="'+esc(x.link)+'">'+I.mark+'<span><b>'+esc(x.p.title)+'</b><i>'+esc(whenText(x.p.start))+'</i></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>').join("");})();
+const EX=["Demo day Fri 5pm","Rent due 1st","Call Mum Sun 7:30pm"].map(line=>{const p=R.parse(line,{timeZone:TZ});return{title:p.title,start:p.start};});
+(function tryOne(){const list=EX.map(ev=>({p:ev,link:R.createLink({title:ev.title,start:ev.start,timeZone:TZ},{base:BASE})}));
+  $("#try-list").innerHTML=list.map(x=>'<a class="row" href="'+esc(x.link)+'">'+ringFor(x.p.start,"open",28)+'<span><b>'+esc(x.p.title)+'</b><i>'+esc(whenText(x.p.start))+'</i></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>').join("");})();
 
 /* ---------- badge ---------- */
 function badgeSVG(theme){const dk=theme==="dark",bg=dk?"#0e0f11":"#ffffff",st=dk?"#2a2c31":"#e3e5e8",fg=dk?"#f2f3f5":"#0e0f11",mu=dk?"#9aa0a8":"#666c75",dot=dk?"#ffb52e":"#f2a000";
@@ -203,7 +231,7 @@ $("#snip-copy").addEventListener("click",()=>copy($("#snip").textContent,"Code c
 
 /* ---------- routing ---------- */
 function showHome(){$("#view").hidden=true;$("#home").hidden=false;C.form.hidden=false;document.body.classList.add("has-cap");setMode(D.mode);document.title="remmynd";renderMaker();window.__rmLast={type:"home"};window.dispatchEvent(new Event("rm:home"));}
-function showView(r,key,priv){S.r=r;S.key=key;S.priv=!!priv;S.morning=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.textContent="Make your own";n.href="/";delete n.dataset.act;
+function showView(r,key,priv){S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.textContent="Make your own";n.href="/";delete n.dataset.act;
   renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
 /* /r/<payload> is a shared link, /#<payload> a private one (and every 1.x link), /#<name> a named page. */
 let routed="";
@@ -221,6 +249,11 @@ const goHome=e=>{e.preventDefault();if(location.pathname==="/"&&!location.hash)r
 $("#home-link").addEventListener("click",goHome);$("#make-own").addEventListener("click",goHome);
 $("#nav-right").addEventListener("click",e=>{const n=e.currentTarget;if(n.dataset.act==="cancel"){e.preventDefault();return clearDraft();}if(n.getAttribute("href")==="/")goHome(e);});
 window.addEventListener("hashchange",route);window.addEventListener("popstate",route);route();
+
+/* ---------- sound: the Held chime, on unless switched off (rm:sound) ---------- */
+function applySound(){const on=soundOn();document.querySelectorAll("[data-sound]").forEach(b=>b.setAttribute("aria-pressed",String((b.dataset.sound==="on")===on)));}
+document.querySelectorAll("[data-sound]").forEach(b=>b.addEventListener("click",()=>{try{if(b.dataset.sound==="off")localStorage.setItem("rm:sound","off");else localStorage.removeItem("rm:sound");}catch(e){}applySound();}));
+applySound();
 
 /* ---------- theme: Auto follows the system; Light and Dark are kept in rm:theme ---------- */
 const PAPER={light:"#F5F6F7",dark:"#0B0C0E"};

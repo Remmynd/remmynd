@@ -181,6 +181,41 @@ test("parse: pasted invitations", () => {
   assert.equal(R.decode(R.createLink({ title: p.title, start: p.start, location: p.place, timeZone })).location, "https://zoom.us/j/123");
 });
 
+test("ring: the moment ring follows section 8", async () => {
+  const ring = await import("../public/ring.js");
+  // Noon at the top, midnight at the bottom, clockwise.
+  assert.deepEqual([ring.angle(12), ring.angle(18), ring.angle(0), ring.angle(11, 30), ring.angle(22)], [0, 90, -180, -7.5, 150]);
+  assert.deepEqual([ring.point(0, 44), ring.point(90, 44), ring.point(180, 44)], [[60, 16], [104, 60], [60, 104]]);
+  // Night arc: radius 33, from 22:00 (150 degrees) clockwise to 06:00 (270 degrees), exactly as in mock-up 04.
+  assert.equal(ring.arc(150, 270, 33), "M76.5 88.58A33 33 0 0 1 27 60");
+  // Mock-up 04's dial at 11:30: the dot on radius 44, the hand to radius 30, the gap 18 degrees each side.
+  const svg = ring.ringSVG({ h: 11, m: 30 });
+  assert.match(svg, /class="r-dot" cx="54.26" cy="16.38" r="8"/);
+  assert.match(svg, /class="r-hand" d="M60 60L56.08 30.26" stroke-width="5"/);
+  assert.match(svg, /class="r-ring" cx="60" cy="60" r="44" pathLength="360" stroke-width="5" stroke-linecap="round" transform="rotate\(-79.5 60 60\)"/);
+  const near = (p, q) => Math.abs(p[0] - q[0]) < 0.02 && Math.abs(p[1] - q[1]) < 0.02;
+  assert.ok(near(ring.point(-7.5 + 18, 44), [68.02, 16.73]) && near(ring.point(-7.5 - 18, 44), [41.06, 20.29]), "gap ends match the mock-up");
+  assert.match(svg, /class="r-night" d="M76.5 88.58A33 33 0 0 1 27 60" stroke-width="8"/);
+  assert.match(svg, /class="r-pivot" cx="60" cy="60" r="4"/);
+  assert.match(svg, /class="r-disc" cx="60" cy="60" r="46"/);
+  assert.match(svg, /class="r-check" d="M42 62l12 12 24-27" stroke-width="6"/);
+  assert.match(svg, /class="r-halo" cx="54.26" cy="16.38" r="15"/);
+  assert.match(svg, /role="img" aria-label="Day dial showing 11:30 in the morning, reminder not set yet"/);
+  // Every state draws and says what it is, with the time in words.
+  for (const st of ring.STATES) assert.match(ring.ringSVG({ h: 17, state: st }), new RegExp('class="ring ring-' + st + '"'));
+  assert.match(ring.ringSVG({ h: 1, state: "nope" }), /class="ring ring-open"/);
+  assert.deepEqual([["held", 17, 0], ["soon", 9, 5], ["now", 0, 0], ["kept", 12, 30], ["missed", 21, 15]].map(([st, h, m]) => ring.ringLabel(h, m, st)), [
+    "Day dial showing 5:00 in the afternoon, reminder set", "Day dial showing 9:05 in the morning, starting soon",
+    "Day dial showing 12:00 at night, happening now", "Day dial showing 12:30 in the afternoon, done", "Day dial showing 9:15 at night, missed"]);
+  assert.match(ring.ringSVG({ h: 1, label: 'a "b" <c>' }), /aria-label="a &quot;b&quot; &lt;c>"/);
+  // The states themselves live in app.css: a 36-degree gap that closes in 320 ms, the disc for Now, muted for Missed.
+  const css = readFileSync(join(root, "public/app.css"), "utf8");
+  for (const rule of [".ring .r-night{stroke:var(--night-arc)}", ".ring .r-ring{stroke:var(--ink);stroke-dasharray:324 36;transition:stroke-dasharray .32s var(--spring)",
+    ".ring-held .r-ring,.ring-soon .r-ring,.ring-kept .r-ring{stroke-dasharray:360 0}", ".ring .r-out{fill:var(--card)", ".ring-soon .r-halo{display:block;fill:var(--moment);opacity:.28",
+    ".ring-now .r-disc{display:block;fill:var(--moment)}", ".ring-now .r-pivot,.ring-now .r-dot{fill:var(--on-moment)}", ".ring-kept .r-hand,.ring-kept .r-pivot{display:none}",
+    ".ring-missed .r-ring,.ring-missed .r-hand{stroke:var(--muted)}", ".ring-missed .r-dot{fill:var(--card);stroke:var(--muted)"]) assert.ok(css.includes(rule), "app.css: " + rule);
+});
+
 test("validation", () => {
   assert.throws(() => R.encode({ start: "2026-12-01 10:00" }), /title is required/);
   assert.throws(() => R.encode({ title: "x", start: "2026-12-01 10:00", durationMinutes: 0 }), /durationMinutes/);
@@ -676,6 +711,27 @@ test("repository credits zoof04 only", () => {
     if (/\.(png|ico)$/.test(f) || f.startsWith(join(root, "test"))) continue;
     assert.ok(!banned.test(readFileSync(f, "utf8")), "unexpected mention in " + f);
   }
+});
+
+test("ticket: ring, host time and length, the Held chime, view transitions and two panes", () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), css = readFileSync(join(root, "public/app.css"), "utf8");
+  const pick = name => app.split("\n").find(l => l.startsWith("const " + name + "="));
+  const lengthText = new Function(pick("lengthText") + "; return lengthText;")();
+  assert.deepEqual([15, 30, 60, 90, 120, 150].map(lengthText), ["15 min", "30 min", "1 hour", "1 h 30 min", "2 hours", "2 h 30 min"]);
+  assert.match(app, /^import \{ ringSVG, ringLabel \} from "\/ring\.js";$/m);
+  for (const part of ['<span class="label">Reminder</span>', 't-from">from ', '<div class="t-when">', 'your time · ', '<span class="label">Host time</span>', '<span class="label">Length</span>', 'id="sleep"'])
+    assert.ok(app.includes(part), "the ticket has " + part);
+  // Held: the chime is 659 Hz then 988 Hz, 90 ms each, after the 320 ms close, with an off switch kept in rm:sound.
+  assert.match(app, /\[\[659,0\],\[988,\.09\]\]/);
+  assert.match(app, /setTimeout\(chime,320\)/);
+  assert.match(app, /localStorage\.getItem\("rm:sound"\)!=="off"/);
+  assert.match(readFileSync(join(root, "public/index.html"), "utf8"), /data-sound="on"[^>]*>On<\/button><button type="button" data-sound="off"[^>]*>Off</);
+  // Line to ticket uses a same-document view transition, with a plain swap where there is none or motion is reduced.
+  assert.match(app, /function swap\(fn\)\{if\(document\.startViewTransition&&!STILL\.matches\)document\.startViewTransition\(fn\);else fn\(\);\}/);
+  assert.match(app, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+  // Two panes from 960 px: the maker on the left, the ticket on the right.
+  assert.match(css, /@media \(min-width:960px\)\{[^@]*#home:not\(\[hidden\]\)\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,460px\)/);
+  assert.match(css, /@media \(max-width:959px\)\{[^@]*\.maker\{display:contents\}/);
 });
 
 test("words: the maker uses the spec's wording", () => {

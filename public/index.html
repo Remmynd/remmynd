@@ -48,12 +48,21 @@
 
   <!-- Maker: one line in, a link out -->
   <main id="home" hidden>
+   <div class="maker">
     <header class="hero" id="hero">
       <div class="label">Free · open source · no sign-up</div>
       <h1>Reminders that make sure it happens.</h1>
       <p>Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.</p>
       <button type="button" class="chip" id="hero-install" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M12 7v7M9 11l3 3 3-3"/></svg>Add to Home Screen</button>
     </header>
+
+    <form class="capture" id="cap-form" autocomplete="off" hidden>
+      <label for="cap" class="label" id="cap-l">New reminder</label>
+      <div class="cap-bar">
+        <input id="cap" type="text" placeholder="Demo day Fri 5pm zoom.us/j/123" enterkeyhint="go" autocapitalize="sentences" spellcheck="false" maxlength="600">
+        <button type="submit" class="cap-go" aria-label="Make the link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+      </div>
+    </form>
 
     <section class="cu" id="coming-up" hidden></section>
 
@@ -63,10 +72,7 @@
     </section>
 
     <!-- While typing: the live preview and what was found in the line -->
-    <section class="draft" id="draft" hidden aria-live="polite">
-      <div class="label">Live preview</div>
-      <article class="ticket preview" id="t-preview"></article>
-      <p class="hint" id="draft-hint">Not a link yet. Press Enter to make it.</p>
+    <section class="draft" id="draft" hidden>
       <div class="label" id="found-l">Found in your line</div>
       <div class="chips" role="group" aria-labelledby="found-l">
         <button type="button" class="fchip" id="c-what"><span>What</span><b></b></button>
@@ -116,21 +122,25 @@
       <div><h3>Private by design</h3><p>Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.</p></div>
       <div><h3>Free and open source</h3><p>MIT licensed. Host your own copy if you like.</p></div>
     </section>
-  </main>
+   </div>
 
-  <form class="capture" id="cap-form" autocomplete="off" hidden>
-    <label for="cap" class="label" id="cap-l">New reminder</label>
-    <div class="cap-bar">
-      <input id="cap" type="text" placeholder="Demo day Fri 5pm zoom.us/j/123" enterkeyhint="go" autocapitalize="sentences" spellcheck="false" maxlength="600">
-      <button type="submit" class="cap-go" aria-label="Make the link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
-    </div>
-  </form>
+    <!-- The ticket: below the line on phones while typing; always on the right from 960 px -->
+    <aside class="pane" id="pane" aria-live="polite">
+      <div class="label" id="pane-l">Live preview</div>
+      <article class="ticket preview" id="t-preview"></article>
+      <p class="hint" id="draft-hint">Not a link yet. Press Enter to make it.</p>
+    </aside>
+  </main>
 
   <footer>
     <span>A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.</span>
     <div class="theme" role="group" aria-labelledby="theme-l">
       <span class="label" id="theme-l">Theme</span>
       <div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div>
+    </div>
+    <div class="theme" role="group" aria-labelledby="sound-l">
+      <span class="label" id="sound-l">Sound</span>
+      <div class="seg"><button type="button" data-sound="on" aria-pressed="true">On</button><button type="button" data-sound="off" aria-pressed="false">Off</button></div>
     </div>
     <span class="foot-links"><a href="https://github.com/Remmynd/remmynd">Source</a><button type="button" class="linkish" id="install" hidden>Install app</button></span>
   </footer>
