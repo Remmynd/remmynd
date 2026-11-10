@@ -4,8 +4,8 @@ remmynd has three parts that share one link format:
 
 | Part | Where | What it does |
 |---|---|---|
-| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the markup, `app.js` the app (an ES module that imports `remmynd.js`, an exact copy of the library, to read typed lines and make links, and `ring.js`, the moment ring; `qr.js` draws QR codes and loads only when one is asked for), `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `db.js` the on-device storage, `push.js` turns on notifications and fills the stack's Notification row, `sw.js` works offline and shows alerts. No build step. |
-| **Worker** | `worker/` | Serves the site on Cloudflare, adds link-preview tags to shared `/r/` links (`preview.js`), turns `/new` addresses into links, redirects `www`, builds `.ics` files for iPhone in-app browsers, and wakes devices for phone alerts. It reads links with the library itself. |
+| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the markup, `app.js` the app (an ES module that imports `remmynd.js`, an exact copy of the library, to read typed lines and make links, and `ring.js`, the moment ring; `qr.js` draws QR codes and loads only when one is asked for), `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `db.js` the on-device storage, `push.js` turns on notifications and fills the stack's Notification row, `sw.js` works offline and shows alerts. The website pages (`why/`, `hosts/`, `docs/`, `install/`, `roadmap/`, `privacy/`, `press/`, `changelog/`, one `index.html` each, and `404.html`) share the app's styles plus `site.css`, and `site.js` for the theme, the menu and the live numbers. No build step. |
+| **Worker** | `worker/` | Serves the site on Cloudflare, adds link-preview tags to shared `/r/` links (`preview.js`), turns `/new` addresses into links, redirects `www`, builds `.ics` files for iPhone in-app browsers, renders `CHANGELOG.md` at `/changelog` (`changelog.js`), serves GitHub and npm numbers at `/stats` (`stats.js`), and wakes devices for phone alerts. It reads links with the library itself. |
 | **Library and CLI** | `lib/`, `bin/` | The `remmynd` npm package and `npx remmynd`. Zero dependencies. |
 
 The tests in `test/` check that the website, the library and the Worker produce identical links, so the three never drift apart.
@@ -153,12 +153,20 @@ flowchart TD
     SR -- no --> NW{Path is /new?}
     NW -- "exact time (tz, Z or offset)" --> RN["302 to the /r/ link"]
     NW -- "no zone or missing parts" --> SN["Plain index.html, no-store;<br/>the page reads the time in the visitor's zone"]
-    NW -- no --> P{Named page, e.g. /example?}
+    NW -- no --> CL{Path is /changelog?}
+    CL -- yes --> CR["changelog/index.html with CHANGELOG.md<br/>rendered into it (HTMLRewriter)"]
+    CL -- no --> ST{Path is /stats?}
+    ST -- yes --> SS["Stars and downloads, asked of GitHub and npm<br/>by the Worker, cached an hour"]
+    ST -- no --> P{Named page, e.g. /example?}
     P -- yes --> RP["302 to /#example"]
     P -- no --> A[(Static assets<br/>public/)]
     A -- found --> OK[200 + headers from public/_headers]
     A -- not found --> NF[404 page]
 ```
+
+Website pages live in folders (`public/why/index.html`) and are served without the slash (`html_handling = "drop-trailing-slash"`): `/why/` redirects to `/why`. `CHANGELOG.md` is bundled into the Worker as text by a `[[rules]]` entry in `wrangler.toml`; `npm test` reads it the same way through `scripts/text-loader.mjs`.
+
+The page never asks another host for anything. The live numbers on For hosts come from `/stats`: the Worker asks `api.github.com` and `api.npmjs.org`, sends nothing about the visitor, and keeps the answer in Cloudflare's cache for an hour (five minutes when one number is missing). The service worker never caches `/stats`.
 
 Headers for static files live in `public/_headers`: security headers on every response, `no-cache` on the service worker so updates arrive immediately, a year of caching for icons and a day for badges.
 
@@ -195,12 +203,15 @@ Details, setup and rollback: [RELEASING.md](RELEASING.md).
 ## Repository layout
 
 ```text
-public/          the website: index.html, app.js, app.css, remmynd.js, ring.js, qr.js, db.js, fonts/, push.js, sw.js, icons, badges, manifest, _headers
-worker/          Cloudflare Worker: routing, /r/ previews and /new (preview.js), the /ics route and push (push.js, schema.sql)
+public/          the app (index.html, app.js, app.css, remmynd.js, ring.js, qr.js, db.js, push.js, sw.js), the website pages
+                 (why/ hosts/ docs/ install/ roadmap/ privacy/ press/ changelog/, 404.html, site.css, site.js),
+                 fonts/, icons, badges, manifest, llms.txt, sitemap.xml, _headers
+worker/          Cloudflare Worker: routing, /r/ previews and /new (preview.js), /changelog (changelog.js), /stats (stats.js),
+                 the /ics route and push (push.js, schema.sql)
 lib/             the npm library (remmynd.js) and its TypeScript types
 bin/             the npx remmynd command
 test/            node:test suite for the library, CLI, site and Worker, plus guards for third parties, size and logs
-scripts/         release helpers and push:setup
+scripts/         release helpers, push:setup and the .md text loader for tests
 brand/           logo, mark, avatars, social images and the brand guide
 docs/            principles, architecture and the release runbook
 .github/         CI, release and live-check workflows, issue and PR templates

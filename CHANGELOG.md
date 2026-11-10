@@ -8,6 +8,11 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- The website: [Why](https://remmynd.space/why) (the research on forgetting and follow-through, each figure with its source), [For hosts](https://remmynd.space/hosts) (badges, a QR code, the chat preview and `/new`), [Docs](https://remmynd.space/docs), [Install](https://remmynd.space/install), [Roadmap](https://remmynd.space/roadmap), [Privacy](https://remmynd.space/privacy), [Press](https://remmynd.space/press) and [Changelog](https://remmynd.space/changelog). Every page shares one header, footer and menu, and a test fails if they drift apart or if a page shows a figure that can't be checked.
+- `/changelog`: this file, rendered by the Worker inside the website's own page.
+- `/stats`: GitHub stars and npm downloads for the For hosts page, fetched by the Worker and cached for an hour, so the page only ever talks to remmynd.space. A number that can't be fetched is left out.
+- Menu: Why, For hosts, Docs, Roadmap, GitHub, the theme switch and, in the app, Sound and Install app.
+- `llms.txt`: how an assistant can make a reminder from a web address.
 - QR code for any link: "Scan to send it to your phone", on the link-ready screen and under More ways on every ticket, with a PNG download. Drawn on the device by `qr.js` (written for remmynd, about 3.5 KB compressed), loaded only when asked for.
 - How it looks in chats: the link-ready screen shows the preview card a chat app will show, and the Private link switch shows what it hides.
 - `describeWhen()` in the library: a reminder's time as link previews print it ("Fri 13 Nov, 5:00 PM IST"), shared by the Worker and the page.
@@ -42,6 +47,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- One footer on the app and every page: Product, Developers and Company links, "A free tool by zoof04. MIT licence." and the theme switch. The Sound switch and Install app moved into the menu.
+- The 404 page uses the website's header and footer.
+- Website pages are served without a trailing slash (`/why`; `/why/` redirects). The sitemap lists every page.
+- `npm test` loads `scripts/text-loader.mjs`, so the tests read `CHANGELOG.md` the way the Worker bundles it.
 - The Remind me badge carries the moment ring, in the 2.0 colours (amber on light, lime on dark). Same addresses: `badge.svg` and `badge-dark.svg`.
 - The Coming up card on the home page is replaced by the Coming up list, which reads the reminders this device holds.
 - Notify me is no longer a separate switch: Remind me turns notifications on, and the stack's Notification row shows whether they are on, blocked, or need remmynd on the Home Screen (iPhone), with Turn on and off.

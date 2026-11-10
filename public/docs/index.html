@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Docs · remmynd</title>
+<meta name="description" content="Make remmynd links from a web address, the command line or your own code. The link format, the npm library, the CLI, badges and how to self-host.">
+<link rel="canonical" href="https://remmynd.space/docs">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://remmynd.space/docs">
+<meta property="og:title" content="Docs · remmynd">
+<meta property="og:description" content="Make remmynd links from a web address, the command line or your own code. The link format, the npm library, the CLI, badges and how to self-host.">
+<meta property="og:image" content="https://remmynd.space/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="remmynd: Reminders, as a link.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://remmynd.space/og.png">
+<meta name="theme-color" id="tc-light" content="#F5F6F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" id="tc-dark" content="#0B0C0E" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<script>try{var t=localStorage.getItem("rm:theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}</script>
+<link rel="preload" href="/fonts/geist-5.3-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/site.css">
+<script src="/site.js" defer></script>
+</head>
+<body class="site">
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-head">
+  <a class="brand" href="/" aria-label="remmynd home"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>remmynd</a>
+  <nav class="site-nav" aria-label="Site">
+    <a href="/why">Why</a>
+    <a href="/hosts">For hosts</a>
+    <a href="/docs" aria-current="page">Docs</a>
+    <a href="/roadmap">Roadmap</a>
+    <a href="https://github.com/Remmynd/remmynd">GitHub</a>
+    <a class="pill" href="/install">Install</a>
+  </nav>
+  <button type="button" class="ghost menu-btn" id="menu-btn" aria-haspopup="dialog" aria-controls="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h16M4 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Menu</button>
+</header>
+<main id="main">
+<section class="sec narrow opening flow">
+  <p class="kicker">Docs</p>
+  <h1>Make reminders from anywhere.</h1>
+  <p class="lede">Everything a remmynd reminder needs travels in its link. Make one from a web address, the command line or your own code. No account, no API key.</p>
+  <ul class="toc" aria-label="On this page">
+    <li><a href="#link">The link</a></li><li><a href="#new">Write one by hand</a></li><li><a href="#library">Library</a></li><li><a href="#cli">Command line</a></li><li><a href="#badges">Badges</a></li><li><a href="#self-host">Self-host</a></li><li><a href="#more">More</a></li>
+  </ul>
+</section>
+
+<section class="sec narrow tight">
+  <div class="prose">
+    <h2 id="link">The link</h2>
+    <p>A reminder is a small piece of JSON, base64url-encoded, in one of two forms:</p>
+    <pre class="light"><code>https://remmynd.space/r/eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ   shared (the default)
+https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and every 1.x link</code></pre>
+    <table>
+      <thead><tr><th>Form</th><th>Reaches the server?</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td>Shared <code>/r/…</code></td><td>Yes, in passing: the Worker reads it to fill the preview tags, then forgets it. Never stored, logged or cached.</td><td>Links meant to be shared in chat</td></tr>
+        <tr><td>Private <code>/#…</code></td><td>No. Browsers never send what follows <code>#</code>.</td><td>The Private link switch, and every 1.x link</td></tr>
+      </tbody>
+    </table>
+    <table>
+      <thead><tr><th>Key</th><th>Meaning</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>t</code></td><td>Title</td><td>Required</td></tr>
+        <tr><td><code>s</code></td><td>Start</td><td>Minutes since 1970 UTC, base 36</td></tr>
+        <tr><td><code>d</code></td><td>Length in minutes</td><td>Left out when 60</td></tr>
+        <tr><td><code>l</code></td><td>Place or link</td><td>Optional</td></tr>
+        <tr><td><code>n</code></td><td>Notes</td><td>Optional</td></tr>
+        <tr><td><code>h</code></td><td>Host</td><td>Optional</td></tr>
+        <tr><td><code>z</code></td><td>The host's IANA time zone</td><td>Optional. The ticket shows the host's time; the preview prints the time in this zone</td></tr>
+      </tbody>
+    </table>
+    <p>The format is a public contract. New keys are optional, readers ignore keys they don't know, and old links keep working.</p>
+
+    <h2 id="new">Write one by hand</h2>
+    <p>From a script, a spreadsheet or an AI assistant, write the reminder into the address. remmynd turns it into a link:</p>
+    <div class="snippet"><pre class="light" aria-label="A /new address"><code>https://remmynd.space/new?t=Demo+day&amp;at=2026-12-05T18:00&amp;tz=Asia/Kolkata&amp;l=https://lu.ma/demo</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+    <table>
+      <thead><tr><th>Parameter</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>t</code></td><td>Title (required)</td></tr>
+        <tr><td><code>at</code></td><td>When, <code>YYYY-MM-DDTHH:mm</code>, optionally with <code>Z</code> or an offset like <code>+05:30</code> (required)</td></tr>
+        <tr><td><code>tz</code></td><td>IANA time zone for <code>at</code>, like <code>Asia/Kolkata</code></td></tr>
+        <tr><td><code>d</code></td><td>Length in minutes (default 60)</td></tr>
+        <tr><td><code>l</code></td><td>Place or link</td></tr>
+        <tr><td><code>n</code></td><td>Notes</td></tr>
+        <tr><td><code>h</code></td><td>Host</td></tr>
+      </tbody>
+    </table>
+    <p>With <code>tz</code>, or a <code>Z</code> or offset in <code>at</code>, the address redirects to the shared link straight away. Without one, the time is read in the visitor's own time zone. If the title or time is missing, the maker opens with what was given.</p>
+
+    <h2 id="library">In your code</h2>
+    <p>The <a href="https://www.npmjs.com/package/remmynd">remmynd</a> package makes and reads links. Zero dependencies. Works in Node 20 and later, Deno, Bun, Cloudflare Workers and browsers. Types included.</p>
+    <div class="snippet"><pre class="light" aria-label="Install"><code>npm install remmynd</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+    <div class="snippet"><pre aria-label="Library example"><code>import { createLink, toICS, googleCalendarUrl, decode, fromQuery, parse } from "remmynd";
+
+const event = {
+  title: "Demo day",
+  start: "2026-12-05 18:00",
+  timeZone: "Asia/Kolkata",
+  location: "https://lu.ma/demo",
+  durationMinutes: 90
+};
+
+createLink(event);                     // https://remmynd.space/r/eyJ0Ijoi...  shared: chat apps preview it
+createLink(event, { private: true });  // https://remmynd.space/#eyJ0Ijoi...   private: never reaches a server
+toICS(event);                          // .ics text with alerts 1 hour before and at the start
+googleCalendarUrl(event);              // Google Calendar "add event" link
+decode(link);                          // { title, start: Date, durationMinutes, location, notes, host, timeZone }
+fromQuery("t=Demo+day&amp;at=2026-12-05T18:00&amp;tz=Asia/Kolkata");  // an event, from /new-style parameters
+parse("Demo day Fri 5pm zoom.us/j/123");  // { title: "Demo day", start: Date, dur: null, place, tokens }</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+
+    <h2 id="cli">From the command line</h2>
+    <div class="snippet"><pre class="light" aria-label="Command line example"><code>npx remmynd "Demo day" --at "2026-12-05 18:00" --tz Asia/Kolkata --where https://lu.ma/demo</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+    <pre class="light"><code>Options
+  --at, -a       When, e.g. "2026-12-05 18:00" (local to --tz) or an ISO time with Z
+  --tz, -z       IANA time zone for --at (default: your system zone)
+  --where, -w    A place or a link
+  --notes, -n    One line of notes
+  --host         Who is hosting
+  --length, -l   Minutes (default 60)
+  --private, -p  Make a private link (/#…): no preview, never reaches a server
+  --ics [file]   Also write an .ics file ("-" prints it)
+  --badge &lt;fmt&gt;  Print a Remind me badge snippet: html or md
+  --dark         Use the dark badge
+  --google       Also print a Google Calendar link
+  --json         Print everything as JSON
+  --base &lt;url&gt;   Use your own remmynd host
+
+remmynd read &lt;link&gt;   Show what is inside a remmynd link (shared or private)</code></pre>
+
+    <h2 id="badges">Badges</h2>
+    <p>Put a Remind me button anywhere a picture and a link can go. <code>badgeHTML(link)</code> and <code>badgeMarkdown(link)</code> in the library, or <code>--badge html</code> on the command line, write these for you.</p>
+    <div class="snippet"><pre aria-label="Badge HTML"><code>&lt;a href="https://remmynd.space/r/your-link" target="_blank" rel="noopener"&gt;
+  &lt;img src="https://remmynd.space/badge.svg" alt="Remind me" width="172" height="44"&gt;
+&lt;/a&gt;</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+    <p>See the light and dark badges, the QR code and the chat preview <a href="/hosts">for hosts</a>.</p>
+
+    <h2 id="self-host">Self-host</h2>
+    <p>remmynd runs on Cloudflare Workers: the files in <code>public/</code> are static assets, and <code>worker/index.js</code> handles shared links and their previews, <code>/new</code>, <code>/ics</code>, <code>/changelog</code>, <code>/stats</code> and phone alerts.</p>
+    <div class="snippet"><pre aria-label="Self-host"><code>git clone https://github.com/Remmynd/remmynd.git
+cd remmynd
+npx wrangler login
+npm run ship      # runs the tests, then deploys</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+    <p>Change <code>name</code> and the <code>routes</code> in <code>wrangler.toml</code> to your own first. To turn on phone alerts, run <code>npm run push:setup</code> once: it creates the database, makes a key pair and fills in <code>wrangler.toml</code>. Any static host works for the site alone, with private links.</p>
+
+    <h2 id="more">More</h2>
+    <ul>
+      <li><a href="https://github.com/Remmynd/remmynd/blob/main/docs/ARCHITECTURE.md">Architecture</a>: request routing, phone alerts and hosting, with diagrams</li>
+      <li><a href="https://github.com/Remmynd/remmynd/blob/main/docs/PRINCIPLES.md">Principles</a>: what remmynd will and won't do</li>
+      <li><a href="/changelog">Changelog</a>: every release, newest first</li>
+      <li><a href="/llms.txt">llms.txt</a>: this page in brief, for AI assistants</li>
+      <li><a href="https://github.com/Remmynd/remmynd/blob/main/CONTRIBUTING.md">Contributing</a> and <a href="https://github.com/Remmynd/remmynd/blob/main/SECURITY.md">security</a></li>
+    </ul>
+  </div>
+</section>
+</main>
+<footer class="site-foot">
+  <div class="foot-grid">
+    <div class="foot-brand">
+      <span class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>remmynd</span>
+      <p>A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.</p>
+    </div>
+    <nav aria-labelledby="f-product"><span class="label" id="f-product">Product</span><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/install">Install</a><a href="/roadmap">Roadmap</a><a href="/changelog">Changelog</a></nav>
+    <nav aria-labelledby="f-dev"><span class="label" id="f-dev">Developers</span><a href="/docs">Docs</a><a href="https://github.com/Remmynd/remmynd">GitHub</a><a href="https://www.npmjs.com/package/remmynd">npm</a><a href="/docs#self-host">Self-host</a></nav>
+    <nav aria-labelledby="f-company"><span class="label" id="f-company">Company</span><a href="https://zoof04.com">About</a><a href="/press">Press</a><a href="/privacy">Privacy</a></nav>
+  </div>
+  <div class="foot-row">
+    <span>Free, no sign-up, no tracking.</span>
+    <div class="theme" role="group" aria-labelledby="theme-f"><span class="label" id="theme-f">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+  </div>
+</footer>
+<div class="sheet" id="menu" hidden role="dialog" aria-modal="true" aria-label="Menu">
+  <div class="sheet-card menu-card">
+    <button type="button" class="sheet-x" id="menu-x" aria-label="Close">×</button>
+    <nav class="menu-links" aria-label="Menu"><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/docs">Docs</a><a href="/roadmap">Roadmap</a><a href="https://github.com/Remmynd/remmynd">GitHub</a></nav>
+    <div class="theme" role="group" aria-labelledby="theme-m"><span class="label" id="theme-m">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+  </div>
+</div>
+</body>
+</html>

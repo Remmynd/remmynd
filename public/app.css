@@ -170,6 +170,8 @@ button{font:inherit;color:inherit}
 .brand svg{width:26px;height:26px}
 .ghost{display:inline-flex;align-items:center;min-height:var(--tap);padding:0 16px;border:1px solid var(--hairline);border-radius:var(--r-button);background:var(--card);font-size:14px;font-weight:500;text-decoration:none}
 .ghost:hover{border-color:var(--line-strong)}
+.top .ghost{white-space:nowrap}
+@media (max-width:359px){.top{gap:8px}.top-r{gap:6px}.top .brand{font-size:16px}.top .brand svg{width:24px;height:24px}.top .ghost:not(.icon){padding:0 12px;font-size:13px}}
 
 /* ---------- hero ---------- */
 .hero{padding:28px 0 28px}
@@ -457,14 +459,33 @@ pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--card);border:1px solid
 .facts p{font-size:13px;color:var(--muted);margin:0}
 @media (max-width:520px){.facts{grid-template-columns:1fr;gap:14px}}
 
-/* ---------- footer and theme switch ---------- */
-footer{margin-top:40px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
-footer a{color:var(--muted);text-decoration:none}
-footer a:hover{color:var(--ink)}
-.foot-links{display:inline-flex;align-items:center;gap:4px 16px;flex-wrap:wrap}
-.foot-links a,.foot-links .linkish{display:inline-flex;align-items:center;min-height:var(--tap);color:var(--muted)}
+/* ---------- footer, theme switch and menu: the same on the app and every website page ---------- */
+.site-foot{margin-top:56px;border-top:1px solid var(--hairline);font-size:14px;color:var(--muted)}
+.foot-grid,.foot-row{max-width:1200px;margin:0 auto;display:flex;flex-wrap:wrap;gap:28px 40px}
+.foot-grid{padding:40px 0 28px}
+.foot-grid nav{flex:1 1 130px;min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.foot-grid nav .label{margin-bottom:6px}
+.foot-grid nav a{display:inline-flex;align-items:center;min-height:var(--tap);color:var(--ink);text-decoration:none}
+.foot-grid nav a:hover{color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
+.foot-brand{flex:2 1 240px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.foot-brand .brand{min-height:0;font-size:17px;color:var(--ink)}
+.foot-brand .brand svg{width:24px;height:24px}
+.foot-brand p{margin:0;line-height:1.5}
+.foot-brand a{color:var(--ink);font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.foot-row{align-items:center;justify-content:space-between;gap:12px 24px;padding:16px 0 8px;border-top:1px solid var(--hairline)}
+.site .site-foot{padding-inline:max(20px,env(safe-area-inset-left,0px))}
+@media (min-width:720px){.site .site-foot{padding-inline:32px}}
 .theme{display:inline-flex;align-items:center;gap:10px}
 .theme .seg button{min-height:var(--tap);padding:0 14px}
+.menu-btn{gap:8px;cursor:pointer;color:var(--ink);font:500 14px var(--font)}
+.menu-btn.icon{width:var(--tap);padding:0;justify-content:center}
+.top-r{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.menu-btn svg{width:18px;height:18px}
+.menu-card{display:grid;gap:18px}
+.menu-links{display:flex;flex-direction:column;margin:0 44px 0 0}
+.menu-links a{display:flex;align-items:center;min-height:52px;border-bottom:1px solid var(--hairline);font-size:19px;font-weight:600;letter-spacing:-.02em;text-decoration:none}
+.menu-links a:last-child{border-bottom:0}
+.menu-card .theme{justify-content:space-between}
 
 .toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);background:var(--ink);color:var(--paper);padding:11px 16px;border-radius:999px;font-size:14px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center;z-index:20}
 .toast.show{opacity:1;transform:translate(-50%,0)}

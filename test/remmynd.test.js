@@ -312,7 +312,8 @@ test("theme switch: Auto, Light and Dark, kept in rm:theme, with matching theme-
   const dark = /:root\[data-theme="dark"\]\s*{[^}]*--paper:\s*(#[0-9A-Fa-f]{6})/.exec(tokens)[1];
   assert.match(html, new RegExp('id="tc-light" content="' + light + '" media="\\(prefers-color-scheme: light\\)"'));
   assert.match(html, new RegExp('id="tc-dark" content="' + dark + '" media="\\(prefers-color-scheme: dark\\)"'));
-  assert.deepEqual([...html.matchAll(/data-theme-set="(\w+)"[^>]*>(\w+)</g)].map(m => m[1] + ":" + m[2]), ["auto:Auto", "light:Light", "dark:Dark"]);
+  // One switch in the footer and one in the menu, each Auto, Light, Dark.
+  assert.deepEqual([...html.matchAll(/data-theme-set="(\w+)"[^>]*>(\w+)</g)].map(m => m[1] + ":" + m[2]), ["auto:Auto", "light:Light", "dark:Dark", "auto:Auto", "light:Light", "dark:Dark"]);
   assert.match(html, /<head>[\s\S]*localStorage\.getItem\("rm:theme"\)[\s\S]*<link rel="stylesheet" href="\/app\.css">/, "saved theme is applied before styles load");
 
   // Run the page's theme code against a tiny fake document.
@@ -370,8 +371,8 @@ test("worker: /ics file, www redirect, named pages, static passthrough", async (
   assert.equal(await (await worker.fetch(new Request("https://remmynd.space/badge.svg"), env)).text(), "static");
 });
 
-// Just enough of Cloudflare's HTMLRewriter for the preview route: remove elements matched by
-// tag or tag[attr="value"], and append HTML at the end of <head>.
+// Just enough of Cloudflare's HTMLRewriter for the Worker's routes: remove elements matched by
+// tag or tag[attr="value"], append HTML at the end of <head>, and replace what is inside #id.
 class TestRewriter {
   constructor() { this.rules = []; }
   on(selector, handler) { this.rules.push([selector, handler]); return this; }
@@ -380,6 +381,15 @@ class TestRewriter {
     const body = new ReadableStream({ async start(c) {
       let html = await res.text();
       for (const [selector, h] of rules) {
+        if (selector.startsWith("#")) {
+          const open = new RegExp("<([a-z]+)\\b[^>]*\\bid=\"" + selector.slice(1) + "\"[^>]*>").exec(html);
+          assert.ok(open, "the page has " + selector);
+          const from = open.index + open[0].length, to = html.indexOf("</" + open[1] + ">", from);
+          let inner = null;
+          h.element({ setInnerContent: (c, o) => { assert.ok(o && o.html, "set as HTML"); inner = c; } });
+          if (inner !== null) html = html.slice(0, from) + inner + html.slice(to);
+          continue;
+        }
         const [, tag, attr, val] = /^([a-z]+)(?:\[([a-z:-]+)="([^"]*)"\])?$/.exec(selector);
         if (tag === "head") {
           let extra = "";
@@ -807,7 +817,7 @@ test("words: the maker uses the spec's wording", () => {
 
 test("privacy and free wording match the approved text", () => {
   const approved = "Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.";
-  for (const f of ["README.md", "docs/PRINCIPLES.md", "public/index.html"]) {
+  for (const f of ["README.md", "docs/PRINCIPLES.md", "public/index.html", "public/privacy/index.html"]) {
     assert.ok(readFileSync(join(root, f), "utf8").includes(approved), f + " uses the approved privacy sentence");
   }
   const principles = readFileSync(join(root, "docs/PRINCIPLES.md"), "utf8");
@@ -1278,4 +1288,223 @@ test("sleep-safe: the 9 AM alert reads as already started", async () => {
   const v = view({ kind: "after", title: "Launch", start, at: start + 5 * 3600e3, place: "https://lu.ma/x" });
   assert.match(v.title, /^Launch started at /);
   assert.equal(v.body, "Tap to open lu.ma/x");
+});
+
+/* ---------- step 8: the website ---------- */
+
+const PAGES = ["why", "hosts", "docs", "privacy", "install", "roadmap", "press", "changelog"];
+const pageFile = p => p === "404" ? "public/404.html" : "public/" + p + "/index.html";
+const readPage = p => readFileSync(join(root, pageFile(p)), "utf8");
+const squash = s => s.replace(/\s+/g, " ").replace(/> </g, "><").trim();
+const cut = (html, re) => { const m = re.exec(html); assert.ok(m, "missing " + re); return squash(m[0]); };
+const visible = html => html.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/gi, " ");
+
+test("website: every page shares one header, footer and menu", () => {
+  const all = [...PAGES, "404"];
+  const header = p => cut(readPage(p), /<header class="site-head">[\s\S]*?<\/header>/).replace(/ aria-current="page"/g, "");
+  const footer = html => cut(html, /<footer class="site-foot">[\s\S]*?<\/footer>/);
+  const menu = html => cut(html, /<nav class="menu-links"[\s\S]*?<\/nav>/);
+  const app = readFileSync(join(root, "public/index.html"), "utf8");
+  for (const p of all) {
+    assert.equal(header(p), header("why"), p + ": the header differs from /why");
+    assert.equal(footer(readPage(p)), footer(app), p + ": the footer differs from the app's");
+    assert.equal(menu(readPage(p)), menu(app), p + ": the menu differs from the app's");
+  }
+  // The menu: Why, For hosts, Docs, Roadmap, GitHub, and the theme switch (spec section 7).
+  assert.deepEqual([...menu(app).matchAll(/>([^<]+)<\/a>/g)].map(m => m[1]), ["Why", "For hosts", "Docs", "Roadmap", "GitHub"]);
+  assert.match(app, /id="menu"[\s\S]*aria-labelledby="theme-m"[\s\S]*aria-labelledby="sound-m"[\s\S]*id="install"/, "the app's menu has the theme, sound and Install");
+  assert.ok(footer(app).includes('A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.'), "footer words, spec section 9");
+
+  const here = { why: "/why", hosts: "/hosts", docs: "/docs", roadmap: "/roadmap", install: "/install" };
+  for (const p of all) {
+    const html = readPage(p);
+    const current = [...cut(html, /<header class="site-head">[\s\S]*?<\/header>/).matchAll(/href="([^"]+)" aria-current="page"/g)].map(m => m[1]);
+    assert.deepEqual(current, here[p] ? [here[p]] : [], p + ": the header marks the page it is on");
+    assert.equal((html.match(/<h1[\s>]/g) || []).length, 1, p + ": one h1");
+    assert.match(html, /<title>[^<]+ · remmynd<\/title>/, p + ": title");
+    assert.match(html, /<meta name="description" content="[^"]{40,}">/, p + ": description");
+    if (p === "404") assert.match(html, /<meta name="robots" content="noindex">/);
+    else assert.match(html, new RegExp('<link rel="canonical" href="https://remmynd\\.space/' + p + '">'), p + ": canonical address without a slash");
+    assert.match(html, /<script>try\{var t=localStorage\.getItem\("rm:theme"\)[\s\S]*<link rel="stylesheet" href="\/app\.css">\n<link rel="stylesheet" href="\/site\.css">\n<script src="\/site\.js" defer><\/script>/, p + ": theme before styles, then app.css, site.css and site.js");
+    assert.match(html, /<body class="site">\n<a class="skip" href="#main">Skip to content<\/a>[\s\S]*<main id="main">/, p + ": skip link to the main content");
+    assert.ok(!/\sstyle="|<style[\s>]/.test(html), p + ": no inline styles");
+    // Every address on remmynd.space that a page links to exists.
+    for (const [, href] of html.matchAll(/\shref="(\/[^"#]*)[^"]*"/g)) {
+      if (href === "/" || /^\/(changelog|stats|new|example)$/.test(href)) continue;
+      const f = href.slice(1);
+      assert.ok(existsSync(join(root, "public", f)) && statSync(join(root, "public", f)).isFile() || existsSync(join(root, "public", f, "index.html")), p + " links to " + href + ", which doesn't exist");
+    }
+    for (const [, id] of html.matchAll(/\shref="#([^"]+)"/g)) assert.ok(html.includes('id="' + id + '"'), p + " links to #" + id + ", which isn't on the page");
+  }
+
+  // The sitemap lists the home page and every page, and nothing else.
+  const sitemap = [...readFileSync(join(root, "public/sitemap.xml"), "utf8").matchAll(/<loc>https:\/\/remmynd\.space\/([^<]*)<\/loc>/g)].map(m => m[1]);
+  assert.deepEqual(sitemap.sort(), ["", ...PAGES].sort());
+  // Folders are served without the slash, and CHANGELOG.md is bundled as text for /changelog.
+  const toml = readFileSync(join(root, "wrangler.toml"), "utf8");
+  assert.match(toml, /^html_handling = "drop-trailing-slash"$/m);
+  assert.match(toml, /\[\[rules\]\]\ntype = "Text"\nglobs = \["\*\*\/\*\.md"\]/);
+  // llms.txt describes /new with every parameter.
+  const llms = readFileSync(join(root, "public/llms.txt"), "utf8");
+  assert.match(llms, /^# remmynd\n\n> /);
+  for (const k of ["t", "at", "tz", "d", "l", "n", "h"]) assert.ok(llms.includes("- `" + k + "`: "), "llms.txt explains " + k);
+  // The site's styles use token names only.
+  assert.doesNotMatch(readFileSync(join(root, "public/site.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "site.css uses token names, not raw colours");
+});
+
+test("website: every figure is real and checkable", async () => {
+  // /why: only the section 10 figures, each with its source linked (docs/v2/SPEC.md).
+  const why = readPage("why");
+  const sources = {
+    s1: "https://doi.org/10.1007/s00426-020-01357-6",
+    s2: "https://eprints.whiterose.ac.uk/id/eprint/107519/",
+    s3: "https://bmjopen.bmj.com/content/6/10/e012116.full",
+    s4: "https://marketing.wharton.upenn.edu/wp-content/uploads/2016/10/nickerson20and20rogers_FINAL.pdf",
+    s5: "https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2020.01278/full",
+  };
+  for (const [id, url] of Object.entries(sources)) assert.ok(why.includes('<li id="' + id + '"><a href="' + url + '">'), "/why links source " + id);
+  for (const fig of ["50 to 80 percent of everyday memory failures", "8 percent of healthy young adults", "24 percent did", "from 54 to 67 percent across 21 studies",
+    "by 25 percent, a single one by 6", "about half the time", "turnout rose 4.1 points among those reached", "The plain reminder call did nothing."]) assert.ok(why.includes(fig), "/why says: " + fig);
+  assert.ok(why.includes("An honest limit: these studies come from clinics, elections and laboratories, not from reminder links. They tell us what to build. They do not promise a number for remmynd."));
+  // No other number on /why: the figures, the years and volumes of the sources, and the source marks 1 to 5.
+  const allowed = new Set(["50", "80", "8", "24", "54", "67", "21", "25", "6", "4.1", "1998", "2021", "2016", "2010", "2020", "10", "9", "2", "1", "3", "4", "5"]);
+  const main = visible(why.slice(why.indexOf("<main"), why.indexOf("</main>")));
+  for (const n of main.match(/\d+(?:\.\d+)?/g)) assert.ok(allowed.has(n), "/why shows " + n + ", which isn't one of the section 10 figures");
+
+  // No invented social proof anywhere on the site.
+  const invented = /trusted by|testimonial|\bfunding\b|backed by|seed round|as seen (in|on)|\d[\d,.]*\s*[kKmM]?\+?\s+(users|customers|teams|companies)\b/i;
+  for (const p of [...PAGES, "404"]) assert.doesNotMatch(visible(readPage(p)), invented, p + " makes a claim we can't check");
+  assert.doesNotMatch(visible(readFileSync(join(root, "public/index.html"), "utf8")), invented);
+
+  // /hosts: the test count is this suite's, the live tiles start hidden, and the QR code is a real one.
+  const hosts = readPage("hosts");
+  const tests = readdirSync(join(root, "test")).filter(f => f.endsWith(".test.js")).reduce((n, f) => n + (readFileSync(join(root, "test", f), "utf8").match(/^test\(/gm) || []).length, 0);
+  assert.ok(hosts.includes('<b id="tests">' + tests + "</b>"), "the tests tile on /hosts says " + tests + ", the number of tests in test/");
+  assert.match(hosts, /<div data-stat="stars" hidden>[\s\S]*<div data-stat="downloads" hidden>/, "live tiles stay hidden until their number arrives");
+  assert.ok(hosts.includes("&lt; 60 KB</b><span>of app code, compressed."), "the size tile matches the budget test above");
+  const { qrSVG } = await import("../public/qr.js");
+  assert.ok(hosts.includes(qrSVG("https://remmynd.space/example", { label: "QR code that opens an example reminder" })), "the QR code on /hosts is drawn by qr.js for remmynd.space/example");
+
+  // The release date of 1.0.0 matches the changelog wherever the site gives it.
+  const date = /^## \[1\.0\.0\] - (\d{4})-(\d{2})-(\d{2})$/m.exec(readFileSync(join(root, "CHANGELOG.md"), "utf8"));
+  const words = Number(date[3]) + " " + new Date(Date.UTC(+date[1], +date[2] - 1, 1)).toLocaleString("en-GB", { month: "long", timeZone: "UTC" }) + " " + date[1];
+  assert.ok(readPage("roadmap").includes("v1.0.0<br><span>" + words + "</span>"), "roadmap gives 1.0.0 as " + words);
+  assert.ok(readPage("press").includes("1.0.0 on " + words), "press gives 1.0.0 as " + words);
+  // The roadmap links to GitHub Issues: the repository has no Discussions.
+  assert.ok(readPage("roadmap").includes('href="https://github.com/Remmynd/remmynd/issues">Suggest on GitHub'));
+});
+
+test("worker: /changelog renders CHANGELOG.md inside the site page, escaped", async () => {
+  const { renderChangelog } = await import("../worker/changelog.js");
+  const md = [
+    "# Changelog", "", "Intro with [a doc](docs/RELEASING.md) and [Keep](https://keepachangelog.com/).", "",
+    "## [Unreleased]", "", "### Added", "",
+    "- `remmynd.space/r/…` links and **bold**", "  carried on to a second line.",
+    "- Hostile <script>alert(1)</script> and [bad](javascript:steal) and `<b>code</b>`", "",
+    "## [1.0.0] - 2026-11-09", "", "- First.", "",
+    "[Unreleased]: https://github.com/Remmynd/remmynd/compare/v1.0.0...HEAD",
+  ].join("\n");
+  const html = renderChangelog(md);
+  assert.ok(!html.includes("<h1"), "the page has its own h1");
+  assert.ok(html.includes('<p>Intro with <a href="https://github.com/Remmynd/remmynd/blob/main/docs/RELEASING.md">a doc</a> and <a href="https://keepachangelog.com/">Keep</a>.</p>'));
+  assert.ok(html.includes('<h2 id="unreleased">Unreleased</h2>'));
+  assert.ok(html.includes('<h2 id="1-0-0">1.0.0 <span>2026-11-09</span></h2>'));
+  assert.ok(html.includes("<h3>Added</h3>"));
+  assert.ok(html.includes("<li><code>remmynd.space/r/…</code> links and <strong>bold</strong> carried on to a second line.</li>"));
+  assert.ok(html.includes("Hostile &lt;script&gt;alert(1)&lt;/script&gt; and bad and <code>&lt;b&gt;code&lt;/b&gt;</code>"), "markup stays text and javascript: links are dropped");
+  assert.ok(!/<script|javascript:/i.test(html));
+  assert.ok(!html.includes("compare/v1.0.0"), "reference lines are not shown");
+
+  const worker = (await import("../worker/index.js")).default;
+  const shell = readPage("changelog");
+  const env = { ASSETS: { fetch: req => new URL(req.url).pathname === "/changelog"
+    ? new Response(shell, { headers: { "content-type": "text/html; charset=utf-8", etag: '"c"' } }) : new Response("nope", { status: 404 }) } };
+  const saved = globalThis.HTMLRewriter;
+  globalThis.HTMLRewriter = TestRewriter;
+  try {
+    const res = await worker.fetch(new Request("https://remmynd.space/changelog"), env);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("etag"), null);
+    const page = await res.text();
+    const real = renderChangelog(readFileSync(join(root, "CHANGELOG.md"), "utf8"));
+    assert.ok(page.includes('<div class="prose log" id="log">' + real + "</div>"), "the rendered changelog fills #log");
+    assert.ok(!page.includes("Read the changelog"), "the fallback line is replaced");
+    assert.ok(page.includes('<footer class="site-foot">') && page.includes('<header class="site-head">'), "inside the site's header and footer");
+    assert.match(real, /<h2 id="1-0-0">1\.0\.0 <span>2026-11-09<\/span><\/h2>/);
+    assert.equal((await worker.fetch(new Request("https://remmynd.space/changelog", { method: "POST" }), env)).status, 405);
+  } finally { globalThis.HTMLRewriter = saved; }
+});
+
+test("worker: /stats asks GitHub and npm itself, and gives null when it can't", async () => {
+  const { fetchStats, statsResponse } = await import("../worker/stats.js");
+  const asked = [];
+  const ok = async (url, init) => {
+    asked.push([url, init]);
+    if (url === "https://api.github.com/repos/Remmynd/remmynd") return Response.json({ stargazers_count: 12, name: "remmynd" });
+    if (url === "https://api.npmjs.org/downloads/point/last-week/remmynd") return Response.json({ downloads: 3456 });
+    throw new Error("unexpected " + url);
+  };
+  assert.deepEqual(await fetchStats(ok), { stars: 12, downloads: 3456 });
+  for (const [, init] of asked) assert.deepEqual(Object.keys(init.headers).sort(), ["Accept", "User-Agent"], "nothing about the visitor is sent");
+
+  const broken = async url => url.includes("github") ? new Response("rate limited", { status: 403 }) : new Response("not json");
+  assert.deepEqual(await fetchStats(broken), { stars: null, downloads: null });
+  assert.deepEqual(await fetchStats(async () => { throw new Error("offline"); }), { stars: null, downloads: null });
+  assert.deepEqual(await fetchStats(async () => Response.json({ stargazers_count: "12", downloads: -1 })), { stars: null, downloads: null });
+
+  const full = await statsResponse(new Request("https://remmynd.space/stats"), {}, null, ok);
+  assert.equal(full.headers.get("cache-control"), "public, max-age=3600");
+  assert.match(full.headers.get("content-type"), /^application\/json/);
+  assert.deepEqual(await full.json(), { stars: 12, downloads: 3456 });
+  const part = await statsResponse(new Request("https://remmynd.space/stats"), {}, null, async url => url.includes("github") ? ok(url, {}) : new Response("", { status: 500 }));
+  assert.equal(part.headers.get("cache-control"), "public, max-age=300", "a gap is tried again sooner");
+  assert.deepEqual(await part.json(), { stars: 12, downloads: null });
+  assert.equal((await statsResponse(new Request("https://remmynd.space/stats", { method: "POST" }), {}, null, ok)).status, 405);
+
+  // The route, through the Worker.
+  const worker = (await import("../worker/index.js")).default;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = ok;
+  try { assert.deepEqual(await (await worker.fetch(new Request("https://remmynd.space/stats"), {}, { waitUntil() {} })).json(), { stars: 12, downloads: 3456 }); }
+  finally { globalThis.fetch = realFetch; }
+  // The service worker never caches it, and the page asks only remmynd.space.
+  assert.match(readFileSync(join(root, "public/sw.js"), "utf8"), /url\.pathname === "\/stats"\) return;/);
+  assert.match(readFileSync(join(root, "public/site.js"), "utf8"), /fetch\("\/stats"\)/);
+});
+
+test("website: site.js shares the app's theme code and runs", () => {
+  const site = readFileSync(join(root, "public/site.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8");
+  const theme = js => /const PAPER=[\s\S]*?b\.dataset\.themeSet===t\)\)\);\}/.exec(js)[0];
+  assert.equal(theme(site), theme(app), "site.js and app.js apply the theme the same way");
+  assert.doesNotThrow(() => new Function(site), "public/site.js has a syntax error");
+
+  // Run it against a small fake page: the menu opens and closes, and a missing number keeps its tile hidden.
+  const el = (extra = {}) => { const e = { hidden: false, attrs: {}, on: {}, dataset: {}, textContent: "", focus() { focused = e; }, ...extra };
+    e.setAttribute = (k, v) => { e.attrs[k] = v; }; e.addEventListener = (k, f) => { e.on[k] = f; }; return e; };
+  let focused = null;
+  const link = el(), x = el(), menu = el({ hidden: true }), btn = el(), docKeys = {};
+  menu.querySelector = () => link; menu.querySelectorAll = () => [link, x];
+  const stars = el({ hidden: true, dataset: { stat: "stars" } }), downloads = el({ hidden: true, dataset: { stat: "downloads" } });
+  for (const t of [stars, downloads]) { const b = el(); t.querySelector = () => b; t.b = b; }
+  const byId = { "#menu": menu, "#menu-btn": btn, "#menu-x": x };
+  const document = { documentElement: { dataset: {} }, activeElement: btn,
+    querySelector: s => byId[s] || null,
+    querySelectorAll: s => s === "[data-stat]" ? [stars, downloads] : [],
+    addEventListener: (k, f) => { docKeys[k] = f; } };
+  let answer;
+  const fetch = url => { assert.equal(url, "/stats"); return Promise.resolve({ ok: true, json: () => Promise.resolve(answer) }); };
+  answer = { stars: 1234, downloads: null };
+  new Function("document", "localStorage", "fetch", "navigator", site)(document, { getItem: () => null }, fetch, {});
+  btn.on.click();
+  assert.equal(menu.hidden, false);
+  assert.equal(btn.attrs["aria-expanded"], "true");
+  assert.equal(focused, link, "the first link takes focus");
+  docKeys.keydown({ key: "Escape" });
+  assert.equal(menu.hidden, true);
+  assert.equal(focused, btn, "focus goes back to the Menu button");
+  return new Promise(r => setTimeout(r, 0)).then(() => {
+    assert.equal(stars.hidden, false);
+    assert.equal(stars.b.textContent, "1,234");
+    assert.equal(downloads.hidden, true, "a missing number keeps its tile hidden");
+  });
 });
