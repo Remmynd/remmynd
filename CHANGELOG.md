@@ -18,6 +18,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- Privacy wording across the site and docs: "Free, no sign-up, no tracking." Principles, architecture and the release runbook now describe how phone alerts work and what the server keeps.
 - Runs on Cloudflare Workers with static assets instead of Pages, served at remmynd.space.
 - `www.remmynd.space` redirects to the bare domain on every path, including the home page.
 - Each static file sends exactly one `Cache-Control` header: the service worker always revalidates, icons cache for a year, badges for a day.

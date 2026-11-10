@@ -142,9 +142,11 @@ flowchart LR
     C --> D["Remind me<br/>Apple Calendar, Google Calendar, Outlook"]
 ```
 
-The full picture, including how requests are routed and how the `/ics` fallback works, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The full picture, including how requests are routed, how the `/ics` fallback works and how phone alerts stay private, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Privacy
+
+Free, no sign-up, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
 
 - No accounts, no cookies, no analytics, no tracking.
 - The reminder lives in the link. Opening it sends nothing about the event to remmynd.space.
@@ -153,7 +155,7 @@ The full picture, including how requests are routed and how the `/ics` fallback 
 
 ## Self-host
 
-remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles `/ics`, the `www` redirect and named pages like `/example`.
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles `/ics`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
 
 ```sh
 git clone https://github.com/Remmynd/remmynd.git
