@@ -8,6 +8,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- Theme switch in the footer: Auto follows the system, or pick Light or Dark. The choice stays on the device (`rm:theme`) and the browser bar colour follows it.
 - Automatic deploys: every push to `main` deploys remmynd.space through Cloudflare Workers Builds. A scheduled live check confirms the site's routes every six hours.
 - Release pipeline: merging a version bump tags the release, publishes GitHub release notes from this changelog and publishes the npm package with provenance. `npm run release -- <patch|minor|major>` prepares the bump.
 - Documentation: [principles](docs/PRINCIPLES.md), [architecture](docs/ARCHITECTURE.md) with diagrams, and a [release and operations runbook](docs/RELEASING.md).
@@ -18,6 +19,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- New look on the 2.0 design tokens: "Daylight" (paper, ink, amber) and "Night shift" (near-black, electric lime). Styles moved from `index.html` to `public/app.css`, and Remind me uses the moment colour.
+- Geist and Geist Mono are served from remmynd.space (`public/fonts/`, SIL Open Font Licence). The page no longer loads Google Fonts, so it makes no requests to other hosts for type.
 - Principles for 2.0: shared and private links, free for everyone who makes or saves a reminder, notifications with permission, a 60 KB code budget, and the aim "Reminders that make sure it happens." The 2.0 build spec and design reference are in [docs/v2](docs/v2/SPEC.md).
 - Phone alerts are switched on at remmynd.space: the D1 database, the every-minute cron and the public push key are set in `wrangler.toml`.
 - Privacy wording across the site and docs: "Free, no sign-up, no tracking." Principles, architecture and the release runbook now describe how phone alerts work and what the server keeps.

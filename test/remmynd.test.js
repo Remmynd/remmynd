@@ -80,6 +80,71 @@ test("website script parses", () => {
   assert.doesNotThrow(() => new Function(sw), "public/sw.js has a syntax error");
 });
 
+test("styles: app.css carries the 2.0 tokens and self-hosted fonts", () => {
+  const css = readFileSync(join(root, "public/app.css"), "utf8");
+  const tokens = readFileSync(join(root, "docs/v2/tokens.css"), "utf8");
+  const tokenBlock = tokens.slice(0, tokens.indexOf("/* How the mock-up values")).trim();
+  assert.ok(css.includes(tokenBlock), "public/app.css holds docs/v2/tokens.css unchanged");
+  const components = css.slice(css.indexOf("/* ---------- theme switch support"));
+  assert.ok(components.length > 1000, "component styles follow the tokens");
+  assert.doesNotMatch(components, /#[0-9a-f]{3,8}\b|rgba?\(/i, "components use token names, not raw colours");
+
+  const faces = [...css.matchAll(/@font-face\s*{([^}]*)}/g)].map(m => m[1]);
+  assert.deepEqual(faces.map(f => /font-family:\s*"([^"]+)"/.exec(f)[1]), ["Geist", "Geist Mono"]);
+  for (const f of faces) {
+    assert.match(f, /font-display:\s*swap/);
+    const file = /url\("([^"]+)"\)/.exec(f)[1];
+    assert.ok(statSync(join(root, "public", file)).size > 10000, file + " is in public/");
+  }
+  assert.match(readFileSync(join(root, "public/fonts/OFL.txt"), "utf8"), /SIL OPEN FONT LICENSE Version 1\.1/);
+
+  const html = readFileSync(join(root, "public/index.html"), "utf8");
+  assert.ok(!/<style[\s>]/.test(html), "no inline style block left in index.html");
+  assert.ok(!/\sstyle="/.test(html), "no inline style attributes left in index.html");
+  assert.match(html, /<link rel="stylesheet" href="app\.css">/);
+  for (const f of readdirSync(join(root, "public")).filter(f => /\.(html|css|js|webmanifest)$/.test(f))) {
+    assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8"), /fonts\.(googleapis|gstatic)\.com/, f + " loads Google Fonts");
+  }
+  const sw = readFileSync(join(root, "public/sw.js"), "utf8");
+  for (const f of ["./app.css", "./fonts/geist-5.3-latin.woff2", "./fonts/geist-mono-5.3-latin.woff2"]) assert.ok(sw.includes('"' + f + '"'), "sw.js caches " + f);
+});
+
+test("theme switch: Auto, Light and Dark, kept in rm:theme, with matching theme-color", () => {
+  const html = readFileSync(join(root, "public/index.html"), "utf8");
+  const tokens = readFileSync(join(root, "docs/v2/tokens.css"), "utf8");
+  const light = /:root\s*{[^}]*--paper:\s*(#[0-9A-Fa-f]{6})/.exec(tokens)[1];
+  const dark = /:root\[data-theme="dark"\]\s*{[^}]*--paper:\s*(#[0-9A-Fa-f]{6})/.exec(tokens)[1];
+  assert.match(html, new RegExp('id="tc-light" content="' + light + '" media="\\(prefers-color-scheme: light\\)"'));
+  assert.match(html, new RegExp('id="tc-dark" content="' + dark + '" media="\\(prefers-color-scheme: dark\\)"'));
+  assert.deepEqual([...html.matchAll(/data-theme-set="(\w+)"[^>]*>(\w+)</g)].map(m => m[1] + ":" + m[2]), ["auto:Auto", "light:Light", "dark:Dark"]);
+  assert.match(html, /<head>[\s\S]*localStorage\.getItem\("rm:theme"\)[\s\S]*<link rel="stylesheet" href="app\.css">/, "saved theme is applied before styles load");
+
+  // Run the page's theme code against a tiny fake document.
+  const src = html.slice(html.indexOf("const PAPER="), html.indexOf("/* ---------- install (PWA)"));
+  const metas = { "#tc-light": { content: "" }, "#tc-dark": { content: "" } };
+  const buttons = ["auto", "light", "dark"].map(t => { const b = { dataset: { themeSet: t }, attrs: {}, on: {} }; b.setAttribute = (k, v) => { b.attrs[k] = v; }; b.addEventListener = (e, f) => { b.on[e] = f; }; return b; });
+  const docEl = { dataset: {} };
+  const store = new Map();
+  const localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) };
+  const document = { documentElement: docEl, querySelectorAll: () => buttons };
+  new Function("$", "document", "localStorage", src)(s => metas[s], document, localStorage);
+  const pressed = () => buttons.filter(b => b.attrs["aria-pressed"] === "true").map(b => b.dataset.themeSet);
+
+  assert.deepEqual(pressed(), ["auto"]);
+  assert.equal(docEl.dataset.theme, undefined);
+  assert.deepEqual([metas["#tc-light"].content, metas["#tc-dark"].content], [light, dark]);
+  buttons[2].on.click();
+  assert.equal(docEl.dataset.theme, "dark");
+  assert.equal(store.get("rm:theme"), "dark");
+  assert.deepEqual([metas["#tc-light"].content, metas["#tc-dark"].content], [dark, dark]);
+  assert.deepEqual(pressed(), ["dark"]);
+  buttons[1].on.click();
+  assert.deepEqual([docEl.dataset.theme, store.get("rm:theme"), metas["#tc-dark"].content], ["light", "light", light]);
+  buttons[0].on.click();
+  assert.equal(docEl.dataset.theme, undefined);
+  assert.equal(store.has("rm:theme"), false, "Auto clears the saved choice");
+});
+
 test("worker: /ics file, www redirect, named pages, static passthrough", async () => {
   const worker = (await import("../worker/index.js")).default;
   const env = { ASSETS: { fetch: () => new Response("static", { status: 200 }) } };
