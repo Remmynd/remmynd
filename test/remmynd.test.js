@@ -517,6 +517,8 @@ const LINK_OUT_HOSTS = new Set([
   SITE,                  // our own address: shared links and the badge snippet
   "calendar.google.com", // Google Calendar's add-event page
   "www.w3.org",          // the SVG namespace, never fetched
+  "maps.apple.com",      // Directions to a place, on Apple devices
+  "www.google.com",      // Directions to a place, elsewhere
 ]);
 // <link rel> values that make the browser fetch the address.
 const LOADING_RELS = new Set(["stylesheet", "preload", "modulepreload", "prefetch", "prerender", "preconnect", "dns-prefetch", "icon", "apple-touch-icon", "apple-touch-icon-precomposed", "apple-touch-startup-image", "mask-icon", "manifest"]);
@@ -1000,54 +1002,58 @@ test("on-device storage: version 2 adds reminders and links, built from version 
   for (const f of ["push.js", "sw.js", "app.js"]) assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8"), /indexedDB\.open/, f + " opens IndexedDB itself");
 });
 
+// Run public/push.js against stand-ins for the browser: permission, push, storage and the server.
+function loadPush(vm, src, { permission = "granted", ask = "granted", push = true, ios = false } = {}) {
+  const alerts = new Map(), posts = [];
+  const state = { asked: false };
+  const Notification = { permission, requestPermission: () => { state.asked = true; Notification.permission = ask; return Promise.resolve(ask); } };
+  let subscribed = null;
+  const reg = { pushManager: { getSubscription: async () => subscribed, subscribe: async () => (subscribed = { endpoint: "https://fcm.googleapis.com/fcm/send/abc" }) } };
+  const ctx = {
+    crypto, btoa, atob, console, setTimeout, Promise, Uint8Array, JSON,
+    navigator: { userAgent: ios ? "iPhone" : "Mozilla/5.0", maxTouchPoints: 0, ...(push ? { serviceWorker: { ready: Promise.resolve(reg) } } : {}) },
+    document: { querySelector: () => null },
+    fetch: async (path, opts) => { if (path === "/push/key") return { ok: true, json: async () => ({ key: "BL1wKLc" }) }; posts.push([path, JSON.parse(opts.body)]); return { ok: true, json: async () => ({ ok: true }) }; },
+    remmyndDB: {
+      getAll: async () => [...alerts.values()],
+      putMany: async (_, list) => list.forEach(a => alerts.set(a.id, a)),
+      delMany: async (_, ids) => ids.forEach(id => alerts.delete(id))
+    },
+    __rm: { OWN: true, IOS: ios, STANDALONE: false, TZ: "Asia/Kolkata", openSheet() {}, toast() {}, fShort: d => d.toISOString().slice(11, 16) },
+    addEventListener() {}
+  };
+  if (push) { ctx.PushManager = function () {}; ctx.Notification = Notification; }
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx);
+  return { push: ctx.__rmPush, alerts, posts, state };
+}
+
 test("stack: Remind me turns on notifications inside the tap, and the Notification row says where things stand", async () => {
   const vm = await import("node:vm");
   const src = readFileSync(join(root, "public/push.js"), "utf8");
-  const load = ({ permission = "granted", ask = "granted", push = true, ios = false } = {}) => {
-    const alerts = new Map(), posts = [];
-    const state = { asked: false };
-    const Notification = { permission, requestPermission: () => { state.asked = true; Notification.permission = ask; return Promise.resolve(ask); } };
-    const reg = { pushManager: { getSubscription: async () => null, subscribe: async () => ({ endpoint: "https://fcm.googleapis.com/fcm/send/abc" }) } };
-    const ctx = {
-      crypto, btoa, atob, console, setTimeout, Promise, Uint8Array, JSON,
-      navigator: { userAgent: ios ? "iPhone" : "Mozilla/5.0", maxTouchPoints: 0, ...(push ? { serviceWorker: { ready: Promise.resolve(reg) } } : {}) },
-      document: { querySelector: () => null },
-      fetch: async (path, opts) => { if (path === "/push/key") return { ok: true, json: async () => ({ key: "BL1wKLc" }) }; posts.push([path, JSON.parse(opts.body)]); return { ok: true, json: async () => ({ ok: true }) }; },
-      remmyndDB: {
-        getAll: async () => [...alerts.values()],
-        putMany: async (_, list) => list.forEach(a => alerts.set(a.id, a)),
-        delMany: async (_, ids) => ids.forEach(id => alerts.delete(id))
-      },
-      __rm: { OWN: true, IOS: ios, STANDALONE: false, TZ: "Asia/Kolkata", openSheet() {}, toast() {}, fShort: d => d.toISOString().slice(11, 16) },
-      addEventListener() {}
-    };
-    if (push) { ctx.PushManager = function () {}; ctx.Notification = Notification; }
-    ctx.window = ctx;
-    vm.createContext(ctx);
-    vm.runInContext(src, ctx);
-    return { push: ctx.__rmPush, alerts, posts, state };
-  };
+  const load = opts => loadPush(vm, src, opts);
   const el = () => ({ isConnected: true, innerHTML: "", querySelector: () => ({ addEventListener() {} }) });
   const day = { r: { t: "Demo day", l: "https://lu.ma/demo" }, start: new Date(Date.now() + 2 * 864e5), share: "https://remmynd.space/r/x", morningAt: null };
 
   // Allowed already: two alerts, scheduled as two anonymous pings, and the row says so.
   let t = load(), d = { ...day, el: el() };
   await t.push.remind(d);
-  assert.deepEqual([...t.alerts.values()].map(a => a.kind).sort(), ["before", "start"]);
+  assert.deepEqual([...t.alerts.values()].map(a => a.kind).sort(), ["before", "check", "start"]);
   assert.equal(t.posts.length, 1);
   assert.equal(t.posts[0][0], "/push/schedule");
   assert.deepEqual(Object.keys(t.posts[0][1].pings[0]).sort(), ["at", "id"], "the server gets an id and a time, nothing about the event");
   assert.match(d.el.innerHTML, /1 hour before, and at the start/);
   assert.match(d.el.innerHTML, /Notifications on\. Turn them off/);
   await t.push.remind(d);
-  assert.equal(t.alerts.size, 2, "holding twice doesn't double the alerts");
+  assert.equal(t.alerts.size, 3, "holding twice doesn't double the alerts");
 
   // Not asked yet: the prompt starts inside the tap, before anything is awaited.
   t = load({ permission: "default" }); d = { ...day, el: el() };
   const pending = t.push.remind(d);
   assert.equal(t.state.asked, true, "permission is asked synchronously");
   await pending;
-  assert.equal(t.alerts.size, 2);
+  assert.equal(t.alerts.size, 3);
 
   // Said no: nothing is scheduled, and the row says where it's blocked.
   t = load({ permission: "default", ask: "denied" }); d = { ...day, el: el() };
@@ -1068,6 +1074,125 @@ test("stack: Remind me turns on notifications inside the tap, and the Notificati
   await t.push.remind(d);
   await new Promise(r => setTimeout(r, 10));
   assert.match(d.el.innerHTML, /Not available in this browser/);
+});
+
+test("follow through: the check alert, nudges, and stopping them", async () => {
+  const vm = await import("node:vm");
+  const src = readFileSync(join(root, "public/push.js"), "utf8");
+  const start = new Date(Math.ceil((Date.now() + 2 * 864e5) / 6e4) * 6e4);
+  const el = () => ({ isConnected: true, innerHTML: "", querySelector: () => ({ addEventListener() {} }) });
+  const kinds = t => [...t.alerts.values()].sort((a, b) => a.at - b.at).map(a => a.kind + "@" + Math.round((a.at - start) / 6e4));
+
+  // The check comes when it ends: start plus its length, or 30 minutes when the link has none.
+  let t = loadPush(vm, src);
+  await t.push.remind({ r: { t: "Demo day", d: 45 }, start, share: "https://remmynd.space/r/x", morningAt: null, el: el() });
+  assert.deepEqual(kinds(t), ["before@-60", "start@0", "check@45"]);
+  t = loadPush(vm, src);
+  await t.push.remind({ r: { t: "Demo day" }, start, share: "https://remmynd.space/r/x", morningAt: null, el: el() });
+  assert.deepEqual(kinds(t), ["before@-60", "start@0", "check@30"]);
+
+  // Nudges: 10, 20 and 30 minutes after the start, numbered, only with the switch on.
+  t = loadPush(vm, src);
+  const d = { r: { t: "Demo day", d: 60 }, start, share: "https://remmynd.space/r/x", morningAt: null, el: el(), nudge: true };
+  await t.push.remind(d);
+  assert.deepEqual(kinds(t), ["before@-60", "start@0", "nudge@10", "nudge@20", "nudge@30", "check@60"]);
+  assert.deepEqual([...t.alerts.values()].filter(a => a.kind === "nudge").map(a => a.n).sort(), [1, 2, 3]);
+  assert.ok(t.posts.every(([, body]) => !body.pings || body.pings.length <= 8), "within 8 pings per request");
+  // Opening the link stops the nudges; the check stays.
+  assert.equal(await t.push.cancel([...t.alerts.values()][0].rkey, ["nudge"]), 3);
+  assert.deepEqual(kinds(t), ["before@-60", "start@0", "check@60"]);
+  assert.equal(t.posts.at(-1)[0], "/push/cancel");
+  // The switch adds them back, once.
+  assert.equal(await t.push.setNudge(d, true), 3);
+  assert.equal(await t.push.setNudge(d, true), 0);
+  assert.equal(await t.push.setNudge(d, false), 3);
+
+  // Not yet: everything waiting goes, and one alert comes back at the chosen time.
+  const at = start.getTime() + 864e5;
+  assert.equal(await t.push.replan(d, at), true);
+  assert.deepEqual([...t.alerts.values()].map(a => [a.kind, a.at]), [["replan", at]]);
+  // Drop: nothing left.
+  await t.push.cancel([...t.alerts.values()][0].rkey);
+  assert.equal(t.alerts.size, 0);
+
+  // Overnight (sleep-safe): one morning alert, no check or nudges in the night.
+  t = loadPush(vm, src);
+  await t.push.remind({ r: { t: "Launch", d: 60 }, start, share: "https://remmynd.space/r/y", morningAt: new Date(start.getTime() + 8 * 36e5), el: el(), nudge: true });
+  assert.deepEqual(kinds(t), ["after@480"]);
+});
+
+test("follow through: check and nudge alerts on the device, Done and Not yet", async () => {
+  const vm = await import("node:vm");
+  const src = readFileSync(join(root, "public/sw.js"), "utf8");
+  const now = Date.now();
+  const stores = { alerts: new Map(), reminders: new Map() };
+  const base = { rkey: "k1", title: "Demo day", start: now - 15 * 60e3, place: "https://lu.ma/demo", share: "https://remmynd.space/r/abc", shown: false };
+  [{ ...base, id: "c1", kind: "check", at: now - 1000 }, { ...base, id: "n2", kind: "nudge", n: 2, at: now - 500 }, { ...base, id: "n3", kind: "nudge", n: 3, at: now + 10 * 60e3 },
+    { ...base, rkey: "k2", title: "Call Mum", id: "r1", kind: "replan", at: now - 200 }].forEach(a => stores.alerts.set(a.id, a));
+  stores.reminders.set("k1", { rkey: "k1", title: "Demo day", state: "held" });
+  const keyOf = (store, v) => store === "alerts" ? v.id : v.rkey;
+  const DB = { getAll: async st => [...stores[st].values()].map(v => ({ ...v })), put: async (st, v) => { stores[st].set(keyOf(st, v), { ...v }); }, del: async (st, k) => { stores[st].delete(k); } };
+  const shown = [], opened = [], posts = [], listeners = {};
+  const ctx = {
+    URL, console, setTimeout, crypto, btoa, atob, location: { origin: "https://remmynd.space" }, caches: {},
+    fetch: async (path, opts) => { posts.push([path, JSON.parse(opts.body)]); return { ok: true, json: async () => ({}) }; },
+    Notification: { prototype: { actions: null }, maxActions: 2 }, importScripts: () => {},
+    self: { addEventListener: (t, f) => { listeners[t] = f; }, navigator: {}, remmyndDB: DB,
+      clients: { matchAll: async () => [], openWindow: async url => { opened.push(url); } },
+      registration: { showNotification: async (title, opts) => { shown.push({ title, ...opts }); }, pushManager: { getSubscription: async () => ({ endpoint: "https://fcm.googleapis.com/fcm/send/abc" }) } } }
+  };
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx);
+  const wait = async fn => { let p; fn(x => { p = x; }); await p; };
+
+  await wait(w => listeners.push({ waitUntil: w }));
+  const by = t => shown.find(n => n.title === t);
+  const check = by("Demo day: did you make it?"), nudge = by("Demo day has started"), back = by("Call Mum");
+  assert.ok(check && nudge && back, "check, nudge and re-plan alerts are shown");
+  assert.deepEqual(Array.from(check.actions, a => a.title), ["Done", "Not yet"]);
+  assert.equal(check.data.url, "https://remmynd.space/r/abc", "a tap opens the ticket, which asks the same question");
+  assert.equal(nudge.body, "Nudge 2 of 3. Tap to open.");
+  assert.equal(nudge.data.url, "https://lu.ma/demo");
+  assert.deepEqual(Array.from(back.actions, a => a.title), ["Done", "Not yet"]);
+  assert.equal(by("Demo day: did you make it?") && shown.filter(n => /Nudge 3/.test(n.body)).length, 0, "nudge 3 waits for its time");
+
+  // Tapping the nudge opens the link and stops the nudges still waiting.
+  await wait(w => listeners.notificationclick({ action: "", notification: { close() {}, data: nudge.data }, waitUntil: w }));
+  assert.deepEqual(opened, ["https://lu.ma/demo"]);
+  assert.equal(stores.alerts.has("n3"), false, "nudge 3 is cancelled");
+  assert.ok(stores.reminders.get("k1").openedAt, "opened is kept on the reminder");
+
+  // Not yet opens the ticket with the re-plan sheet.
+  await wait(w => listeners.notificationclick({ action: "notyet", notification: { close() {}, data: check.data }, waitUntil: w }));
+  assert.equal(opened.at(-1), "https://remmynd.space/r/abc?act=replan");
+
+  // Done marks it kept, without opening anything, and cancels what's left.
+  stores.alerts.set("x1", { ...base, id: "x1", kind: "nudge", n: 3, at: now + 60e3 });
+  await wait(w => listeners.notificationclick({ action: "done", notification: { close() {}, data: check.data }, waitUntil: w }));
+  assert.equal(stores.reminders.get("k1").state, "kept");
+  assert.ok(stores.reminders.get("k1").doneAt);
+  assert.equal(stores.alerts.has("x1"), false);
+  assert.deepEqual(posts.at(-1), ["/push/cancel", { endpoint: "https://fcm.googleapis.com/fcm/send/abc", ids: ["x1"] }]);
+  assert.equal(opened.length, 2, "Done opens nothing");
+});
+
+test("follow through: the re-plan sheet's choices", () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8");
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+  const replanOptions = new Function(line("function parts(") + line("function offsetMin(") + line("function zonedToUTC(") + line("const replanOptions=") + "; return replanOptions;")();
+  const tz = "Asia/Kolkata", at = (y, mo, d, h, mi = 0) => R.zonedTime(y, mo, d, h, mi, tz).getTime();
+  const show = now => replanOptions(now, tz).map(o => [o.key, o.at]);
+  // Wednesday 11 Nov 2026, 10:00: in 10 minutes, tonight at 8, tomorrow at 9, Monday at 9.
+  assert.deepEqual(show(new Date(at(2026, 11, 11, 10))), [["in10", at(2026, 11, 11, 10, 10)], ["tonight", at(2026, 11, 11, 20)], ["tomorrow", at(2026, 11, 12, 9)], ["monday", at(2026, 11, 16, 9)]]);
+  // After 7:00 PM there is no "tonight".
+  assert.deepEqual(show(new Date(at(2026, 11, 11, 19, 5))).map(o => o[0]), ["in10", "tomorrow", "monday"]);
+  // On a Sunday, tomorrow is Monday: one choice, not two.
+  assert.deepEqual(show(new Date(at(2026, 11, 15, 10))).map(o => o[0]), ["in10", "tonight", "tomorrow"]);
+  // On a Monday, "Monday" means next week's.
+  assert.equal(show(new Date(at(2026, 11, 16, 10))).find(o => o[0] === "monday")[1], at(2026, 11, 23, 9));
+  const html = readFileSync(join(root, "public/index.html"), "utf8");
+  for (const w of ["Not yet? Pick when.", "We'll bring it back then, one tap from the link.", "Pick a time", "Drop this reminder"]) assert.ok(html.includes(w), "index.html says: " + w);
+  for (const w of ["Open the link", "Directions", "Not yet", "Done", "We ask once whether you made it. Then we stop.", "Starting now", " · fresh start"]) assert.ok(app.includes(w), "app.js says: " + w);
 });
 
 test("sleep-safe: the 9 AM alert reads as already started", async () => {

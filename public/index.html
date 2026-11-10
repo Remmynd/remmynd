@@ -152,6 +152,17 @@
     <div id="sheet-body"></div>
   </div>
 </div>
+<div class="sheet" id="replan" hidden role="dialog" aria-modal="true" aria-labelledby="rp-t">
+  <div class="sheet-card rp">
+    <button type="button" class="sheet-x" id="rp-x" aria-label="Close">×</button>
+    <div class="rp-head" id="rp-head"></div>
+    <h2 id="rp-t">Not yet? Pick when.</h2>
+    <p class="rp-sub">We'll bring it back then, one tap from the link.</p>
+    <div class="rp-grid" id="rp-grid"></div>
+    <label class="btn rp-pick">Pick a time<input type="datetime-local" id="rp-pick" aria-label="Pick a time"></label>
+    <button type="button" class="more rp-drop" id="rp-drop">Drop this reminder</button>
+  </div>
+</div>
 <div class="arrow" id="arrow" hidden aria-hidden="true"><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17M5 13l7 7 7-7"/></svg></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
