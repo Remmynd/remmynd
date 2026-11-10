@@ -11,22 +11,11 @@
   const $ = s => document.querySelector(s);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-  /* ---------- on-device storage (same shape as sw.js) ---------- */
-  const DB_NAME = "remmynd", STORE = "alerts";
-  function idb() {
-    return new Promise((res, rej) => {
-      const q = indexedDB.open(DB_NAME, 1);
-      q.onupgradeneeded = () => { const s = q.result.createObjectStore(STORE, { keyPath: "id" }); s.createIndex("rkey", "rkey"); };
-      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
-    });
-  }
-  async function tx(mode, fn) {
-    const db = await idb();
-    return new Promise((res, rej) => { const t = db.transaction(STORE, mode); const r = fn(t.objectStore(STORE)); t.oncomplete = () => res(r && "result" in r ? r.result : undefined); t.onerror = () => rej(t.error); });
-  }
-  const getAll = () => tx("readonly", s => s.getAll()).catch(() => []);
-  const putMany = list => tx("readwrite", s => { list.forEach(a => s.put(a)); });
-  const delMany = ids => tx("readwrite", s => { ids.forEach(id => s.delete(id)); });
+  /* ---------- on-device storage: db.js, shared with sw.js ---------- */
+  const DB = window.remmyndDB;
+  const getAll = () => (DB ? DB.getAll("alerts") : Promise.reject(new Error("no storage"))).catch(() => []);
+  const putMany = list => DB.putMany("alerts", list);
+  const delMany = ids => DB.delMany("alerts", ids);
   const rid = () => { const b = crypto.getRandomValues(new Uint8Array(16)); return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
   const hash = s => { let h = 5381; for (const c of s) h = (h * 33) ^ c.charCodeAt(0); return (h >>> 0).toString(36); };
   const rkeyOf = (title, start) => Math.round(start / 6e4).toString(36) + "-" + hash(title);

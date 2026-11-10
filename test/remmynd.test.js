@@ -90,6 +90,97 @@ test("fromQuery reads hand-written links", () => {
   }
 });
 
+test("parse: one typed line becomes a reminder", () => {
+  // Wednesday 11 November 2026, 10:00 in Kolkata.
+  const now = new Date("2026-11-11T04:30:00Z"), timeZone = "Asia/Kolkata";
+  const at = (d, h, mi = 0, mo = 11, y = 2026) => R.zonedTime(y, mo, d, h, mi, timeZone).toISOString();
+  const cases = [
+    // line, title, start, dur, place
+    ["Demo day Fri 5pm zoom.us/j/123", "Demo day", at(13, 17), null, "https://zoom.us/j/123"],
+    ["Call Mum tomorrow 7:30pm", "Call Mum", at(12, 19, 30), null],
+    ["Rent due 1st", "Rent due", at(1, 9, 0, 12), null],
+    ["Standup today 9:30am", "Standup", at(11, 9, 30), null],
+    ["Gym tonight", "Gym", at(11, 20), null],
+    ["Dinner tonight at 8", "Dinner", at(11, 20), null],
+    ["Lunch at noon", "Lunch", at(11, 12), null],
+    ["Pay bill midnight", "Pay bill", at(12, 0), null],
+    ["Webinar 17:00", "Webinar", at(11, 17), null],
+    ["Webinar 9:00", "Webinar", at(12, 9), null],
+    ["Coffee in 2 hours", "Coffee", at(11, 12), null],
+    ["Tea in 30 min", "Tea", at(11, 10, 30), null],
+    ["Review in an hour", "Review", at(11, 11), null],
+    ["Sync Fri 3pm for 30 min", "Sync", at(13, 15), 30],
+    ["Workshop 13 Nov 2pm for 2 hours", "Workshop", at(13, 14), 120],
+    ["Launch Nov 13", "Launch", at(13, 9), null],
+    ["Party 13/11 7pm", "Party", at(13, 19), null],
+    ["Meeting 11/13 10am", "Meeting", at(13, 10), null],
+    ["Exam 2026-12-05", "Exam", at(5, 9, 0, 12), null],
+    ["Exam 2026-12-05T14:30", "Exam", at(5, 14, 30, 12), null],
+    ["Dentist next Friday 4pm", "Dentist", at(20, 16), null],
+    ["Yoga next Monday", "Yoga", at(16, 9), null],
+    ["Board call Monday 11am", "Board call", at(16, 11), null],
+    ["Status Wed 5pm", "Status", at(11, 17), null],
+    ["Status Wed 9am", "Status", at(18, 9), null],
+    ["Coffee with Sam at Blue Tokai tomorrow 10am", "Coffee with Sam", at(12, 10), null, "Blue Tokai"],
+    ["Book club at Sam's place", "Book club", null, null, "Sam's place"],
+    ["Lunch at 1", "Lunch", at(11, 13), null],
+    ["Gym at 7", "Gym", at(12, 7), null],
+    ["Movie 5-7pm Sat", "Movie", at(14, 17), 120],
+    ["Standup 17:00-17:15", "Standup", at(11, 17), 15],
+    ["Release on the 20th", "Release", at(20, 9), null],
+    ["New year party 31 Dec 9pm", "New year party", at(31, 21, 0, 12), null],
+    ["Holiday Jan 2", "Holiday", at(2, 9, 0, 1, 2027), null],
+    ["Call https://meet.google.com/abc-defg-hij at 6pm", "Call", at(11, 18), null, "https://meet.google.com/abc-defg-hij"],
+    ["Live www.youtube.com/live tomorrow 8pm", "Live", at(12, 20), null, "https://www.youtube.com/live"],
+    ["Lunch lu.ma tomorrow 1pm", "Lunch", at(12, 13), null, "https://lu.ma"],
+    ["Just a title", "Just a title", null, null],
+    ["", "", null, null],
+    ["Deadline Fri midnight", "Deadline", at(14, 0), null],
+    ["Run tomorrow morning", "Run", at(12, 9), null],
+    ["Drinks Friday evening", "Drinks", at(13, 19), null],
+    ["Picnic in the sun Sunday", "Picnic in the sun", at(15, 9), null],
+    ["Train 6.45pm", "Train", at(11, 18, 45), null],
+    ["Sale ends 5 p.m. tomorrow", "Sale ends", at(12, 17), null],
+    ["Demo day - Fri 5pm", "Demo day", at(13, 17), null],
+    ["Webinar 10am UTC", "Webinar", "2026-11-11T10:00:00.000Z", null],
+    ["Fri 5pm", "", at(13, 17), null],
+    ["Sat 5pm chores", "chores", at(14, 17), null],
+    ["sat 5pm chores", "sat chores", at(11, 17), null]
+  ];
+  for (const [line, title, start, dur, place = ""] of cases) {
+    const r = R.parse(line, { now, timeZone });
+    assert.deepEqual([r.title, r.start && r.start.toISOString(), r.dur, r.place], [title, start, dur, place], JSON.stringify(line));
+  }
+  assert.ok(cases.length >= 40, "at least 40 cases");
+  // On the 1st after 9:00, "the 1st" is next month's; the 31st skips months without one.
+  const dec1 = new Date("2026-12-01T05:00:00Z");
+  assert.equal(R.parse("Rent due 1st", { now: dec1, timeZone }).start.toISOString(), R.zonedTime(2027, 1, 1, 9, 0, timeZone).toISOString());
+  assert.equal(R.parse("Pay 31st", { now: new Date("2027-04-02T05:00:00Z"), timeZone }).start.toISOString(), R.zonedTime(2027, 5, 31, 9, 0, timeZone).toISOString());
+  const r = R.parse("Demo day Fri 5pm zoom.us/j/123", { now, timeZone });
+  assert.deepEqual(r.tokens.map(t => [t.type, t.text]), [["place", "zoom.us/j/123"], ["date", "Fri"], ["time", "5pm"]]);
+});
+
+test("parse: pasted invitations", () => {
+  const now = new Date("2026-11-11T04:30:00Z"), timeZone = "Asia/Kolkata";
+  const at = (d, h, mi = 0) => R.zonedTime(2026, 11, d, h, mi, timeZone).toISOString();
+  const cases = [
+    ["You're invited: Product launch\nWhen: Friday, November 13, 2026 5:00 PM – 6:00 PM (IST)\nWhere: https://zoom.us/j/123456?pwd=abc",
+      "Product launch", at(13, 17), 60, "https://zoom.us/j/123456?pwd=abc"],
+    ["Demo day\nFriday 13 Nov 2026 ⋅ 5:00 – 6:00pm\nIndia Standard Time - Kolkata\nJoining info: meet.google.com/abc-defg-hij",
+      "Demo day", at(13, 17), 60, "https://meet.google.com/abc-defg-hij"],
+    ["Invitation: Demo day @ Fri 13 Nov 2026 5pm - 6pm (IST) (sam@example.com)", "Demo day", at(13, 17), 60, ""],
+    ["Town hall\nDate: 2026-11-20\nTime: 15:00 (GMT+00:00)\nLocation: Main hall", "Town hall", "2026-11-20T15:00:00.000Z", null, "Main hall"],
+    ["Weekly sync\nJoin Zoom Meeting\nhttps://us02web.zoom.us/j/8812345678\nMeeting ID: 881 234 5678\nPasscode: 4242\nThursday 2pm", "Weekly sync", at(12, 14), null, "https://us02web.zoom.us/j/8812345678"]
+  ];
+  for (const [text, title, start, dur, place] of cases) {
+    const r = R.parse(text, { now, timeZone });
+    assert.deepEqual([r.title, r.start && r.start.toISOString(), r.dur, r.place], [title, start, dur, place], text.split("\n")[0]);
+  }
+  // A parsed line makes the same link the library makes from the same parts.
+  const p = R.parse("Demo day Fri 5pm zoom.us/j/123", { now, timeZone });
+  assert.equal(R.decode(R.createLink({ title: p.title, start: p.start, location: p.place, timeZone })).location, "https://zoom.us/j/123");
+});
+
 test("validation", () => {
   assert.throws(() => R.encode({ start: "2026-12-01 10:00" }), /title is required/);
   assert.throws(() => R.encode({ title: "x", start: "2026-12-01 10:00", durationMinutes: 0 }), /durationMinutes/);
@@ -114,8 +205,8 @@ test("calendar URLs carry the credit line", () => {
 });
 
 test("website and library produce the same links", () => {
-  const html = readFileSync(join(root, "public/index.html"), "utf8");
-  const pick = name => html.split("\n").find(l => l.startsWith("const " + name + "="));
+  const app = readFileSync(join(root, "public/app.js"), "utf8");
+  const pick = name => app.split("\n").find(l => l.startsWith("const " + name + "="));
   const siteEnc = new Function(pick("enc") + "; return enc;")();
   const siteDec = new Function(pick("dec") + "; return dec;")();
   const frag = R.encode(sample);
@@ -135,16 +226,19 @@ test("website and library produce the same links", () => {
   const ev = { title: "Café launch", start, location: "Mumbai", timeZone: "Asia/Kolkata" };
   assert.equal(siteLink(r, null, false), R.createLink(ev));
   assert.equal(siteLink(r, null, true), R.createLink(ev, { private: true }));
-  assert.match(html, /if\(hh\)r\.h=hh;r\.z=F\.tz\.value\|\|TZ;return r;/, "the maker adds z last, as the library does");
+  assert.match(app, /R\.createLink\(ev,\{base:BASE,private:F\.priv\.checked\}\)/, "the maker makes links with the library itself");
+  assert.match(app, /^import \* as R from "\/remmynd\.js";$/m, "app.js imports the library");
 });
 
 test("website script parses", () => {
   const html = readFileSync(join(root, "public/index.html"), "utf8");
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
-  assert.ok(scripts.length > 0, "no inline script found");
+  assert.equal(scripts.length, 1, "only the theme line stays inline; the app is app.js");
   for (const js of scripts) assert.doesNotThrow(() => new Function(js), "inline script has a syntax error");
-  const sw = readFileSync(join(root, "public/sw.js"), "utf8");
-  assert.doesNotThrow(() => new Function(sw), "public/sw.js has a syntax error");
+  assert.match(html, /<script src="\/db\.js" defer><\/script>\n<script type="module" src="\/app\.js"><\/script>\n<script src="\/push\.js" defer><\/script>/, "db.js, then app.js, then push.js");
+  const app = readFileSync(join(root, "public/app.js"), "utf8").replace(/^import .*$/gm, "");
+  assert.doesNotThrow(() => new Function(app), "public/app.js has a syntax error");
+  for (const f of ["sw.js", "db.js"]) assert.doesNotThrow(() => new Function(readFileSync(join(root, "public", f), "utf8")), "public/" + f + " has a syntax error");
 });
 
 test("styles: app.css carries the 2.0 tokens and self-hosted fonts", () => {
@@ -187,7 +281,8 @@ test("theme switch: Auto, Light and Dark, kept in rm:theme, with matching theme-
   assert.match(html, /<head>[\s\S]*localStorage\.getItem\("rm:theme"\)[\s\S]*<link rel="stylesheet" href="\/app\.css">/, "saved theme is applied before styles load");
 
   // Run the page's theme code against a tiny fake document.
-  const src = html.slice(html.indexOf("const PAPER="), html.indexOf("/* ---------- install (PWA)"));
+  const appJs = readFileSync(join(root, "public/app.js"), "utf8");
+  const src = appJs.slice(appJs.indexOf("const PAPER="), appJs.indexOf("/* ---------- install (PWA)"));
   const metas = { "#tc-light": { content: "" }, "#tc-dark": { content: "" } };
   const buttons = ["auto", "light", "dark"].map(t => { const b = { dataset: { themeSet: t }, attrs: {}, on: {} }; b.setAttribute = (k, v) => { b.attrs[k] = v; }; b.addEventListener = (e, f) => { b.on[e] = f; }; return b; });
   const docEl = { dataset: {} };
@@ -583,6 +678,17 @@ test("repository credits zoof04 only", () => {
   }
 });
 
+test("words: the maker uses the spec's wording", () => {
+  const html = readFileSync(join(root, "public/index.html"), "utf8");
+  const app = readFileSync(join(root, "public/app.js"), "utf8");
+  for (const w of ["Reminders that make sure it happens.",
+    "Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.",
+    ">New reminder<", 'placeholder="Demo day Fri 5pm zoom.us/j/123"', "Private link", "Keeps the title and time out of link previews.",
+    "A free tool by <a href=\"https://zoof04.com\">zoof04</a>. MIT licence."]) assert.ok(html.includes(w), "index.html says: " + w);
+  for (const w of ["Enter makes the link", "Not a link yet. Press Enter to make it."]) assert.ok(app.includes(w), "app.js says: " + w);
+  assert.doesNotMatch(html + app, /microphone|Speak it/i, "no microphone in 2.0");
+});
+
 test("privacy and free wording match the approved text", () => {
   const approved = "Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.";
   for (const f of ["README.md", "docs/PRINCIPLES.md", "public/index.html"]) {
@@ -726,6 +832,7 @@ test("service worker: an empty push shows what's due, from on-device data only",
     self: { addEventListener: (t, f) => { listeners[t] = f; }, navigator: {}, clients: {},
       registration: { showNotification: async (title, opts) => { shown.push({ title, ...opts }); }, pushManager: { getSubscription: async () => null } } }
   };
+  ctx.importScripts = (...files) => files.forEach(f => vm.runInContext(readFileSync(join(root, "public", f.replace(/^\//, "")), "utf8"), ctx));
   vm.createContext(ctx);
   vm.runInContext(src, ctx);
   const push = async () => { let p; listeners.push({ waitUntil: x => { p = x; } }); await p; };
@@ -766,6 +873,7 @@ test("service worker: /r/ pages are never cached, and offline pages get the shel
     location: { origin: "https://remmynd.space" }, Notification: { prototype: { actions: null }, maxActions: 2 },
     self: { addEventListener: (t, f) => { listeners[t] = f; }, navigator: {}, clients: {}, registration: {} }
   };
+  ctx.importScripts = (...files) => files.forEach(f => vm.runInContext(readFileSync(join(root, "public", f.replace(/^\//, "")), "utf8"), ctx));
   vm.createContext(ctx);
   vm.runInContext(src, ctx);
   const open = async path => {
@@ -783,6 +891,54 @@ test("service worker: /r/ pages are never cached, and offline pages get the shel
   assert.ok(stored.has("./index.html"), "the plain shell is stored");
   online = false;
   assert.equal(await (await open("/r/eyJ0IjoiRGVtbyJ9")).text(), "page /", "offline, a /r/ link opens the cached shell");
+});
+
+// A small in-memory IndexedDB: versions, upgrades, stores keyed by keyPath, getAll/put/delete.
+function fakeIndexedDB(state) {
+  const store = name => ({
+    createIndex() {},
+    put(v) { const st = state.stores[name]; st.rows.set(v[st.keyPath], v); return {}; },
+    delete(k) { state.stores[name].rows.delete(k); return {}; },
+    getAll() { const r = {}; setTimeout(() => { r.result = [...state.stores[name].rows.values()]; r.onsuccess && r.onsuccess({ target: r }); }, 0); return r; }
+  });
+  const db = {
+    objectStoreNames: { contains: n => n in state.stores },
+    createObjectStore(n, { keyPath }) { state.stores[n] = { keyPath, rows: new Map() }; return store(n); },
+    transaction(n) { const t = { objectStore: () => store(n) }; setTimeout(() => t.oncomplete && t.oncomplete(), 5); return t; },
+    close() {}
+  };
+  return { open(name, version) {
+    const q = {};
+    setTimeout(() => {
+      q.result = db;
+      if (version > state.version) { const oldVersion = state.version; state.version = version; q.transaction = { objectStore: store }; q.onupgradeneeded({ oldVersion }); }
+      setTimeout(() => q.onsuccess(), 2);
+    }, 0);
+    return q;
+  } };
+}
+
+test("on-device storage: version 2 adds reminders and links, built from version 1 alerts", async () => {
+  const vm = await import("node:vm");
+  const load = state => { const ctx = { indexedDB: fakeIndexedDB(state), setTimeout, self: {} }; vm.createContext(ctx); vm.runInContext(readFileSync(join(root, "public/db.js"), "utf8"), ctx); return ctx.self.remmyndDB; };
+  const alert = (id, rkey, kind) => ({ id, rkey, kind, title: rkey === "k1" ? "Demo day" : "Call Mum", start: 1798000000000, place: "https://lu.ma/demo", share: "https://remmynd.space/r/" + rkey, shown: false, at: 1797996400000 });
+  const v1 = { version: 1, stores: { alerts: { keyPath: "id", rows: new Map([["a1", alert("a1", "k1", "before")], ["a2", alert("a2", "k1", "start")], ["a3", alert("a3", "k2", "start")]]) } } };
+  const DB = load(v1);
+  const reminders = await DB.getAll("reminders");
+  assert.equal(v1.version, 2);
+  assert.deepEqual(reminders.map(r => r.rkey).sort(), ["k1", "k2"], "one reminder per rkey");
+  const k1 = reminders.find(r => r.rkey === "k1");
+  assert.deepEqual([k1.title, k1.place, k1.share, k1.state, k1.nudge], ["Demo day", "https://lu.ma/demo", "https://remmynd.space/r/k1", "held", false]);
+  assert.equal((await DB.getAll("alerts")).length, 3, "alerts are kept");
+  await DB.put("links", { share: "https://remmynd.space/r/x", title: "Demo day", start: 1798000000000, createdAt: 1, private: false });
+  assert.deepEqual((await DB.getAll("links")).map(l => l.share), ["https://remmynd.space/r/x"]);
+  // A first visit gets all three stores, empty.
+  const fresh = { version: 0, stores: {} };
+  const DB2 = load(fresh);
+  assert.deepEqual(await DB2.getAll("reminders"), []);
+  assert.deepEqual(Object.keys(fresh.stores).sort(), ["alerts", "links", "reminders"]);
+  // Nothing else opens the database: push.js and sw.js go through db.js.
+  for (const f of ["push.js", "sw.js", "app.js"]) assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8"), /indexedDB\.open/, f + " opens IndexedDB itself");
 });
 
 test("sleep-safe: the 9 AM alert reads as already started", async () => {

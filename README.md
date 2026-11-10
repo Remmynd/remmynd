@@ -46,7 +46,7 @@ Most "add to calendar" tools want an account, a dashboard and your visitors' dat
 
 ### On the web
 
-Go to [remmynd.space](https://remmynd.space), fill in **what**, **when** and optionally **where**, then copy or share the link.
+Go to [remmynd.space](https://remmynd.space) and write it in one line, like `Demo day Fri 5pm zoom.us/j/123`. The ticket fills in as you type, and the What, When and Where chips let you fix any part. Press Enter: the link is made and copied, ready to share. Pasting an invitation works too.
 
 ### Put a Remind me button on your site
 
@@ -118,7 +118,7 @@ npm install remmynd
 ```
 
 ```js
-import { createLink, toICS, googleCalendarUrl, decode, fromQuery } from "remmynd";
+import { createLink, toICS, googleCalendarUrl, decode, fromQuery, parse } from "remmynd";
 
 const event = {
   title: "Demo day",
@@ -134,6 +134,7 @@ toICS(event);                          // .ics text with alerts 1 hour before an
 googleCalendarUrl(event);              // Google Calendar "add event" link
 decode(link);                          // { title, start: Date, durationMinutes, location, notes, host, timeZone }
 fromQuery("t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata");  // an event, from /new-style parameters
+parse("Demo day Fri 5pm zoom.us/j/123");  // { title: "Demo day", start: Date, dur: null, place, tokens }
 ```
 
 Zero dependencies. Works in Node 20+, Deno, Bun, Cloudflare Workers and browsers. Types included.
