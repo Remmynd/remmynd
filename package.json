@@ -51,7 +51,7 @@
     "provenance": true
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --import ./scripts/text-loader.mjs --test",
     "dev": "npx --yes wrangler@4 dev",
     "check": "npm test && npx --yes wrangler@4 deploy --dry-run --outdir .wrangler/check",
     "ship": "npm test && npx --yes wrangler@4 deploy",

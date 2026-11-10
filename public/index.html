@@ -37,7 +37,7 @@
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>
       remmynd
     </a>
-    <a class="ghost" href="/#example" id="nav-right">See an example</a>
+    <span class="top-r"><a class="ghost" href="/#example" id="nav-right">See an example</a><button type="button" class="ghost menu-btn icon" id="menu-btn" aria-label="Menu" aria-haspopup="dialog" aria-controls="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8h16M4 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></span>
   </nav>
 
   <!-- Visitor -->
@@ -141,17 +141,20 @@
     </aside>
   </main>
 
-  <footer>
-    <span>A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.</span>
-    <div class="theme" role="group" aria-labelledby="theme-l">
-      <span class="label" id="theme-l">Theme</span>
-      <div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div>
+  <footer class="site-foot">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <span class="brand"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>remmynd</span>
+        <p>A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.</p>
+      </div>
+      <nav aria-labelledby="f-product"><span class="label" id="f-product">Product</span><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/install">Install</a><a href="/roadmap">Roadmap</a><a href="/changelog">Changelog</a></nav>
+      <nav aria-labelledby="f-dev"><span class="label" id="f-dev">Developers</span><a href="/docs">Docs</a><a href="https://github.com/Remmynd/remmynd">GitHub</a><a href="https://www.npmjs.com/package/remmynd">npm</a><a href="/docs#self-host">Self-host</a></nav>
+      <nav aria-labelledby="f-company"><span class="label" id="f-company">Company</span><a href="https://zoof04.com">About</a><a href="/press">Press</a><a href="/privacy">Privacy</a></nav>
     </div>
-    <div class="theme" role="group" aria-labelledby="sound-l">
-      <span class="label" id="sound-l">Sound</span>
-      <div class="seg"><button type="button" data-sound="on" aria-pressed="true">On</button><button type="button" data-sound="off" aria-pressed="false">Off</button></div>
+    <div class="foot-row">
+      <span>Free, no sign-up, no tracking.</span>
+      <div class="theme" role="group" aria-labelledby="theme-f"><span class="label" id="theme-f">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
     </div>
-    <span class="foot-links"><a href="https://github.com/Remmynd/remmynd">Source</a><button type="button" class="linkish" id="install" hidden>Install app</button></span>
   </footer>
 </div>
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-t">
@@ -179,6 +182,15 @@
     <p class="rp-sub">No account. The reminder travels in the link.</p>
     <div class="qr-box" id="qr-box"></div>
     <button type="button" class="btn ink" id="qr-save">Download QR code</button>
+  </div>
+</div>
+<div class="sheet" id="menu" hidden role="dialog" aria-modal="true" aria-label="Menu">
+  <div class="sheet-card menu-card">
+    <button type="button" class="sheet-x" id="menu-x" aria-label="Close">×</button>
+    <nav class="menu-links" aria-label="Menu"><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/docs">Docs</a><a href="/roadmap">Roadmap</a><a href="https://github.com/Remmynd/remmynd">GitHub</a></nav>
+    <div class="theme" role="group" aria-labelledby="theme-m"><span class="label" id="theme-m">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
+    <div class="theme" role="group" aria-labelledby="sound-m"><span class="label" id="sound-m">Sound</span><div class="seg"><button type="button" data-sound="on" aria-pressed="true">On</button><button type="button" data-sound="off" aria-pressed="false">Off</button></div></div>
+    <button type="button" class="btn" id="install" hidden>Install app</button>
   </div>
 </div>
 <div class="arrow" id="arrow" hidden aria-hidden="true"><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17M5 13l7 7 7-7"/></svg></div>

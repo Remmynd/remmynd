@@ -369,7 +369,7 @@ L.body.addEventListener("click",e=>{const a=e.target.closest(".li-main");
 L.body.addEventListener("focusin",e=>{const a=e.target.closest(".li-main");if(a)previewRow(a);if(e.target.closest(".li-acts"))e.target.closest(".li").classList.add("open");});
 L.body.addEventListener("focusout",e=>{const li=e.target.closest(".li");if(li&&!li.contains(e.relatedTarget))li.classList.remove("open");});
 /* Desktop keys: J and K move, D marks done, S re-plans, Enter opens. */
-document.addEventListener("keydown",e=>{if(D.mode!=="lists"||$("#home").hidden||e.metaKey||e.ctrlKey||e.altKey||!RP.el.hidden||/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName))return;
+document.addEventListener("keydown",e=>{if(D.mode!=="lists"||$("#home").hidden||e.metaKey||e.ctrlKey||e.altKey||!RP.el.hidden||!$("#menu").hidden||/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName))return;
   const rows=[...L.body.querySelectorAll(".li-main")],i=rows.indexOf(document.activeElement),k=e.key.toLowerCase();
   if(k==="j"||k==="k"){if(!rows.length)return;e.preventDefault();rows[i<0?0:Math.max(0,Math.min(rows.length-1,i+(k==="j"?1:-1)))].focus();}
   else if((k==="d"||k==="s")&&i>=0){const li=rows[i].closest(".li");if(li.dataset.rkey&&li.querySelector(".li-acts")){e.preventDefault();rowAct(li.dataset.rkey,k==="d"?"done":"replan",i);}}});
@@ -466,6 +466,14 @@ function nudgeInstall(){if(!OWN||STANDALONE)return;let last=0;try{last=+localSto
   setTimeout(()=>{if(document.hidden)return;if(openSheet()){try{localStorage.setItem(NUDGE_KEY,String(Date.now()));}catch(e){}}},1800);}
 document.addEventListener("click",e=>{if(e.target.closest("#remind,#a-google,#a-apple,#f-copy,#f-share"))nudgeInstall();});
 refreshInstall();
+/* ---------- menu: the website's pages, theme, sound and Install ---------- */
+const menu=$("#menu"),menuBtn=$("#menu-btn");let menuBack=null;
+function closeMenu(){if(menu.hidden)return;menu.hidden=true;menuBtn.setAttribute("aria-expanded","false");if(menuBack&&$("#sheet").hidden)menuBack.focus();}
+menuBtn.addEventListener("click",()=>{menuBack=document.activeElement;menu.hidden=false;menuBtn.setAttribute("aria-expanded","true");menu.querySelector("a").focus();});
+$("#menu-x").addEventListener("click",closeMenu);
+menu.addEventListener("click",e=>{if(e.target===menu)closeMenu();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeMenu();});
+inst.addEventListener("click",closeMenu);
 /* shared with push.js */
 window.__rm={OWN,IOS,STANDALONE,TZ,openSheet,toast,fShort};
 if("serviceWorker" in navigator&&OWN&&location.protocol==="https:")navigator.serviceWorker.register("/sw.js").catch(()=>{});
