@@ -80,6 +80,7 @@ Options
   --notes, -n    One line of notes
   --host         Who is hosting
   --length, -l   Minutes (default 60)
+  --private, -p  Make a private link (/#…): no preview, never reaches a server
   --ics [file]   Also write an .ics file ("-" prints it)
   --badge <fmt>  Print a Remind me badge snippet: html or md
   --dark         Use the dark badge
@@ -87,8 +88,28 @@ Options
   --json         Print everything as JSON
   --base <url>   Use your own remmynd host
 
-remmynd read <link>   Show what is inside a remmynd link
+remmynd read <link>   Show what is inside a remmynd link (shared or private)
 ```
+
+### From a script, a spreadsheet or an AI assistant
+
+Write the reminder into the address. remmynd turns it into a link:
+
+```text
+https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&l=https://lu.ma/demo
+```
+
+| Parameter | Meaning |
+|---|---|
+| `t` | Title (required) |
+| `at` | When, `YYYY-MM-DDTHH:mm`, optionally with `Z` or an offset like `+05:30` (required) |
+| `tz` | IANA time zone for `at`, like `Asia/Kolkata` |
+| `d` | Length in minutes (default 60) |
+| `l` | Place or link |
+| `n` | Notes |
+| `h` | Host |
+
+With `tz`, or a `Z` or offset in `at`, the address redirects to the shared link straight away. Without one, the time is read in the visitor's own time zone. If the title or time is missing, the maker opens with what was given.
 
 ### In your code
 
@@ -97,7 +118,7 @@ npm install remmynd
 ```
 
 ```js
-import { createLink, toICS, googleCalendarUrl, decode } from "remmynd";
+import { createLink, toICS, googleCalendarUrl, decode, fromQuery } from "remmynd";
 
 const event = {
   title: "Demo day",
@@ -107,20 +128,28 @@ const event = {
   durationMinutes: 90
 };
 
-createLink(event);         // https://remmynd.space/#eyJ0Ijoi...
-toICS(event);              // .ics text with alerts 1 hour before and at the start
-googleCalendarUrl(event);  // Google Calendar "add event" link
-decode(link);              // { title, start: Date, durationMinutes, location, notes, host }
+createLink(event);                     // https://remmynd.space/r/eyJ0Ijoi...  shared: chat apps preview it
+createLink(event, { private: true });  // https://remmynd.space/#eyJ0Ijoi...   private: never reaches a server
+toICS(event);                          // .ics text with alerts 1 hour before and at the start
+googleCalendarUrl(event);              // Google Calendar "add event" link
+decode(link);                          // { title, start: Date, durationMinutes, location, notes, host, timeZone }
+fromQuery("t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata");  // an event, from /new-style parameters
 ```
 
 Zero dependencies. Works in Node 20+, Deno, Bun, Cloudflare Workers and browsers. Types included.
 
 ## How a link works
 
+Every reminder is a small JSON object, base64url-encoded into the link. It comes in two forms with the same payload:
+
 ```text
-https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ
-                       └──────── base64url JSON ─────────┘
+https://remmynd.space/r/eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ   shared (the default)
+https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and every 1.x link
+                        └──────── base64url JSON ─────────┘
 ```
+
+- **Shared** links put the payload in the path, so chat apps can show the title and time in a preview card. The Worker reads it only to fill those preview tags. It stores and logs nothing, and the page is never cached.
+- **Private** links keep the payload after `#`, which browsers never send to a server. Turn on **Private link** in the maker, use `createLink(event, { private: true })`, or `npx remmynd … --private`.
 
 | Key | Meaning |
 |---|---|
@@ -130,8 +159,9 @@ https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ
 | `l` | Place or link |
 | `n` | Notes |
 | `h` | Host |
+| `z` | The host's IANA time zone, like `Asia/Kolkata` (optional; shows "Host time" and makes the preview readable) |
 
-Times are stored in UTC and shown in each visitor's own time zone.
+Times are stored in UTC and shown in each visitor's own time zone. Readers ignore keys they don't know, so old links keep working and new keys stay optional.
 
 Saved events include the reminder link and a short "Made with remmynd.space" line in their notes. Nothing about the person saving the event is collected or added.
 
@@ -149,13 +179,13 @@ The full picture, including how requests are routed, how the `/ics` fallback wor
 Free, no sign-up, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
 
 - No accounts, no cookies, no analytics, no tracking.
-- The reminder lives in the link. Opening it sends nothing about the event to remmynd.space.
+- The reminder lives in the link. A shared link (`/r/…`) passes through remmynd.space so chat apps can show its title and time; the Worker reads it only to fill those preview tags, and stores and logs nothing. A private link (`/#…`) keeps everything after `#`, which browsers never send to a server.
 - **Notifications** (optional, only when you turn on Notify me): the event's title, time and link are saved on your device, in the browser's own storage. The server stores only three things per alert: a random id, your browser's anonymous push address, and when to ping it. At that time it sends an empty push; your device looks up what's due and shows it. The row is deleted as soon as it's sent. See [`worker/push.js`](worker/push.js) and [`worker/schema.sql`](worker/schema.sql).
 - `/ics` is used only by iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), which ignore calendar files made inside the page. It builds the file from the link in memory and keeps nothing.
 
 ## Self-host
 
-remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles `/ics`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/ics`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
 
 ```sh
 git clone https://github.com/Remmynd/remmynd.git
@@ -172,7 +202,7 @@ To turn on notifications, run this once. It creates the D1 database and its tabl
 npm run push:setup
 ```
 
-Any static host works for the site alone. Without the Worker, everything works except the iPhone in-app browser fallback.
+Any static host works for the site alone, with private links: shared `/r/` links, `/new`, phone alerts and the iPhone in-app browser fallback need the Worker.
 
 ## Develop
 
