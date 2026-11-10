@@ -24,7 +24,9 @@ const fDate=(d,tz)=>new Intl.DateTimeFormat(undefined,{timeZone:tz,weekday:"shor
 const fShort=(d,tz)=>new Intl.DateTimeFormat(undefined,{timeZone:tz,hour:"numeric",minute:"2-digit"}).format(d);
 function fTime(d,tz){let main="",per="";new Intl.DateTimeFormat(undefined,{timeZone:tz,hour:"numeric",minute:"2-digit"}).formatToParts(d).forEach(x=>{if(x.type==="dayPeriod")per=x.value;else main+=x.value;});return{main:main.trim(),per};}
 const fZone=(d,tz)=>{const p=new Intl.DateTimeFormat("en-US",{timeZone:tz,timeZoneName:"short"}).formatToParts(d).find(x=>x.type==="timeZoneName");return p?p.value:"";};
-const city=tz=>(tz.split("/").pop()||tz).replace(/_/g," ");
+/* Browsers still report a few old zone names (Asia/Calcutta); show today's city names. */
+const CITY={Calcutta:"Kolkata",Saigon:"Ho Chi Minh",Kiev:"Kyiv",Katmandu:"Kathmandu",Rangoon:"Yangon"};
+const city=tz=>{const c=(tz.split("/").pop()||tz).replace(/_/g," ");return CITY[c]||c;};
 const pad=n=>String(n).padStart(2,"0");
 const isHttp=s=>/^https?:\/\//i.test(s||"");
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -378,7 +380,7 @@ loadLists().then(()=>{if(D.mode==="home")setMode("home");});
 /* ---------- routing ---------- */
 function showHome(){$("#view").hidden=true;$("#home").hidden=false;C.form.hidden=false;document.body.classList.add("has-cap");setMode(D.mode);document.title="remmynd";renderMaker();}
 function showLists(tab){L.tab=tab;D.base="lists";if(D.mode!=="draft")D.mode="lists";showHome();document.title=(tab==="links"?"My links":"Coming up")+" · remmynd";renderLists();}
-function showView(r,key,priv){S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;S.rec=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.textContent="Make your own";n.href="/";delete n.dataset.act;
+function showView(r,key,priv){if(r.l&&!isHttp(r.l)&&webish(r.l))r={...r,l:"https://"+r.l};S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;S.rec=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.textContent="Make your own";n.href="/";delete n.dataset.act;
   renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
 /* /r/<payload> is a shared link, /#<payload> a private one (and every 1.x link), /#<name> a named page. */
 let routed="";
@@ -474,6 +476,13 @@ $("#menu-x").addEventListener("click",closeMenu);
 menu.addEventListener("click",e=>{if(e.target===menu)closeMenu();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeMenu();});
 inst.addEventListener("click",closeMenu);
+/* Sheets: Tab stays inside an open sheet, and focus goes back where it was when the sheet closes. */
+let lastOut=null;document.addEventListener("focusin",e=>{if(!e.target.closest(".sheet"))lastOut=e.target;});
+document.addEventListener("keydown",e=>{if(e.key!=="Tab")return;const s=[...document.querySelectorAll(".sheet")].find(x=>!x.hidden);if(!s)return;
+  const f=[...s.querySelectorAll("a[href],button,input,select")].filter(x=>x.offsetParent);if(!f.length)return;const a=f[0],z=f[f.length-1],el=document.activeElement;
+  if(!s.contains(el)||(e.shiftKey?el===a:el===z)){e.preventDefault();(e.shiftKey?z:a).focus();}});
+new MutationObserver(ms=>{for(const m of ms){const s=m.target,el=document.activeElement;if(s.classList.contains("sheet")&&s.hidden&&(s.contains(el)||el===document.body)&&lastOut&&lastOut.isConnected)lastOut.focus({preventScroll:true});}})
+  .observe(document.body,{subtree:true,attributes:true,attributeFilter:["hidden"]});
 /* shared with push.js */
 window.__rm={OWN,IOS,STANDALONE,TZ,openSheet,toast,fShort};
 if("serviceWorker" in navigator&&OWN&&location.protocol==="https:")navigator.serviceWorker.register("/sw.js").catch(()=>{});

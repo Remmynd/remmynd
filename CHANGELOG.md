@@ -6,8 +6,13 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-11
+
+remmynd 2.0: reminders that make sure it happens. Write a reminder in one line, share the link, and anyone who taps it is reminded in layers (calendar, then phone alerts) and followed through until it's done. Every 1.x link keeps working.
+
 ### Added
 
+- Accessibility checks in the tests: every text and background colour pair in both themes meets WCAG AA, controls are at least 44 px, sheets are named modal dialogs, headings never skip a level, and motion stops when reduced motion is asked for.
 - The website: [Why](https://remmynd.space/why) (the research on forgetting and follow-through, each figure with its source), [For hosts](https://remmynd.space/hosts) (badges, a QR code, the chat preview and `/new`), [Docs](https://remmynd.space/docs), [Install](https://remmynd.space/install), [Roadmap](https://remmynd.space/roadmap), [Privacy](https://remmynd.space/privacy), [Press](https://remmynd.space/press) and [Changelog](https://remmynd.space/changelog). Every page shares one header, footer and menu, and a test fails if they drift apart or if a page shows a figure that can't be checked.
 - `/changelog`: this file, rendered by the Worker inside the website's own page.
 - `/stats`: GitHub stars and npm downloads for the For hosts page, fetched by the Worker and cached for an hour, so the page only ever talks to remmynd.space. A number that can't be fetched is left out.
@@ -50,6 +55,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - One footer on the app and every page: Product, Developers and Company links, "A free tool by zoof04. MIT licence." and the theme switch. The Sound switch and Install app moved into the menu.
 - The 404 page uses the website's header and footer.
 - Website pages are served without a trailing slash (`/why`; `/why/` redirects). The sitemap lists every page.
+- The live check also covers `/why`, `/changelog`, `/stats`, a shared `/r/` link and a `/new` redirect.
+- `npm run release` copies the library to `public/remmynd.js` too, so the site and the package stay identical.
 - `npm test` loads `scripts/text-loader.mjs`, so the tests read `CHANGELOG.md` the way the Worker bundles it.
 - The Remind me badge carries the moment ring, in the 2.0 colours (amber on light, lime on dark). Same addresses: `badge.svg` and `badge-dark.svg`.
 - The Coming up card on the home page is replaced by the Coming up list, which reads the reminders this device holds.
@@ -73,6 +80,13 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Fixed
 
+- A place written as a web address without `https://` in a `/new` link (`l=zoom.us/j/123`) is now a link, so the ticket shows Open the link rather than Directions. Older links written that way open as links too.
+- The theme switch's unselected buttons were below WCAG AA contrast in the light theme.
+- Tab stays inside an open sheet, and focus goes back to where it was when the sheet closes.
+- Segmented buttons, list tabs, the ticket's place link, Copy buttons and short menu and footer links are at least 44 px to tap.
+- Card headings on For hosts and Install no longer skip a level.
+- Code blocks keep their edge in the dark theme.
+- Old zone names some browsers still report show today's city: Kolkata, not Calcutta.
 - Branded 404 page for unknown paths.
 
 ## [1.0.0] - 2026-11-09
@@ -91,5 +105,6 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - Brand kit in `brand/`: logo, mark, wordmark, avatars, social banners and a brand guide.
 - Favicon set, maskable app icon and link-preview image.
 
-[Unreleased]: https://github.com/Remmynd/remmynd/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/Remmynd/remmynd/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/Remmynd/remmynd/releases/tag/v1.0.0

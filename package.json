@@ -1,6 +1,6 @@
 {
   "name": "remmynd",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Reminders, as a link. Turn any event into a link people save to their calendar in one tap. Zero dependencies.",
   "keywords": [
     "reminder",

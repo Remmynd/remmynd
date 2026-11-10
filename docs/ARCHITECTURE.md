@@ -134,6 +134,10 @@ IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the pa
 
 Every ring is an image with a label that says the time and the state in words, for example "Day dial showing 5:00 in the afternoon, reminder set".
 
+## Accessibility
+
+The tests hold the app and the website to WCAG AA: every text and background pair from the design tokens meets 4.5:1 (3:1 for large text) in both themes, controls are at least 44 px (`--tap`), every sheet is a named modal dialog that keeps Tab inside it and gives focus back when it closes, every image has alt text, headings never skip a level, and all motion stops under `prefers-reduced-motion`. Every ring says its time and state to screen readers.
+
 ## How requests are routed
 
 Every request goes through `worker/index.js` first (`run_worker_first = true` in `wrangler.toml`), then falls through to the static files in `public/`.

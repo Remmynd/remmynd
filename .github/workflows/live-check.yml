@@ -30,4 +30,9 @@ jobs:
           check https://remmynd.space/badge.svg 200
           check https://remmynd.space/nope-not-a-page 404
           check "https://remmynd.space/ics?d=broken" 400
+          check https://remmynd.space/why 200
+          check https://remmynd.space/changelog 200
+          check https://remmynd.space/stats 200
+          check https://remmynd.space/r/eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ 200
+          check "https://remmynd.space/new?t=Demo&at=2026-12-04T17:00Z" 302
           exit $fail

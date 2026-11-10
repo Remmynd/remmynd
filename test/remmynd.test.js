@@ -85,6 +85,11 @@ test("fromQuery reads hand-written links", () => {
   assert.equal(device.timeZone, "America/New_York");
   assert.equal(R.fromQuery(new URLSearchParams("t=x&at=2026-12-05T18:00&tz=UTC"), { timeZone: "America/New_York" }).start.toISOString(), "2026-12-05T18:00:00.000Z", "tz wins over the device zone");
   assert.equal(R.fromQuery("t=x&at=2026-12-05T18:00&tz=UTC&d=9999").durationMinutes, 60, "a length out of range falls back to an hour");
+  // A web address written without https:// becomes a link, the same ones parse() reads; a place stays a place.
+  const where = l => R.fromQuery("t=x&at=2026-12-05T18:00Z&l=" + encodeURIComponent(l)).location;
+  for (const [l, want] of [["zoom.us/j/123", "https://zoom.us/j/123"], ["meet.google.com/abc-defg-hij", "https://meet.google.com/abc-defg-hij"], ["www.lu.ma/x", "https://www.lu.ma/x"], ["lu.ma", "https://lu.ma"],
+    ["https://lu.ma/demo", "https://lu.ma/demo"], ["Mumbai", "Mumbai"], ["Room 4.2", "Room 4.2"], ["St. Mary Hall", "St. Mary Hall"], ["javascript:alert(1)", "javascript:alert(1)"]]) assert.equal(where(l), want, l);
+  for (const l of ["zoom.us/j/123", "Demo day Fri 5pm meet.google.com/abc-defg-hij"]) assert.match(R.parse(l, { now: new Date("2026-11-10T12:00:00Z"), timeZone: "UTC" }).place, /^https:\/\//, "parse agrees: " + l);
   for (const bad of ["at=2026-12-05T18:00&tz=UTC", "t=x&tz=UTC", "t=x&at=tomorrow&tz=UTC", "t=x&at=2026-12-05&tz=UTC", "t=x&at=2026-12-05T18:00&tz=Mars/Base"]) {
     assert.equal(R.fromQuery(bad), null, bad);
   }
@@ -1385,11 +1390,13 @@ test("website: every figure is real and checkable", async () => {
   const { qrSVG } = await import("../public/qr.js");
   assert.ok(hosts.includes(qrSVG("https://remmynd.space/example", { label: "QR code that opens an example reminder" })), "the QR code on /hosts is drawn by qr.js for remmynd.space/example");
 
-  // The release date of 1.0.0 matches the changelog wherever the site gives it.
-  const date = /^## \[1\.0\.0\] - (\d{4})-(\d{2})-(\d{2})$/m.exec(readFileSync(join(root, "CHANGELOG.md"), "utf8"));
-  const words = Number(date[3]) + " " + new Date(Date.UTC(+date[1], +date[2] - 1, 1)).toLocaleString("en-GB", { month: "long", timeZone: "UTC" }) + " " + date[1];
-  assert.ok(readPage("roadmap").includes("v1.0.0<br><span>" + words + "</span>"), "roadmap gives 1.0.0 as " + words);
-  assert.ok(readPage("press").includes("1.0.0 on " + words), "press gives 1.0.0 as " + words);
+  // Every release date the site gives matches the changelog.
+  for (const [, v, y, mo, d] of readFileSync(join(root, "CHANGELOG.md"), "utf8").matchAll(/^## \[(\d+\.\d+\.\d+)\] - (\d{4})-(\d{2})-(\d{2})$/gm)) {
+    const words = Number(d) + " " + new Date(Date.UTC(+y, +mo - 1, 1)).toLocaleString("en-GB", { month: "long", timeZone: "UTC" }) + " " + y;
+    assert.ok(readPage("roadmap").includes("v" + v + "<br><span>" + words + "</span>"), "roadmap gives " + v + " as " + words);
+    assert.ok(readPage("press").includes(v + " on " + words), "press gives " + v + " as " + words);
+  }
+  assert.ok(readPage("press").includes("Current version</th><td>" + R.VERSION + " on "), "press names the current version");
   // The roadmap links to GitHub Issues: the repository has no Discussions.
   assert.ok(readPage("roadmap").includes('href="https://github.com/Remmynd/remmynd/issues">Suggest on GitHub'));
 });
@@ -1414,6 +1421,7 @@ test("worker: /changelog renders CHANGELOG.md inside the site page, escaped", as
   assert.ok(html.includes("Hostile &lt;script&gt;alert(1)&lt;/script&gt; and bad and <code>&lt;b&gt;code&lt;/b&gt;</code>"), "markup stays text and javascript: links are dropped");
   assert.ok(!/<script|javascript:/i.test(html));
   assert.ok(!html.includes("compare/v1.0.0"), "reference lines are not shown");
+  assert.ok(!renderChangelog("# C\n\n## [Unreleased]\n\n## [2.0.0] - 2026-11-11\n\n- New.\n").includes("Unreleased"), "an empty Unreleased section is left out");
 
   const worker = (await import("../worker/index.js")).default;
   const shell = readPage("changelog");
@@ -1507,4 +1515,55 @@ test("website: site.js shares the app's theme code and runs", () => {
     assert.equal(stars.b.textContent, "1,234");
     assert.equal(downloads.hidden, true, "a missing number keeps its tile hidden");
   });
+});
+
+/* ---------- step 9: polish ---------- */
+
+test("accessibility: every token colour pair meets WCAG AA in both themes", () => {
+  const css = readFileSync(join(root, "docs/v2/tokens.css"), "utf8");
+  const block = re => Object.fromEntries([...re.exec(css)[1].matchAll(/--([\w-]+):\s*([^;]+);/g)].map(m => [m[1], m[2].trim()]));
+  const light = block(/:root\s*{([\s\S]*?)\n}/), dark = { ...light, ...block(/:root\[data-theme="dark"\]\s*{([\s\S]*?)\n}/) };
+  const rgb = v => { const h = /^#([0-9a-f]{6})$/i.exec(v); if (h) return [0, 2, 4].map(i => parseInt(h[1].slice(i, i + 2), 16)).concat(1);
+    const m = /^rgba?\(([^)]+)\)$/.exec(v); assert.ok(m, "a colour: " + v); const p = m[1].split(",").map(Number); return [p[0], p[1], p[2], p[3] ?? 1]; };
+  const over = (fg, bg) => fg.slice(0, 3).map((c, i) => c * fg[3] + bg[i] * (1 - fg[3])).concat(1);
+  const lum = c => c.slice(0, 3).map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  // [text, background, minimum]: every pairing the app and the website use for text.
+  const pairs = [["ink", "paper", 4.5], ["ink", "card", 4.5], ["ink", "well", 4.5], ["ink-2", "paper", 4.5], ["ink-2", "card", 4.5], ["ink-2", "hairline", 4.5],
+    ["muted", "paper", 4.5], ["muted", "card", 4.5], ["muted", "well", 4.5], ["paper", "ink", 4.5], ["on-moment", "moment", 4.5], ["on-moment-tint", "moment-tint", 4.5],
+    ["on-band", "band", 4.5], ["on-band-muted", "band", 4.5], ["band-accent", "band", 3]];
+  for (const [name, t] of [["light", light], ["dark", dark]]) for (const [fg, bg, min] of pairs) {
+    const base = rgb(t.card), b = over(rgb(t[bg]), base), f = over(rgb(t[fg]), b), r = ratio(f, b);
+    assert.ok(r >= min, `${name}: --${fg} on --${bg} is ${r.toFixed(2)}:1, under ${min}:1`);
+  }
+});
+
+test("accessibility: tap targets, dialogs, headings and focus", () => {
+  const app = readFileSync(join(root, "public/app.css"), "utf8"), site = readFileSync(join(root, "public/site.css"), "utf8"), js = readFileSync(join(root, "public/app.js"), "utf8");
+  // 44 px targets (spec section 3) on every control that has its own size.
+  for (const [css, sel, prop] of [[app, ".seg button", "min-height"], [app, ".tabs a", "min-height"], [app, ".foot-grid nav a", "min-height"], [app, ".foot-grid nav a", "min-width"],
+    [app, ".t-where", "min-height"], [app, ".brand", "min-height"], [app, ".ghost", "min-height"], [site, ".site-nav a", "min-height"], [site, ".site-nav a", "min-width"], [site, ".snippet .copy", "height"]]) {
+    const rule = new RegExp("(?:^|})" + sel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\{([^}]*)\\}", "m").exec(css);
+    assert.ok(rule, "a rule for " + sel);
+    assert.match(rule[1], new RegExp("(?:^|;)" + prop + ":var\\(--tap\\)"), sel + " sets " + prop + " to the 44 px --tap");
+  }
+  assert.match(app, /\.t-where a\{padding:14px 0;margin:-14px 0;/, "the place link on the ticket is 44 px tall to tap");
+  // Every sheet is a modal dialog with a name; Tab stays inside it and focus comes back when it closes.
+  for (const f of ["public/index.html", ...PAGES.map(pageFile)]) {
+    const html = readFileSync(join(root, f), "utf8");
+    for (const [, a] of html.matchAll(/<div class="sheet"([^>]*)>/g)) assert.match(a, /role="dialog" aria-modal="true" aria-label(ledby)?="[^"]+"/, f + ": a sheet is a named modal dialog");
+    for (const [, a] of html.matchAll(/<img\b([^>]*)>/g)) assert.match(a, /\salt="/, f + ": every image has alt text");
+    for (const [, a, inner] of html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)) assert.ok(/aria-label="[^"]+"/.test(a) || inner.replace(/<[^>]+>/g, "").trim(), f + ": a button without a name");
+    let last = 0;
+    for (const [, l] of html.matchAll(/<h([1-4])[\s>]/g)) { assert.ok(!last || +l <= last + 1, f + ": heading h" + l + " follows h" + last); last = +l; }
+  }
+  assert.match(js, /document\.addEventListener\("keydown",e=>\{if\(e\.key!=="Tab"\)return;const s=\[\.\.\.document\.querySelectorAll\("\.sheet"\)\]\.find\(x=>!x\.hidden\)/, "Tab is kept inside an open sheet");
+  assert.match(js, /new MutationObserver\([\s\S]*?lastOut\.focus\(\{preventScroll:true\}\)/, "focus returns when a sheet closes");
+  assert.match(readFileSync(join(root, "public/site.js"), "utf8"), /Keep Tab inside the sheet while it is open/);
+  // Motion: everything stops when the person asks for reduced motion.
+  assert.match(app, /@media \(prefers-reduced-motion:reduce\)\{\s*\*,\*::before,\*::after\{animation:none!important;transition:none!important/);
+  // Old zone names the browser still reports show today's city names.
+  assert.match(js, /CITY=\{Calcutta:"Kolkata",Saigon:"Ho Chi Minh",Kiev:"Kyiv",Katmandu:"Kathmandu",Rangoon:"Yangon"\}/);
+  // A web address in an older link without https:// still opens as a link on the ticket.
+  assert.match(js, /function showView\(r,key,priv\)\{if\(r\.l&&!isHttp\(r\.l\)&&webish\(r\.l\)\)r=\{\.\.\.r,l:"https:\/\/"\+r\.l\};/);
 });
