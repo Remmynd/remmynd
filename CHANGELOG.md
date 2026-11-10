@@ -8,6 +8,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- Follow through: from the start, a held reminder shows Open the link (or Directions for a place), Not yet and Done. "We ask once whether you made it. Then we stop."
+- Not yet opens "Not yet? Pick when.": in 10 minutes, tonight at 8:00 PM (until 7:00 PM), tomorrow at 9:00 AM, Monday at 9:00 AM, pick a time, or drop it. It comes back once at that time, one tap from the link.
+- New alerts: one "did you make it?" check when the event ends (start plus its length, or 30 minutes), with Done and Not yet where the phone shows buttons, and, with the nudge switch on, nudges 10, 20 and 30 minutes after the start ("Nudge 1 of 3. Tap to open.") that stop once you open the link, tap Done, re-plan or drop it. Each is one more anonymous ping; unused ones are cancelled.
+- Kept and Missed: Done turns the ring into a check; a reminder that ended without Done shows Missed.
 - The reminder stack: one tap on Remind me sends the event to your calendar as before, turns on notifications where this device allows them, and holds the reminder. The ticket then shows "Held. You're set." and the stack: Calendar ("Sent to Apple Calendar. Confirm there."), Notification, a muted Email row (coming in December) and "Nudge me until I'm in", off by default. Google, Apple, Outlook, Office 365, Reminders & Notes and Copy are under "More ways to be reminded".
 - The moment ring (`ring.js`): a 24-hour dial of your own day, noon at the top, with the night shaded and the reminder's time as the dot. It shows whether a reminder is open, held, starting within the hour (with a countdown), happening now or missed, and says so to screen readers.
 - New ticket: the ring beside the time, the host, title, notes and place, then the host's time and the length below the perforation. Remind me (or any calendar option) holds the reminder on this device: the ring closes, a quiet two-note chime plays and the phone buzzes. Sound can be switched off in the footer.

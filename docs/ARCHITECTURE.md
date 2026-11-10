@@ -100,7 +100,8 @@ sequenceDiagram
 
 | Detail | Value |
 |---|---|
-| Alerts per reminder | 1 hour before and at the start, or one 9 AM alert when sleep-safe is on |
+| Alerts per reminder | 1 hour before, at the start, and a "did you make it?" check when it ends (start plus its length, or 30 minutes); with nudges on, 10, 20 and 30 minutes after the start. Sleep-safe: one 9 AM alert. Not yet: one alert at the chosen time |
+| Stopping alerts | Done, re-planning or dropping cancels what's left; opening the link (or a nudge) stops the nudges. The device forgets them at once and tells the server with `POST /push/cancel` |
 | Server row | `id`, `endpoint`, `at`, `created` (`worker/schema.sql`); nothing about the event |
 | Limits | 8 pings per request, 200 rows per device, at most 400 days ahead |
 | Push services accepted | Google (FCM), Mozilla, Apple and Windows push hosts only |
@@ -128,8 +129,8 @@ IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the pa
 | Held | Held (Remind me or a calendar option was tapped); kept in `reminders`, with which calendar it went to and the nudge switch |
 | Soon | Held, and starting within the hour; a countdown shows beside it |
 | Now | From the start until it ends |
-| Kept | Marked done (step 5) |
-| Missed | Ended, not done |
+| Kept | Marked done: Done on the ticket, or Done on the check alert |
+| Missed | Ended, not done and not re-planned, or dropped |
 
 Every ring is an image with a label that says the time and the state in words, for example "Day dial showing 5:00 in the afternoon, reminder set".
 

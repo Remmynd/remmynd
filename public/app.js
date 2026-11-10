@@ -66,6 +66,8 @@ const I={
   cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>',
   mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 8l8 6 8-6"/></svg>',
   on:'<svg class="s-on" viewBox="0 0 24 24" fill="none" role="img" aria-label="On"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  out:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16l8-8M9 8h7v7"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   mark:'<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>'
 };
 
@@ -77,9 +79,11 @@ function hostClock(start,z){if(!z||z===TZ)return"";try{const t=fShort(start,z),d
   return(day?new Intl.DateTimeFormat(undefined,{timeZone:z,weekday:"short"}).format(start)+" ":"")+t+" · "+city(z);}catch(e){return"";}}
 const lengthText=m=>m<60?m+" min":m%60?Math.floor(m/60)+" h "+(m%60)+" min":(m/60)+(m===60?" hour":" hours");
 /* The ring's state comes from the clock and from whether this device holds the reminder (section 8). */
-function ringState(start,end,held){const now=Date.now();if(now>=end)return"missed";if(now>=start)return"now";if(held&&start-now<=36e5)return"soon";return held?"held":"open";}
+function ringState(start,end,held,rs,replan){const now=Date.now();if(rs==="kept")return"kept";if(rs==="dropped")return"missed";
+  if(held&&replan>now)return replan-now<=36e5?"soon":"held";if(now>=end)return"missed";if(now>=start)return"now";if(held&&start-now<=36e5)return"soon";return held?"held":"open";}
 function ringFor(start,state,size){const p=parts(start,TZ);return ringSVG({h:p.h,m:p.mi,state,size});}
-function tick(){document.querySelectorAll(".ticket[data-start]").forEach(el=>{const start=+el.dataset.start,end=+el.dataset.end,st=ringState(start,end,el.dataset.held==="1");
+function tick(){if(S.ctx&&S.held&&S.ctx.el.isConnected&&phase(S.ctx)!==S.phase)renderBottom();
+  document.querySelectorAll(".ticket[data-start]").forEach(el=>{const start=+el.dataset.start,end=+el.dataset.end,st=ringState(start,end,el.dataset.held==="1",el.dataset.rstate,+el.dataset.replan||0);
   const svg=el.querySelector(".t-when .ring");if(svg&&!svg.classList.contains("ring-"+st)){svg.setAttribute("class","ring ring-"+st);const p=parts(new Date(start),TZ);svg.setAttribute("aria-label",ringLabel(p.h,p.mi,st));}
   const soon=el.querySelector(".t-soon");if(!soon)return;const ms=start-Date.now();
   soon.textContent=st==="now"?"Live now":ms>0&&ms<=36e5?"starts in "+Math.floor(ms/6e4)+":"+pad(Math.floor(ms%6e4/1e3)):"";soon.hidden=!soon.textContent;});}
@@ -95,7 +99,7 @@ const PUSH_OK="serviceWorker" in navigator&&"PushManager" in window&&"Notificati
 const keepRec=()=>{const DB=window.remmyndDB;if(DB&&S.rec)DB.put("reminders",S.rec).catch(()=>{});};
 function hold(cal){const c=S.ctx;if(S.held||!c)return;S.held=true;c.el.dataset.held="1";tick();setTimeout(chime,320);try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.isActive))navigator.vibrate(20);}catch(e){}
   S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null};
-  keepRec();
+  keepRec();c.nd.nudge=false;
   /* Notifications where they are allowed: push.js asks inside this same tap, then fills the stack's row. */
   if(window.__rmPush)window.__rmPush.remind(c.nd,false);
   /* Swap Remind me for the stack after the tap, so the link it was on still opens the calendar. */
@@ -107,15 +111,30 @@ function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+es
   '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
 /* The stack (mock-up 05): what this one tap set up, plus the nudge switch. */
 function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
-  return'<p class="held-line">'+I.on+'Held. You\'re set.</p><div class="label">Your reminder stack</div><div class="stack">'+
+  const back=rec.replanAt>Date.now()?"Back at "+whenText(new Date(rec.replanAt))+".":"Held. You\'re set.";
+  return'<p class="held-line">'+I.on+esc(back)+'</p><div class="label">Your reminder stack</div><div class="stack">'+
     '<a class="srow" id="s-cal">'+I.cal+'<span class="stext"><b>Calendar</b><span>'+(cal?"Sent to "+CAL_NAME[cal]+". Confirm there.":"Not sent yet. Tap to add it.")+'</span></span>'+(cal?I.on:'')+'</a>'+
     '<div id="s-notify"></div>'+
     '<div class="srow muted">'+I.mail+'<span class="stext"><b>Email</b><span>Coming in December</span></span><span class="s-soon">Soon</span></div></div>'+
     '<label class="opt-row"><span class="opt-text"><b id="nudge-l">Nudge me until I\'m in</b><span id="nudge-d">Up to 3 nudges, 10 minutes apart.</span></span><span class="switch"><input type="checkbox" id="s-nudge" role="switch" aria-labelledby="nudge-l" aria-describedby="nudge-d"'+(rec.nudge?" checked":"")+'><span></span></span></label>'+
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
     '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+VIA();}
+/* Follow through (step 5): before it starts the stack; from the start, Open the link, Not yet and Done;
+ * after Not yet, the stack again until the new time; then the same question. */
+function phase(c){const now=Date.now(),r=S.rec||{};if(r.state==="kept")return"kept";if(r.state==="dropped")return"dropped";
+  if(r.replanAt>now)return"later";if(now>=c.start.getTime()||r.replanAt)return"due";return"before";}
+const mapsUrl=place=>(IOS||MAC_SAFARI?"https://maps.apple.com/?q=":"https://www.google.com/maps/search/?api=1&query=")+encodeURIComponent(place);
+function followHTML(c){const l=c.r.l;
+  return(l?'<a class="remind" id="f-open" href="'+esc(isHttp(l)?l:mapsUrl(l))+'" target="_blank" rel="noopener">'+(isHttp(l)?"Open the link":"Directions")+I.out+'</a>':'')+
+    '<div class="s-actions two"><button type="button" class="btn" id="f-later">Not yet</button><button type="button" class="btn" id="f-done">'+I.check+'Done</button></div>'+
+    '<p class="t-sub">We ask once whether you made it. Then we stop.</p>'+VIA();}
+function labelFor(c,ph){const now=Date.now(),end=c.start.getTime()+(c.r.d||60)*6e4;
+  return ph==="kept"?"Kept":ph==="dropped"?"Dropped":ph==="due"?(S.rec&&S.rec.replanAt?"It's time":now<end?"Starting now":"Ended"):S.held?"Held":"Reminder";}
 function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.el.querySelector(".t-bottom");
-  b.innerHTML=S.held?stackHTML(c):remindHTML(c);c.el.querySelector(".t-head .label").textContent=S.held?"Held":"Reminder";
+  const ph=S.held?phase(c):"open";S.phase=ph;c.el.dataset.rstate=(S.rec&&S.rec.state)||"";c.el.dataset.replan=(S.rec&&S.rec.replanAt)||0;
+  b.innerHTML=!S.held?remindHTML(c):ph==="due"?followHTML(c):ph==="kept"?'<p class="held-line">'+I.on+'Done. You kept it.</p>'+VIA():
+    ph==="dropped"?'<p class="held-line muted">Dropped. No more alerts for this one.</p><button type="button" class="btn" id="f-later">Pick a new time</button>'+VIA():stackHTML(c);
+  c.el.querySelector(".t-head .label").textContent=labelFor(c,ph);
   const on=(sel,fn)=>{const x=b.querySelector(sel);if(x)fn(x);};
   const sent=(k,a)=>()=>{hold(k);setTimeout(()=>toast("Sent to "+CAL_NAME[k]+". Confirm there."),250);};
   on("#remind",btn=>{if(PREF==="apple")c.setApple(btn);else{btn.href=c.g;btn.target="_blank";btn.rel="noopener";}
@@ -130,9 +149,12 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#sleep",sw=>sw.addEventListener("change",()=>{S.morning=sw.checked;renderTicket(c.el,c.r,c.o);}));
   on("#s-cal",a=>{const k=S.rec&&S.rec.cal||PREF;if(k==="apple")c.setApple(a);else{a.href=k==="google"?c.g:c.ol;a.target="_blank";a.rel="noopener";}
     if(!(S.rec&&S.rec.cal))a.addEventListener("click",()=>{if(S.rec){S.rec.cal=k;keepRec();setTimeout(renderBottom,60);}});});
-  on("#s-nudge",sw=>sw.addEventListener("change",()=>{if(!S.rec)return;S.rec.nudge=sw.checked;keepRec();toast(sw.checked?"Nudges on: up to 3, 10 minutes apart":"Nudges off");}));
+  on("#s-nudge",sw=>sw.addEventListener("change",()=>{if(!S.rec)return;S.rec.nudge=c.nd.nudge=sw.checked;keepRec();if(window.__rmPush)window.__rmPush.setNudge(c.nd,sw.checked).catch(()=>{});toast(sw.checked?"Nudges on: up to 3, 10 minutes apart":"Nudges off");}));
+  on("#f-open",a=>a.addEventListener("click",()=>{if(!S.rec)return;S.rec.openedAt=Date.now();keepRec();if(window.__rmPush)window.__rmPush.cancel(S.rkey,["nudge"]).catch(()=>{});}));
+  on("#f-done",x=>x.addEventListener("click",markDone));
+  on("#f-later",x=>x.addEventListener("click",openReplan));
   on("#s-add-b",x=>x.addEventListener("click",()=>{if(!openSheet())toast("Open remmynd.space in Safari or Chrome to install it");}));
-  if(S.held){c.nd.el=b.querySelector("#s-notify");window.__rmLast={type:"stack",detail:c.nd};window.dispatchEvent(new CustomEvent("rm:stack",{detail:c.nd}));refreshInstall();}
+  if(S.held&&b.querySelector("#s-notify")){c.nd.el=b.querySelector("#s-notify");window.__rmLast={type:"stack",detail:c.nd};window.dispatchEvent(new CustomEvent("rm:stack",{detail:c.nd}));refreshInstall();}
   else window.__rmLast={type:"ticket"};}
 
 function renderTicket(el,r,o){
@@ -157,7 +179,8 @@ function renderTicket(el,r,o){
   S.rkey=rkeyOf(r.t,start);
   /* Held already, from an earlier visit: show it and its stack without the animation. */
   if(!S.held&&window.remmyndDB)window.remmyndDB.getAll("reminders").then(list=>{const rec=list.find(x=>x.rkey===S.rkey);
-    if(!S.held&&rec&&el.dataset.start===String(start.getTime())){S.held=true;S.rec=rec;el.dataset.held="1";el.classList.add("still");tick();renderBottom();requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.remove("still")));}}).catch(()=>{});
+    if(!S.held&&rec&&el.dataset.start===String(start.getTime())){S.held=true;S.rec=rec;if(S.ctx)S.ctx.nd.nudge=!!rec.nudge;el.dataset.held="1";el.classList.add("still");renderBottom();tick();requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.remove("still")));
+      if(new URLSearchParams(location.search).get("act")==="replan"){history.replaceState(null,"",location.pathname+location.hash);openReplan();}}}).catch(()=>{});
   const title=morning?r.t+" (live since "+fShort(start,TZ)+")":r.t;
   const ev=eventOf(r,S.key,when,title,morning?15:(r.d||60));
   const file=(r.t.replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase().slice(0,40)||"reminder")+".ics";
@@ -170,6 +193,29 @@ function renderTicket(el,r,o){
     nd:{el:null,r,key:S.key,start,share,morningAt:morning?when:null}};
   renderBottom();
 }
+
+/* ---------- not yet: the re-plan sheet (mock-up 07) ---------- */
+/* In 10 minutes, tonight at 8:00 PM (not after 7:00 PM), tomorrow at 9:00 AM and Monday at 9:00 AM (unless tomorrow is Monday). */
+const replanOptions=(now,tz)=>{const p=parts(now,tz),day=n=>{const t=new Date(Date.UTC(p.y,p.mo-1,p.d+n));return{y:t.getUTCFullYear(),m:t.getUTCMonth()+1,d:t.getUTCDate(),dow:t.getUTCDay()};},at=(d,h)=>zonedToUTC(d.y,d.m,d.d,h,0,tz).getTime(),today=day(0),tom=day(1),mon=day(((8-today.dow)%7)||7),o=[{key:"in10",label:"In 10 minutes",at:Math.ceil((now.getTime()+6e5)/6e4)*6e4}];if(p.h<19)o.push({key:"tonight",label:"Tonight",at:at(today,20)});o.push({key:"tomorrow",label:"Tomorrow morning",at:at(tom,9)});if(mon.d!==tom.d||mon.m!==tom.m)o.push({key:"monday",label:"Monday",at:at(mon,9)});return o;};
+const RP={el:$("#replan"),head:$("#rp-head"),grid:$("#rp-grid"),pick:$("#rp-pick"),drop:$("#rp-drop"),x:$("#rp-x")};
+function openReplan(){const c=S.ctx;if(!c||!S.rec)return;const t=fTime(c.start,TZ);
+  RP.head.innerHTML=ringFor(c.start,"held",28)+'<span><b>'+esc(c.r.t)+'</b><i>'+esc(t.main+(t.per?" "+t.per:"")+" · "+fDate(c.start,TZ))+'</i></span>';
+  RP.grid.innerHTML=replanOptions(new Date(),TZ).map(o=>{const d=new Date(o.at),sub=o.key==="in10"||o.key==="tonight"?fShort(d,TZ):new Intl.DateTimeFormat(undefined,{timeZone:TZ,weekday:"short"}).format(d)+" "+fShort(d,TZ)+(o.key==="monday"?" · fresh start":"");
+    return'<button type="button" class="rp-opt" data-at="'+o.at+'"><b>'+esc(o.label)+'</b><span>'+esc(sub)+'</span></button>';}).join("");
+  const p=parts(new Date(Date.now()+36e5),TZ);RP.pick.value=p.y+"-"+pad(p.mo)+"-"+pad(p.d)+"T"+pad(p.h)+":00";
+  RP.el.hidden=false;const first=RP.grid.querySelector("button");if(first)first.focus();}
+function closeReplan(){RP.el.hidden=true;}
+function replanTo(at){const c=S.ctx;if(!c||!S.rec||!(at>Date.now()))return;S.rec.replanAt=at;S.rec.state="held";keepRec();closeReplan();renderBottom();tick();
+  (window.__rmPush?window.__rmPush.replan(c.nd,at):Promise.resolve(false)).then(ok=>toast("Back at "+whenText(new Date(at))+(ok?".":". Turn on notifications to be reminded then."))).catch(()=>{});}
+function dropIt(){if(!S.rec)return;S.rec.state="dropped";keepRec();closeReplan();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Dropped. No more alerts for this one.");}
+function markDone(){if(!S.rec)return;S.rec.state="kept";S.rec.doneAt=Date.now();keepRec();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Done. You kept it.");}
+RP.grid.addEventListener("click",e=>{const b=e.target.closest("[data-at]");if(b)replanTo(+b.dataset.at);});
+RP.pick.addEventListener("click",()=>{try{RP.pick.showPicker();}catch(e){}});
+RP.pick.addEventListener("change",()=>{const[dt,tm]=RP.pick.value.split("T");if(!dt||!tm)return;const[y,mo,d]=dt.split("-").map(Number),[h,mi]=tm.split(":").map(Number);const at=zonedToUTC(y,mo,d,h,mi,TZ).getTime();
+  if(at>Date.now())replanTo(at);else toast("Pick a time that hasn't passed");});
+RP.drop.addEventListener("click",dropIt);RP.x.addEventListener("click",closeReplan);
+RP.el.addEventListener("click",e=>{if(e.target===RP.el)closeReplan();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!RP.el.hidden)closeReplan();});
 
 /* ---------- utilities ---------- */
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2400);}

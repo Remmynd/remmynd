@@ -82,20 +82,70 @@
     }).catch(async () => { if (loud) RM.toast("Couldn't turn on notifications. Try again."); await renderRow(d); return false; });
   }
 
-  async function turnOn(d, rkey, loud) {
+  /* The alerts for a held reminder: 1 hour before and at the start; one check when it ends (start plus
+   * its length, or 30 minutes if the link has none) asking "did you make it?"; and, with the nudge
+   * switch on, nudges 10, 20 and 30 minutes after the start. Overnight (sleep-safe) it's one morning alert. */
+  function plan(d, rkey) {
+    const start = d.start.getTime(), base = { rkey, title: d.r.t, start, place: d.r.l || "", share: d.share, shown: false };
+    if (d.morningAt) return [{ ...base, id: rid(), at: d.morningAt.getTime(), kind: "after" }];
+    const list = [{ ...base, id: rid(), at: start - 3600e3, kind: "before" }, { ...base, id: rid(), at: start, kind: "start" },
+      { ...base, id: rid(), at: start + (d.r.d || 30) * 60e3, kind: "check" }];
+    if (d.nudge) list.push(...nudges(d, rkey));
+    return list;
+  }
+  const nudges = (d, rkey) => [1, 2, 3].map(n => ({ rkey, title: d.r.t, start: d.start.getTime(), place: d.r.l || "", share: d.share, shown: false, id: rid(), at: d.start.getTime() + n * 600e3, kind: "nudge", n }));
+
+  // Store alerts on this device and send their ids and times (nothing else) to be pinged then.
+  async function schedule(alerts) {
+    const now = Date.now();
+    alerts = alerts.filter(a => a.at > now + 30e3);
+    if (!alerts.length) return [];
     const sub = await subscription();
-    const start = d.start.getTime(), now = Date.now();
-    const base = { rkey, title: d.r.t, start, place: d.r.l || "", share: d.share, shown: false };
-    const alerts = (d.morningAt
-      ? [{ ...base, id: rid(), at: d.morningAt.getTime(), kind: "after" }]
-      : [{ ...base, id: rid(), at: start - 3600e3, kind: "before" }, { ...base, id: rid(), at: start, kind: "start" }]
-    ).filter(a => a.at > now + 30e3);
-    if (!alerts.length) throw new Error("past");
     await putMany(alerts);
     try { await post("/push/schedule", { endpoint: sub.endpoint, pings: alerts.map(a => ({ id: a.id, at: a.at })) }); }
     catch (e) { await delMany(alerts.map(a => a.id)); throw e; }
-    if (loud) RM.toast("You'll get a notification " + (d.morningAt ? "at " + RM.fShort(d.morningAt, RM.TZ) : alerts.length > 1 ? "1 hour before and at the start" : "at the start"));
     refreshBadge();
+    return alerts;
+  }
+
+  /* Forget alerts still waiting for a reminder (all, or some kinds), here and on the server. */
+  async function cancel(rkey, kinds) {
+    const mine = (await getAll()).filter(a => a.rkey === rkey && !a.shown && (!kinds || kinds.includes(a.kind)));
+    if (!mine.length) return 0;
+    await delMany(mine.map(a => a.id));
+    try {
+      const reg = SUPPORTED && await navigator.serviceWorker.ready;
+      const sub = reg && await reg.pushManager.getSubscription();
+      if (sub) await post("/push/cancel", { endpoint: sub.endpoint, ids: mine.map(a => a.id) });
+    } catch (e) {}
+    refreshBadge();
+    return mine.length;
+  }
+
+  /* Not yet: drop what's waiting and bring it back once, at the chosen time. */
+  async function replan(d, at) {
+    const rkey = rkeyOf(d.r.t, d.start.getTime());
+    await cancel(rkey);
+    if (!SUPPORTED || Notification.permission !== "granted") return false;
+    const base = { rkey, title: d.r.t, start: d.start.getTime(), place: d.r.l || "", share: d.share, shown: false };
+    return (await schedule([{ ...base, id: rid(), at, kind: "replan" }])).length > 0;
+  }
+
+  /* The nudge switch on a held reminder: add or remove the three nudges. */
+  async function setNudge(d, on) {
+    const rkey = rkeyOf(d.r.t, d.start.getTime());
+    if (!on) return cancel(rkey, ["nudge"]);
+    if (!SUPPORTED || Notification.permission !== "granted" || d.morningAt) return 0;
+    const mine = await getAll();
+    if (!mine.some(a => a.rkey === rkey && !a.shown)) return 0; // notifications are off for this one
+    if (mine.some(a => a.rkey === rkey && a.kind === "nudge" && !a.shown)) return 0;
+    return (await schedule(nudges(d, rkey))).length;
+  }
+
+  async function turnOn(d, rkey, loud) {
+    const alerts = await schedule(plan(d, rkey));
+    if (!alerts.length) throw new Error("past");
+    if (loud) RM.toast("You'll get a notification " + (d.morningAt ? "at " + RM.fShort(d.morningAt, RM.TZ) : alerts.length > 1 ? "1 hour before and at the start" : "at the start"));
   }
 
   async function turnOff(rkey) {
@@ -144,7 +194,7 @@
     try { n ? await navigator.setAppBadge(n) : await navigator.clearAppBadge(); } catch (e) {}
   }
 
-  window.__rmPush = { remind, renderRow };
+  window.__rmPush = { remind, renderRow, cancel, replan, setNudge };
   window.addEventListener("rm:stack", e => renderRow(e.detail));
   window.addEventListener("rm:home", () => renderHome());
   if (window.__rmLast) (window.__rmLast.type === "stack" ? renderRow(window.__rmLast.detail) : window.__rmLast.type === "home" ? renderHome() : null);
