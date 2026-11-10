@@ -1,4 +1,4 @@
-# remmynd on Cloudflare Workers: static files from public/, plus a tiny Worker for /ics.
+# remmynd on Cloudflare Workers: static files from public/, plus a small Worker for /ics, the www redirect and push.
 # Deploy: npm run ship   (or push to main if the repo is connected to Workers Builds)
 name = "remmynd"
 main = "worker/index.js"
@@ -26,15 +26,15 @@ pattern = "www.remmynd.space"
 custom_domain = true
 
 # --- Push notifications: filled in by `npm run push:setup` ---
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "remmynd"
-# database_id = ""
-#
-# [triggers]
-# crons = ["* * * * *"]
-#
-# [vars]
-# VAPID_PUBLIC_KEY = ""
-# VAPID_SUBJECT = "mailto:connect@zoof04.com"
+[[d1_databases]]
+binding = "DB"
+database_name = "remmynd"
+database_id = "b0c76df1-abd8-4d65-8f0b-e3cd3d2156f2"
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+VAPID_PUBLIC_KEY = "BL1wKLc-1cGG7qJ-NS6KxwImTFfFVmp1YppjL7mdyXNjfHOTdjx9ThEfUb1aDx_3E8ACyw2yJ_gL3txgDQeQ3wg"
+VAPID_SUBJECT = "mailto:connect@zoof04.com"
 # --- end push ---
