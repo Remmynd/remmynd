@@ -3,7 +3,7 @@ import { parseArgs } from "node:util";
 import { writeFileSync } from "node:fs";
 import { createLink, toICS, decode, badgeHTML, badgeMarkdown, googleCalendarUrl, systemTimeZone, VERSION } from "../lib/remmynd.js";
 
-const HELP = `remmynd ${VERSION} — reminders, as a link
+const HELP = `remmynd ${VERSION} — reminders that make sure it happens
 
 Usage
   remmynd "<what>" --at "<YYYY-MM-DD HH:mm>" [options]

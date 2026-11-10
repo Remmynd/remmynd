@@ -1,4 +1,4 @@
-/* remmynd QR codes, drawn on this device. Written for remmynd (MIT licence, zoof04).
+/* remmynd QR codes, drawn on this device. Written for remmynd by Zoof04 Inc. (MIT licence).
  * Byte mode, error correction level M, versions 1 to 40, following ISO/IEC 18004: Reed-Solomon
  * error correction, block interleaving, the eight masks and their penalty scores.
  * Loaded only when someone asks for a QR code; nothing is sent anywhere. */

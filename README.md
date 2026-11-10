@@ -28,7 +28,7 @@ Write it in one line and share the link. Anyone who taps it is reminded in layer
 </p>
 
 <p align="center">
-  <a href="https://remmynd.space"><img src="brand/social/github-social-preview-1280x640.png" width="720" alt="remmynd: reminders, as a link"></a>
+  <a href="https://remmynd.space"><img src="brand/social/github-social-preview-1280x640.png" width="720" alt="remmynd: reminders that make sure it happens"></a>
 </p>
 
 ---
@@ -248,8 +248,12 @@ Logos, icons and banners are in [`brand/`](brand/). See [brand/BRAND.md](brand/B
 
 ## Licence
 
-[MIT](LICENSE) © zoof04
+The code is [MIT](LICENSE)-licensed. © 2026 Zoof04 Inc.
+
+## Name and logo
+
+The remmynd name, the logo and the moment ring belong to Zoof04 Inc. They are not covered by the MIT licence. You may use them to write about or link to remmynd. A fork or a copy you host must use its own name and logo, and must not suggest that Zoof04 Inc. makes, runs or endorses it. See [brand/BRAND.md](brand/BRAND.md).
 
 ---
 
-<p align="center">Built and maintained by <a href="https://zoof04.com">zoof04</a>.</p>
+<p align="center">Built and maintained by <a href="https://zoof04.com">Zoof04 Inc.</a></p>

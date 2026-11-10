@@ -1,15 +1,19 @@
 # remmynd brand
 
-remmynd is a free, open-source tool by [zoof04](https://zoof04.com). These files are free to use when writing about or linking to remmynd.
+remmynd is a free, open-source tool by [Zoof04 Inc.](https://zoof04.com) The design follows remmynd 2.0: "Daylight" (paper, ink, amber) and "Night shift" (near-black, electric lime). The design tokens live in [docs/v2/tokens.css](../docs/v2/tokens.css); the site uses them unchanged.
+
+## Name and logo
+
+The remmynd name, the logo and the moment ring belong to Zoof04 Inc. They are not covered by the MIT licence that covers the code. You may use these files to write about or link to remmynd. A fork or a copy you host must use its own name and logo, and must not suggest that Zoof04 Inc. makes, runs or endorses it. Credit is "remmynd by Zoof04 Inc."
 
 ## The mark
 
-A clock face with one hand pointing at an amber dot: the moment you'll be reminded. The dot sits in a gap in the ring at about one o'clock.
+A clock face with one hand pointing at a dot: the moment you'll be reminded. In the app the mark becomes the moment ring, a 24-hour dial of the viewer's own day with noon at the top, the night shaded, and the reminder's time as the dot. The ring closes when a reminder is held.
 
 - Use the mark on its own only where the name already appears nearby, or where space is tight (favicons, avatars).
 - Keep clear space around the mark of at least the dot's diameter.
 - Don't rotate the mark, move the dot, recolour the ring, or add effects.
-- The dot is always amber. The ring and hand are ink on light backgrounds and white on dark ones.
+- The dot is amber on light backgrounds. In the logo files for dark backgrounds it is warm amber (`#FFB52E`); inside the app's Night shift theme it is electric lime.
 
 ## Logo
 
@@ -26,28 +30,30 @@ The mark plus the lowercase wordmark `remmynd`, set in Geist SemiBold with tight
 
 ## Colour
 
-| Name | Hex | Use |
-|---|---|---|
-| Ink | `#0E0F11` | Text, ring, buttons, app icon |
-| Paper | `#F5F6F7` | Page background |
-| White | `#FFFFFF` | Cards, mark on dark |
-| Moment | `#F2A000` | The dot, on light backgrounds |
-| Moment (dark) | `#FFB52E` | The dot, on dark backgrounds |
-| Graphite | `#666C75` | Secondary text |
-| Hairline | `#E3E5E8` | Borders, dividers |
+From the design tokens. Amber and lime are "the moment": the dot, the Now ring and the Remind me button. Never use them for body text.
 
-Amber is used only for the dot and small status markers, never for large areas or body text.
+| Token | Daylight | Night shift | Use |
+|---|---|---|---|
+| Paper | `#F5F6F7` | `#0B0C0E` | Page background |
+| Card | `#FFFFFF` | `#17191D` | Tickets, rows, sheets |
+| Ink | `#0E0F11` | `#F4F5F6` | Text, the ring, solid buttons |
+| Muted | `#666C75` | `#A3A8B0` | Labels and secondary text |
+| Hairline | `#E3E5E8` | `#2A2D33` | Borders, the perforation |
+| Moment | `#F2A000` amber | `#C8F53B` lime | The dot, the Now ring, Remind me |
+| On moment | `#0E0F11` | `#0B0C0E` | Text on the moment colour |
+
+Every text and background pair meets WCAG AA in both themes; the tests check it.
 
 ## Type
 
 - **Geist** for text and headings. Headings are SemiBold with tight tracking (around −0.04em).
 - **Geist Mono** for times, dates and labels. Labels are uppercase with a little letter spacing.
 
-Both are free from Google Fonts and Vercel under the SIL Open Font License.
+Both are served from remmynd.space itself (`public/fonts/`, SIL Open Font Licence), never from another host.
 
 ## Voice
 
-Plain, short, calm. Say what happens: "Remind me", "Copy link", "Saved". Lead with the three facts: free, no sign-up, no tracking.
+Plain, short, calm. Say what happens: "Remind me", "Held. You're set.", "Not yet? Pick when." The headline is "Reminders that make sure it happens." Lead with the facts: free, no sign-up, no tracking.
 
 ## Accounts and sizes
 

@@ -6,6 +6,17 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- Credit is Zoof04 Inc. everywhere: the footer of every page ("A free tool by Zoof04 Inc. MIT licence." and "© 2026 Zoof04 Inc."), LICENSE, package.json, README, the brand guide and the press page. The remmynd name, logo and moment ring belong to Zoof04 Inc. and are not covered by the MIT licence.
+- New 2.0 brand images: the link preview, the GitHub social preview, the X, LinkedIn and Product Hunt banners, and the install screenshots. The tagline everywhere is "Reminders that make sure it happens."
+- The brand guide describes the 2.0 design: both themes' colours, the moment ring and self-hosted fonts.
+
+### Security
+
+- A strict Content-Security-Policy: scripts, styles, fonts and requests from remmynd.space only, with the one inline theme line allowed by its hash. Browsers now refuse anything injected from another host.
+- Strict-Transport-Security, `/.well-known/security.txt`, and Dependabot for the GitHub Actions.
+
 ## [2.0.0] - 2026-11-11
 
 remmynd 2.0: reminders that make sure it happens. Write a reminder in one line, share the link, and anyone who taps it is reminded in layers (calendar, then phone alerts) and followed through until it's done. Every 1.x link keeps working.

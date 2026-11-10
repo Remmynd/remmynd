@@ -1,6 +1,6 @@
 # remmynd
 
-> Reminders, as a link. Write a reminder in one line and share the link. Anyone who taps it is reminded in layers (calendar, then notifications) and followed through until it's done. No account on either side. Free, no sign-up, no tracking. Made by zoof04, MIT licence.
+> Reminders that make sure it happens. Write a reminder in one line and share the link. Anyone who taps it is reminded in layers (calendar, then notifications) and followed through until it's done. No account on either side. Free, no sign-up, no tracking. Made by Zoof04 Inc. The code is MIT-licensed.
 
 An assistant can make a remmynd reminder by writing a web address. No account and no API key.
 

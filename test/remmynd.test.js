@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as R from "../lib/remmynd.js";
@@ -812,7 +813,7 @@ test("words: the maker uses the spec's wording", () => {
   for (const w of ["Reminders that make sure it happens.",
     "Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.",
     ">New reminder<", 'placeholder="Demo day Fri 5pm zoom.us/j/123"', "Private link", "Keeps the title and time out of link previews.",
-    "A free tool by <a href=\"https://zoof04.com\">zoof04</a>. MIT licence."]) assert.ok(html.includes(w), "index.html says: " + w);
+    "A free tool by <a href=\"https://zoof04.com\">Zoof04 Inc.</a> MIT licence."]) assert.ok(html.includes(w), "index.html says: " + w);
   for (const w of ["Enter makes the link", "Not a link yet. Press Enter to make it.", "Held. You\\'re set.", "Your reminder stack", "Nudge me until I\\'m in",
     "Up to 3 nudges, 10 minutes apart.", "Coming in December", "More ways to be reminded", ". Confirm there.", "Calendar and a notification on this "]) assert.ok(app.includes(w), "app.js says: " + w);
   assert.match(app, /CAL_NAME=\{apple:"Apple Calendar",google:"Google Calendar",outlook:"Outlook"\}/, "Sent to Apple Calendar. Confirm there. (and Google or Outlook)");
@@ -1318,7 +1319,7 @@ test("website: every page shares one header, footer and menu", () => {
   // The menu: Why, For hosts, Docs, Roadmap, GitHub, and the theme switch (spec section 7).
   assert.deepEqual([...menu(app).matchAll(/>([^<]+)<\/a>/g)].map(m => m[1]), ["Why", "For hosts", "Docs", "Roadmap", "GitHub"]);
   assert.match(app, /id="menu"[\s\S]*aria-labelledby="theme-m"[\s\S]*aria-labelledby="sound-m"[\s\S]*id="install"/, "the app's menu has the theme, sound and Install");
-  assert.ok(footer(app).includes('A free tool by <a href="https://zoof04.com">zoof04</a>. MIT licence.'), "footer words, spec section 9");
+  assert.ok(footer(app).includes('A free tool by <a href="https://zoof04.com">Zoof04 Inc.</a> MIT licence.'), "footer words, spec section 9 as changed by the owner");
 
   const here = { why: "/why", hosts: "/hosts", docs: "/docs", roadmap: "/roadmap", install: "/install" };
   for (const p of all) {
@@ -1566,4 +1567,72 @@ test("accessibility: tap targets, dialogs, headings and focus", () => {
   assert.match(js, /CITY=\{Calcutta:"Kolkata",Saigon:"Ho Chi Minh",Kiev:"Kyiv",Katmandu:"Kathmandu",Rangoon:"Yangon"\}/);
   // A web address in an older link without https:// still opens as a link on the ticket.
   assert.match(js, /function showView\(r,key,priv\)\{if\(r\.l&&!isHttp\(r\.l\)&&webish\(r\.l\)\)r=\{\.\.\.r,l:"https:\/\/"\+r\.l\};/);
+});
+
+/* ---------- brand, credit and security ---------- */
+
+test("credit: Zoof04 Inc. on every page and in every place that names the maker", () => {
+  const read = f => readFileSync(join(root, f), "utf8");
+  assert.match(read("LICENSE"), /^Copyright \(c\) 2026 Zoof04 Inc\.$/m);
+  assert.equal(JSON.parse(read("package.json")).author, "Zoof04 Inc. (https://zoof04.com)");
+  for (const [f, w] of [["README.md", "© 2026 Zoof04 Inc."], ["README.md", "## Name and logo"], ["brand/BRAND.md", "## Name and logo"], ["brand/BRAND.md", "[Zoof04 Inc.](https://zoof04.com)"],
+    ["docs/PRINCIPLES.md", "built and maintained by [Zoof04 Inc.]"], ["public/llms.txt", "Made by Zoof04 Inc."], ["public/press/index.html", "Belong to Zoof04 Inc. and are not covered by the MIT licence"]]) assert.ok(read(f).includes(w), f + " says: " + w);
+  for (const f of ["public/index.html", ...[...PAGES, "404"].map(pageFile)]) {
+    const html = read(f);
+    assert.ok(html.includes('<meta name="author" content="Zoof04 Inc.">'), f + ": author meta");
+    assert.ok(html.includes('A free tool by <a href="https://zoof04.com">Zoof04 Inc.</a> MIT licence.'), f + ": footer credit");
+    assert.ok(html.includes("© 2026 Zoof04 Inc."), f + ": copyright line");
+  }
+  // No credit to a bare "zoof04" is left (git identity, e-mail addresses, URLs and released changelog entries aside).
+  for (const f of repoFiles()) {
+    if (/\.(png|ico|woff2)$/.test(f) || f.startsWith(join(root, "test")) || f.includes(join("docs", "v2", "reference")) || f.endsWith("CHANGELOG.md")) continue;
+    const bare = readFileSync(f, "utf8").match(/(?:\bby (?:<a [^>]*>|\[)?|© |Copyright \(c\) \d{4} )zoof04\b(?! Inc\.)/i);
+    assert.ok(!bare, f + " credits " + (bare && bare[0]) + " instead of Zoof04 Inc.");
+  }
+  // The 1.x tagline is gone; the 2.0 headline is the tagline everywhere.
+  for (const f of repoFiles()) {
+    if (/\.(png|ico|woff2)$/.test(f) || f.startsWith(join(root, "test")) || f.includes(join("docs", "v2")) || f.endsWith("CHANGELOG.md") || f.endsWith("BRAND.md")) continue;
+    assert.doesNotMatch(readFileSync(f, "utf8"), /reminders, as a link/i, f + " still uses the 1.x tagline");
+  }
+});
+
+test("security: a strict content security policy, HSTS and security.txt", () => {
+  const headers = readFileSync(join(root, "public/_headers"), "utf8");
+  const csp = /^\/\*\n(?:  .*\n)*?  Content-Security-Policy: (.+)$/m.exec(headers);
+  assert.ok(csp, "every response carries a Content-Security-Policy");
+  const dir = Object.fromEntries(csp[1].split(";").map(d => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
+  assert.deepEqual(dir["default-src"], ["'self'"]);
+  for (const k of ["style-src", "font-src", "connect-src", "worker-src", "manifest-src"]) assert.deepEqual(dir[k], ["'self'"], k);
+  assert.deepEqual(dir["object-src"], ["'none'"]); assert.deepEqual(dir["base-uri"], ["'none'"]); assert.deepEqual(dir["frame-ancestors"], ["'none'"]);
+  assert.doesNotMatch(csp[1], /unsafe-inline|unsafe-eval|\*|https?:/, "no wildcards, no other hosts, no unsafe sources");
+  // The one inline script on every page (the theme line) is allowed by its hash, and nothing else is inline.
+  const hashes = dir["script-src"].filter(v => v.startsWith("'sha256-")).map(v => v.slice(8, -1));
+  for (const f of ["public/index.html", ...[...PAGES, "404"].map(pageFile)]) {
+    const html = readFileSync(join(root, f), "utf8");
+    const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+    assert.equal(inline.length, 1, f + ": one inline script");
+    assert.ok(hashes.includes(createHash("sha256").update(inline[0]).digest("base64")), f + ": the inline script's hash is in script-src");
+    assert.doesNotMatch(html, /\son[a-z]+="|\sstyle="|javascript:/i, f + ": no inline handlers, styles or javascript: links");
+  }
+  for (const f of readdirSync(join(root, "public")).filter(f => f.endsWith(".js"))) {
+    const js = readFileSync(join(root, "public", f), "utf8");
+    assert.doesNotMatch(js, /setAttribute\(\s*["']style|\sstyle=\\?["']|\beval\(|new Function\(/, "public/" + f + " writes nothing the policy would block");
+  }
+  assert.match(headers, /^  Strict-Transport-Security: max-age=31536000; includeSubDomains$/m);
+  assert.match(headers, /^  X-Frame-Options: DENY$/m);
+  const sec = readFileSync(join(root, "public/.well-known/security.txt"), "utf8");
+  assert.match(sec, /^Contact: mailto:connect@zoof04\.com$/m);
+  assert.match(sec, /^Canonical: https:\/\/remmynd\.space\/\.well-known\/security\.txt$/m);
+  const expires = Date.parse(/^Expires: (\S+)$/m.exec(sec)[1]);
+  assert.ok(expires > Date.now() && expires < Date.now() + 400 * 864e5, "security.txt expires within the next year, as RFC 9116 asks");
+  assert.match(readFileSync(join(root, ".github/dependabot.yml"), "utf8"), /package-ecosystem: github-actions/);
+});
+
+test("brand images are the 2.0 set, at the sizes their files name", () => {
+  const size = f => { const b = readFileSync(join(root, f)); assert.equal(b.toString("ascii", 1, 4), "PNG", f + " is a PNG"); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
+  assert.deepEqual(size("public/og.png"), [1200, 630]);
+  for (const f of readdirSync(join(root, "brand/social"))) { const m = /(\d+)x(\d+)\.png$/.exec(f); if (m) assert.deepEqual(size("brand/social/" + f), [+m[1], +m[2]], f); }
+  const man = JSON.parse(readFileSync(join(root, "public/manifest.webmanifest"), "utf8"));
+  assert.match(man.description, /^Reminders that make sure it happens\./);
+  for (const s of man.screenshots) assert.deepEqual(size("public/" + s.src).join("x"), s.sizes, s.src);
 });

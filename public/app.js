@@ -300,7 +300,7 @@ function showReady(){const m=D.made;F.link.value=m.link;
   /* How it looks in chats: what a chat app shows for this link. A private link shows nothing about the reminder. */
   const host=new URL(BASE).host;
   F.chat.innerHTML='<div class="chat-img" aria-hidden="true">'+ringFor(m.ev.start,"open",28)+'<span>remmynd</span></div><div class="chat-text">'+(F.priv.checked?
-    '<b>remmynd</b><span>Reminders, as a link. Free, no sign-up, no tracking.</span>':'<b>'+esc(m.ev.title)+'</b><span>'+esc(R.describeWhen(m.ev.start,TZ))+' · Tap to get reminded</span>')+'<i>'+esc(host)+'</i></div>';
+    '<b>remmynd</b><span>Reminders that make sure it happens. Free, no sign-up, no tracking.</span>':'<b>'+esc(m.ev.title)+'</b><span>'+esc(R.describeWhen(m.ev.start,TZ))+' · Tap to get reminded</span>')+'<i>'+esc(host)+'</i></div>';
   F.copied.hidden=false;clearTimeout(F.copied._t);F.copied._t=setTimeout(()=>{F.copied.hidden=true;},2600);setMode("ready");renderMaker();}
 F.priv.addEventListener("change",()=>{const m=D.made;if(!m)return;const prev=m.link;m.link=R.createLink(m.ev,{base:BASE,private:F.priv.checked});
   showReady();copy(m.link,F.priv.checked?"Private link copied":"Link copied");keepLink(prev);});
