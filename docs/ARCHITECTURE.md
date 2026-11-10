@@ -4,7 +4,7 @@ remmynd has three parts that share one link format:
 
 | Part | Where | What it does |
 |---|---|---|
-| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the app, `push.js` adds Notify me, `sw.js` works offline and shows alerts. No build step. |
+| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the app, `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `push.js` adds Notify me, `sw.js` works offline and shows alerts. No build step. |
 | **Worker** | `worker/` | Serves the site on Cloudflare, redirects `www`, builds `.ics` files for iPhone in-app browsers, and wakes devices for phone alerts. |
 | **Library and CLI** | `lib/`, `bin/` | The `remmynd` npm package and `npx remmynd`. Zero dependencies. |
 
@@ -149,7 +149,7 @@ Details, setup and rollback: [RELEASING.md](RELEASING.md).
 ## Repository layout
 
 ```text
-public/          the website: index.html, push.js, sw.js, icons, badges, manifest, _headers
+public/          the website: index.html, app.css, fonts/, push.js, sw.js, icons, badges, manifest, _headers
 worker/          Cloudflare Worker: routing, the /ics route and push (push.js, schema.sql)
 lib/             the npm library (remmynd.js) and its TypeScript types
 bin/             the npx remmynd command
