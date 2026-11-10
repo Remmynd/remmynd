@@ -126,18 +126,37 @@ test("package version matches the library", () => {
   assert.equal(pkg.version, R.VERSION);
 });
 
-test("repository credits zoof04 only", () => {
-  // Checks every tracked file (or every file on disk when git isn't available), except this test folder.
+// Every tracked file (or every file on disk when git isn't available), except the test folder.
+function repoFiles() {
   const skip = new Set([".git", "node_modules", "test", ".wrangler"]);
   const walk = d => readdirSync(d).flatMap(f => skip.has(f) ? [] : statSync(join(d, f)).isDirectory() ? walk(join(d, f)) : [join(d, f)]);
-  let files;
-  try { files = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean).map(f => join(root, f)); }
-  catch { files = walk(root); }
+  try { return execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean).map(f => join(root, f)); }
+  catch { return walk(root); }
+}
+
+test("repository credits zoof04 only", () => {
+  const files = repoFiles();
   // Other product and tool names must not appear anywhere in the repository.
   const banned = new RegExp([["sig", "ship"], ["cla", "ude"], ["anth", "ropic"]].map(p => p.join("")).join("|"), "i");
   for (const f of files) {
     if (/\.(png|ico)$/.test(f) || f.startsWith(join(root, "test"))) continue;
     assert.ok(!banned.test(readFileSync(f, "utf8")), "unexpected mention in " + f);
+  }
+});
+
+test("privacy and free wording match the approved text", () => {
+  const approved = "Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.";
+  for (const f of ["README.md", "docs/PRINCIPLES.md", "public/index.html"]) {
+    assert.ok(readFileSync(join(root, f), "utf8").includes(approved), f + " uses the approved privacy sentence");
+  }
+  const principles = readFileSync(join(root, "docs/PRINCIPLES.md"), "utf8");
+  assert.ok(principles.includes("## 2. Free, no sign-up, no tracking"), "principle 2 title");
+  assert.ok(principles.includes('"Reminders that make sure it happens."'), "principle 5 states the aim");
+  // Retired promises. The 2.0 spec in docs/v2 quotes them only to retire them.
+  const retired = /nothing stored|no "?pro"? tier|is a phase/i;
+  for (const f of repoFiles()) {
+    if (/\.(png|ico)$/.test(f) || f.startsWith(join(root, "test")) || f.startsWith(join(root, "docs", "v2"))) continue;
+    assert.ok(!retired.test(readFileSync(f, "utf8")), "retired wording in " + f);
   }
 });
 
