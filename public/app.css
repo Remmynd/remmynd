@@ -178,30 +178,64 @@ button{font:inherit;color:inherit}
 .hero p{font-size:17px;color:var(--muted);margin:0;max-width:40ch}
 
 /* ---------- composer ---------- */
-.composer{background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow-card);overflow:hidden}
-.composer .cell{display:grid;gap:2px;padding:12px 18px;border-top:1px solid var(--hairline);min-width:0}
-.composer .cell:first-child{border-top:0}
-.composer label{font:var(--label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:2px}
-.composer label .opt{text-transform:none;letter-spacing:0;font-family:var(--font);font-weight:400}
-.composer input,.composer select,.composer textarea{border:0;background:transparent;padding:4px 0;font:400 16px var(--font);color:var(--ink);width:100%;min-width:0;outline:none}
-.composer input::placeholder,.composer textarea::placeholder{color:var(--muted);opacity:.8}
-.composer .cell:focus-within{background:var(--well)}
 #f-title{font-size:21px;font-weight:500;letter-spacing:-.02em;padding:6px 0}
-.split{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid var(--hairline)}
-.split .cell{border-top:0}
-.split .cell+.cell{border-left:1px solid var(--hairline)}
 @media (max-width:480px){.split{grid-template-columns:1fr}.split .cell+.cell{border-left:0;border-top:1px solid var(--hairline)}}
-.composer textarea{resize:vertical;min-height:52px}
-.subbar{display:flex;justify-content:space-between;align-items:center;gap:4px 10px;flex-wrap:wrap;padding:4px 18px;border-top:1px solid var(--hairline);font-size:13px;color:var(--muted)}
 .linkish{background:none;border:0;padding:0;min-height:var(--tap);color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
 #f-tz{font-size:13px;width:auto;max-width:220px;min-height:36px;border:1px solid var(--hairline);border-radius:10px;padding:4px 6px;background:var(--card);color:var(--ink)}
 #more-box{display:grid}
 
-.eyebrow{display:flex;align-items:center;gap:8px;font:var(--label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:28px 0 12px}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--moment);flex:none}
 
 /* ---------- link output ---------- */
 .out{display:grid;gap:8px;margin-top:16px}
+/* ---------- maker: one line in, a link out (mock-ups 01 to 03) ---------- */
+.hero .label{margin-bottom:14px}
+.try{display:grid;gap:10px}
+.rows{display:grid;gap:10px}
+.row,.mini{display:flex;align-items:center;gap:12px;color:var(--ink);text-decoration:none}
+.row{min-height:64px;padding:0 16px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row)}
+.row:hover{border-color:var(--line-strong)}
+.row>svg:first-child,.mini>svg:first-child{width:28px;height:28px;flex:none}
+.row span,.mini span{flex:1;min-width:0;display:grid;gap:2px}
+.row b,.mini b{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row i,.mini i{font:400 12px var(--mono);font-style:normal;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chev{width:20px;height:20px;color:var(--muted);flex:none}
+.draft,.ready{display:grid;gap:12px;padding-top:8px}
+/* The live preview is the top of the ticket only (mock-up 02): no countdown or button until the link exists. */
+.draft .ticket .t-count,.draft .ticket .t-perf,.draft .ticket .t-bottom{display:none}
+.hint{font:400 12px var(--mono);color:var(--muted);margin:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.fchip{position:relative;display:inline-flex;align-items:center;gap:8px;max-width:100%;min-height:var(--tap);padding:0 14px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-chip);font:400 14px var(--font);color:var(--ink);cursor:pointer}
+.fchip span{font:var(--label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fchip b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fchip.empty b{font-weight:400;color:var(--muted)}
+.fchip.when{background:var(--moment-tint);border-color:var(--moment)}
+.fchip.when span{color:var(--on-moment-tint)}
+.fchip.add{background:transparent;border:1px dashed var(--dash);color:var(--muted)}
+.fchip.when:focus-within{outline:2px solid var(--ink);outline-offset:2px}
+#c-when-in{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
+.edit{display:grid;gap:6px}
+.edit-row{display:flex;gap:8px}
+.edit-row input{flex:1;min-width:0;height:var(--tap);padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r-chip);background:var(--card);color:var(--ink);font:400 16px var(--font)}
+.btn.small{height:var(--tap);padding:0 16px;font-size:14px}
+.mini{padding:14px 16px;background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow-card)}
+.linkbox{position:relative}
+.copied{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:500 11px var(--mono);letter-spacing:.04em;background:var(--moment-tint);color:var(--on-moment-tint);border-radius:999px;padding:4px 8px;pointer-events:none}
+.row-link{display:flex;align-items:center;justify-content:space-between;min-height:52px;padding:0 12px 0 16px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row);font-size:15px;font-weight:600;color:var(--ink);text-decoration:none}
+.row-link svg{width:20px;height:20px;color:var(--muted)}
+/* The capture bar: docked at the bottom on phones, and at the foot of the column on wide screens until the two-pane layout. */
+.capture{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px) + var(--kb,0px));width:min(560px,calc(100% - 24px));display:grid;gap:8px}
+/* Page text scrolls under the bar: fade it out behind the label and the bar so both stay readable. */
+.capture::before{content:"";position:absolute;z-index:-1;left:-12px;right:-12px;top:-28px;bottom:calc(-14px - env(safe-area-inset-bottom,0px));background:linear-gradient(to bottom,transparent,var(--paper) 34px);pointer-events:none}
+.capture .label{padding-left:18px}
+.cap-bar{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 18px;background:var(--glass);-webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);border:1px solid var(--glass-border);border-radius:var(--r-bar);box-shadow:var(--shadow-float)}
+.capture.typing .cap-bar,.cap-bar:focus-within{border-color:transparent;box-shadow:var(--shadow-float),inset 0 0 0 1.5px var(--ink)}
+#cap{flex:1;min-width:0;height:var(--tap);border:0;outline:0;background:transparent;font:400 16px var(--font);color:var(--ink)}
+#cap::placeholder{color:var(--muted)}
+.cap-go{flex:none;display:grid;place-items:center;width:var(--tap);height:var(--tap);border:0;border-radius:50%;background:var(--moment);color:var(--on-moment);cursor:pointer}
+.cap-go svg{width:22px;height:22px}
+body.has-cap .app{padding-bottom:150px}
+body.has-cap .toast{bottom:calc(112px + env(safe-area-inset-bottom,0px))}
 /* Private link: a row with a title, one line of help and a switch (mock-up 03). */
 .opt-row{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding:6px 8px 6px 16px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row)}
 .opt-text{display:flex;flex-direction:column;gap:2px;min-width:0}

@@ -8,6 +8,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- One-line capture: write a reminder in one line ("Demo day Fri 5pm zoom.us/j/123") or paste an invitation. The ticket preview updates as you type, What, When and Where chips edit each part (When opens the device's own picker), and Enter makes the link, copies it and keeps it in this device's list of links.
+- New home: "Reminders that make sure it happens.", three "Try one" examples worked out from today, and the New reminder bar docked at the bottom.
+- `parse(text, { now, timeZone })` in the library: today, tonight, tomorrow, weekdays, "next Friday", "13 Nov", "13/11", "1st", ISO dates, "5pm", "17:00", noon, midnight, "in 2 hours", "for 30 min", time ranges, web addresses and a trailing "at <place>".
+- `db.js`: on-device storage version 2 with `alerts`, `reminders` and `links`, shared by the page and the service worker. Existing alerts become reminders on upgrade.
 - Shared links: `remmynd.space/r/…` lets chat apps show the title and time in a preview card. The Worker reads the link only to fill those tags. Nothing is stored or logged, and the page is never cached.
 - Private link switch: "Keeps the title and time out of link previews." It makes the `/#…` form, which never reaches a server. Every 1.x link keeps working.
 - `remmynd.space/new?t=…&at=…&tz=…`: write a reminder into the address from a script, a spreadsheet or an AI assistant. An exact time redirects to the shared link; a time without a zone is read in the visitor's own zone.
@@ -26,6 +30,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- The app's code moved from `index.html` into `app.js`, an ES module that imports the library. The old form (what, when, where, notes, host, length, time zone) is replaced by the one-line capture; links carry the device's time zone.
+- The service worker no longer stores the large install icons up front; phones fetch them when the app is installed. The first visit drops from about 145 KB to 114 KB.
 - `createLink()` and `npx remmynd` make shared `/r/` links by default; `decode()` reads both forms.
 - The page loads its files from root paths so it works at `/r/…`, and the service worker caches only the plain page, never a `/r/` page.
 - `wrangler.toml` turns Workers observability off explicitly, so Cloudflare keeps no request logs.

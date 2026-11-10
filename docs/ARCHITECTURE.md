@@ -4,7 +4,7 @@ remmynd has three parts that share one link format:
 
 | Part | Where | What it does |
 |---|---|---|
-| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the app, `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `push.js` adds Notify me, `sw.js` works offline and shows alerts, `remmynd.js` is an exact copy of the library for the page to import. No build step. |
+| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the markup, `app.js` the app (an ES module that imports `remmynd.js`, an exact copy of the library, to read typed lines and make links), `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `db.js` the on-device storage, `push.js` adds Notify me, `sw.js` works offline and shows alerts. No build step. |
 | **Worker** | `worker/` | Serves the site on Cloudflare, adds link-preview tags to shared `/r/` links (`preview.js`), turns `/new` addresses into links, redirects `www`, builds `.ics` files for iPhone in-app browsers, and wakes devices for phone alerts. It reads links with the library itself. |
 | **Library and CLI** | `lib/`, `bin/` | The `remmynd` npm package and `npx remmynd`. Zero dependencies. |
 
@@ -108,6 +108,16 @@ sequenceDiagram
 | Gone devices | A 400, 403, 404 or 410 from the push service deletes every row for that address |
 | iPhone | Needs remmynd on the Home Screen (iOS 16.4 and later); no Snooze or Open buttons |
 
+### On-device storage
+
+IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the page and the service worker share. Nothing in it leaves the device.
+
+| Store | Key | Holds |
+|---|---|---|
+| `alerts` | `id` (index `rkey`) | Phone alerts waiting to be shown |
+| `reminders` | `rkey` | Reminders held on this device. On the upgrade from version 1 it is built from the existing alerts, one per `rkey` |
+| `links` | `share` | Links made on this device: title, start, when it was made, and whether it is private |
+
 ## How requests are routed
 
 Every request goes through `worker/index.js` first (`run_worker_first = true` in `wrangler.toml`), then falls through to the static files in `public/`.
@@ -169,7 +179,7 @@ Details, setup and rollback: [RELEASING.md](RELEASING.md).
 ## Repository layout
 
 ```text
-public/          the website: index.html, app.css, fonts/, push.js, sw.js, remmynd.js, icons, badges, manifest, _headers
+public/          the website: index.html, app.js, app.css, remmynd.js, db.js, fonts/, push.js, sw.js, icons, badges, manifest, _headers
 worker/          Cloudflare Worker: routing, /r/ previews and /new (preview.js), the /ics route and push (push.js, schema.sql)
 lib/             the npm library (remmynd.js) and its TypeScript types
 bin/             the npx remmynd command

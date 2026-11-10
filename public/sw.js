@@ -2,8 +2,8 @@
 // 1. Caches the app so it opens offline.
 // 2. Shows reminder notifications. Pushes arrive EMPTY; the reminder details come from this
 //    device's own storage (IndexedDB), so the server never knows what you're reminded about.
-const CACHE = "remmynd-v8";
-const SHELL = ["./", "./index.html", "./app.css", "./push.js", "./fonts/geist-5.3-latin.woff2", "./fonts/geist-mono-5.3-latin.woff2", "./manifest.webmanifest", "./icon.svg", "./favicon.ico", "./apple-touch-icon.png", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./badge-mono-96.png", "./badge.svg", "./badge-dark.svg"];
+const CACHE = "remmynd-v9";
+const SHELL = ["./", "./index.html", "./app.css", "./app.js", "./remmynd.js", "./db.js", "./push.js", "./fonts/geist-5.3-latin.woff2", "./fonts/geist-mono-5.3-latin.woff2", "./manifest.webmanifest", "./icon.svg", "./favicon.ico", "./apple-touch-icon.png", "./icon-192.png", "./badge-mono-96.png", "./badge.svg", "./badge-dark.svg"];
 
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -27,22 +27,12 @@ self.addEventListener("fetch", e => {
   e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(res => { if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); } return res; })));
 });
 
-/* ---------- on-device storage (same shape as push.js) ---------- */
-const DB_NAME = "remmynd", STORE = "alerts";
-function idb() {
-  return new Promise((res, rej) => {
-    const q = indexedDB.open(DB_NAME, 1);
-    q.onupgradeneeded = () => { const s = q.result.createObjectStore(STORE, { keyPath: "id" }); s.createIndex("rkey", "rkey"); };
-    q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
-  });
-}
-async function tx(mode, fn) {
-  const db = await idb();
-  return new Promise((res, rej) => { const t = db.transaction(STORE, mode); const r = fn(t.objectStore(STORE)); t.oncomplete = () => res(r && "result" in r ? r.result : undefined); t.onerror = () => rej(t.error); });
-}
-const getAll = () => tx("readonly", s => s.getAll());
-const put = a => tx("readwrite", s => s.put(a));
-const del = id => tx("readwrite", s => s.delete(id));
+/* ---------- on-device storage: db.js, shared with the page ---------- */
+importScripts("/db.js");
+const DB = self.remmyndDB;
+const getAll = () => DB.getAll("alerts");
+const put = a => DB.put("alerts", a);
+const del = id => DB.del("alerts", id);
 const rid = () => { const b = crypto.getRandomValues(new Uint8Array(16)); return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
 
 /* ---------- notifications ---------- */
