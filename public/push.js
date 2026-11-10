@@ -37,44 +37,52 @@
     return sub;
   }
 
-  /* ---------- the Notify me row on a reminder ---------- */
-  const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+  /* ---------- the Notification row in a reminder's stack ---------- */
+  const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+  const ON = '<svg class="s-on" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const row = (sub, end, muted) => '<div class="srow' + (muted ? " muted" : "") + '">' + BELL + '<span class="stext"><b>Notification</b><span>' + sub + '</span></span>' + (end || "") + '</div>';
+  const when = d => d.morningAt ? "At " + esc(RM.fShort(d.morningAt, RM.TZ)) + ", after it starts" : "1 hour before, and at the start";
 
   async function renderRow(d) {
     const el = d.el;
     if (!el || !el.isConnected) return;
     const start = d.start.getTime();
-    if (start <= Date.now() + 30e3) { el.innerHTML = ""; return; }
-
+    if (start <= Date.now() + 30e3) { el.innerHTML = row("It has already started", "", true); return; }
     if (!SUPPORTED || !(await serverKey())) {
-      if (RM.IOS && !RM.STANDALONE && RM.OWN && (await serverKey())) {
-        el.innerHTML = '<div class="notify"><div class="nrow">' + BELL + '<div class="ntext"><b>Get a notification on this iPhone</b><span>Add remmynd to your Home Screen first</span></div><button type="button" class="btn small" id="n-install">Add</button></div></div>';
+      if (RM.IOS && !RM.STANDALONE && RM.OWN) {
+        el.innerHTML = row("On iPhone, add remmynd to your Home Screen first", '<button type="button" class="btn small" id="n-install">Add</button>');
         el.querySelector("#n-install").addEventListener("click", () => RM.openSheet());
-      } else el.innerHTML = "";
+      } else el.innerHTML = row("Not available in this browser", "", true);
       return;
     }
-
     const rkey = rkeyOf(d.r.t, start);
-    const mine = (await getAll()).filter(a => a.rkey === rkey && !a.shown);
-    const on = mine.length > 0;
-    el.innerHTML =
-      '<div class="notify"><div class="nrow">' + BELL +
-      '<div class="ntext"><b>Notify me on this ' + DEVICE + '</b><span>' + (on ? "On · " : "") + (d.morningAt ? "At " + esc(RM.fShort(d.morningAt, RM.TZ)) + ", after it starts" : "1 hour before and when it starts") + '</span></div>' +
-      '<label class="switch"><input type="checkbox" id="n-toggle"' + (on ? " checked" : "") + ' aria-label="Notify me on this ' + DEVICE + '"><span></span></label></div>' +
-      (on ? '<div class="nchips">' + mine.sort((a, b) => a.at - b.at).map(a => '<span>' + esc(RM.fShort(new Date(a.at), RM.TZ)) + ' · ' + (a.kind === "before" ? "1 hour before" : a.kind === "start" ? "starts" : a.kind === "after" ? "morning" : "snoozed") + '</span>').join("") + '</div>' : "") +
-      '</div>';
-    const t = el.querySelector("#n-toggle");
-    t.addEventListener("change", async () => {
-      t.disabled = true;
-      try { t.checked ? await turnOn(d, rkey) : await turnOff(rkey); }
-      catch (e) { t.checked = !t.checked; RM.toast(e && e.message === "denied" ? "Notifications are blocked for remmynd. Turn them on in your settings." : "Couldn't change notifications. Try again."); }
-      renderRow(d);
-    });
+    const on = (await getAll()).some(a => a.rkey === rkey && !a.shown);
+    if (on) {
+      el.innerHTML = row(when(d), '<button type="button" class="s-btn" id="n-off" aria-label="Notifications on. Turn them off">' + ON + '</button>');
+      el.querySelector("#n-off").addEventListener("click", async () => { try { await turnOff(rkey); } catch (e) {} renderRow(d); });
+    } else if (Notification.permission === "denied") {
+      el.innerHTML = row("Blocked in this browser's settings", "", true);
+    } else {
+      el.innerHTML = row("Not set on this " + DEVICE, '<button type="button" class="btn small" id="n-on">Turn on</button>');
+      el.querySelector("#n-on").addEventListener("click", () => remind(d, true));
+    }
   }
 
-  async function turnOn(d, rkey) {
-    const perm = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
-    if (perm !== "granted") throw new Error("denied");
+  /* Remind me: turn notifications on where they are allowed. The permission prompt must start inside
+   * the tap itself, so this asks before anything is awaited. */
+  function remind(d, loud) {
+    if (!SUPPORTED || d.start.getTime() <= Date.now() + 30e3) return renderRow(d).then(() => false);
+    const perm = Notification.permission === "default" ? Notification.requestPermission() : Promise.resolve(Notification.permission);
+    return perm.then(async p => {
+      if (p !== "granted") { await renderRow(d); return false; }
+      const rkey = rkeyOf(d.r.t, d.start.getTime());
+      if (!(await getAll()).some(a => a.rkey === rkey && !a.shown)) await turnOn(d, rkey, loud);
+      await renderRow(d);
+      return true;
+    }).catch(async () => { if (loud) RM.toast("Couldn't turn on notifications. Try again."); await renderRow(d); return false; });
+  }
+
+  async function turnOn(d, rkey, loud) {
     const sub = await subscription();
     const start = d.start.getTime(), now = Date.now();
     const base = { rkey, title: d.r.t, start, place: d.r.l || "", share: d.share, shown: false };
@@ -86,7 +94,7 @@
     await putMany(alerts);
     try { await post("/push/schedule", { endpoint: sub.endpoint, pings: alerts.map(a => ({ id: a.id, at: a.at })) }); }
     catch (e) { await delMany(alerts.map(a => a.id)); throw e; }
-    RM.toast("You'll get a notification " + (d.morningAt ? "at " + RM.fShort(d.morningAt, RM.TZ) : alerts.length > 1 ? "1 hour before and when it starts" : "when it starts"));
+    if (loud) RM.toast("You'll get a notification " + (d.morningAt ? "at " + RM.fShort(d.morningAt, RM.TZ) : alerts.length > 1 ? "1 hour before and at the start" : "at the start"));
     refreshBadge();
   }
 
@@ -136,8 +144,9 @@
     try { n ? await navigator.setAppBadge(n) : await navigator.clearAppBadge(); } catch (e) {}
   }
 
-  window.addEventListener("rm:ticket", e => renderRow(e.detail));
+  window.__rmPush = { remind, renderRow };
+  window.addEventListener("rm:stack", e => renderRow(e.detail));
   window.addEventListener("rm:home", () => renderHome());
-  if (window.__rmLast) (window.__rmLast.type === "ticket" ? renderRow(window.__rmLast.detail) : renderHome());
+  if (window.__rmLast) (window.__rmLast.type === "stack" ? renderRow(window.__rmLast.detail) : window.__rmLast.type === "home" ? renderHome() : null);
   refreshBadge();
 })();
