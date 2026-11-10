@@ -4,7 +4,7 @@ remmynd has three parts that share one link format:
 
 | Part | Where | What it does |
 |---|---|---|
-| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the app, `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `push.js` adds Notify me, `sw.js` works offline and shows alerts. No build step. |
+| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the app, `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `push.js` adds Notify me, `sw.js` works offline and shows alerts, `remmynd.js` is an exact copy of the library for the page to import. No build step. |
 | **Worker** | `worker/` | Serves the site on Cloudflare, redirects `www`, builds `.ics` files for iPhone in-app browsers, and wakes devices for phone alerts. |
 | **Library and CLI** | `lib/`, `bin/` | The `remmynd` npm package and `npx remmynd`. Zero dependencies. |
 
@@ -128,7 +128,7 @@ Headers for static files live in `public/_headers`: security headers on every re
 | Push storage | D1 database `remmynd`, table `pings`, bound as `DB` |
 | Push timing | Cron trigger every minute (`scheduled` in `worker/index.js`) |
 | Push keys | VAPID public key in `wrangler.toml`, private key as the Worker secret `VAPID_PRIVATE_JWK` |
-| Logs | Workers observability isn't turned on in `wrangler.toml`, and the Worker never logs request addresses |
+| Logs | Workers observability is off in `wrangler.toml` (`[observability] enabled = false`, kept off by a test), and the Worker never logs request addresses |
 
 ## Delivery pipeline
 
@@ -149,11 +149,11 @@ Details, setup and rollback: [RELEASING.md](RELEASING.md).
 ## Repository layout
 
 ```text
-public/          the website: index.html, app.css, fonts/, push.js, sw.js, icons, badges, manifest, _headers
+public/          the website: index.html, app.css, fonts/, push.js, sw.js, remmynd.js, icons, badges, manifest, _headers
 worker/          Cloudflare Worker: routing, the /ics route and push (push.js, schema.sql)
 lib/             the npm library (remmynd.js) and its TypeScript types
 bin/             the npx remmynd command
-test/            node:test suite for the library, CLI, site and Worker
+test/            node:test suite for the library, CLI, site and Worker, plus guards for third parties, size and logs
 scripts/         release helpers and push:setup
 brand/           logo, mark, avatars, social images and the brand guide
 docs/            principles, architecture and the release runbook
