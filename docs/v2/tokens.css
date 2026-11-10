@@ -1,0 +1,137 @@
+/* remmynd 2.0 design tokens.
+   Light theme: "Daylight" (paper, ink, amber).
+   Dark theme: "Night shift" (near-black, electric lime).
+   The theme follows the system setting unless <html data-theme="light|dark"> is set.
+   Use these names everywhere. No raw colour values in components. */
+
+:root {
+  color-scheme: light dark;
+
+  /* surfaces */
+  --paper: #F5F6F7;            /* page background */
+  --card: #FFFFFF;             /* tickets, rows, sheets */
+  --well: #F5F6F7;             /* insets inside a card: link pill, chat preview */
+
+  /* text and lines */
+  --ink: #0E0F11;              /* text, the ring, solid buttons */
+  --ink-2: #4A4F57;            /* strong secondary text */
+  --muted: #666C75;            /* labels and secondary text; 4.5:1 on paper and card */
+  --hairline: #E3E5E8;         /* borders, the perforation */
+  --line-strong: #C9CED6;      /* switch track when off, key caps */
+  --dash: #B9BEC6;             /* dashed outlines */
+
+  /* the one accent */
+  --moment: #F2A000;           /* the dot, the Now ring, the Remind me button */
+  --on-moment: #0E0F11;        /* text and marks on the accent */
+  --moment-tint: #FFF4D9;      /* When chip, Soon chip */
+  --on-moment-tint: #5A4300;
+
+  /* dark bands on the website */
+  --band: #0E0F11;
+  --on-band: #F5F6F7;
+  --on-band-muted: #A9AEB6;
+  --band-line: #3A3D42;
+  --band-accent: #FFB52E;
+
+  /* overlays */
+  --scrim: rgba(14, 15, 17, 0.45);
+  --glass: rgba(255, 255, 255, 0.78);       /* floating capture bar; controls only, never under body text */
+  --glass-border: rgba(14, 15, 17, 0.08);
+  --night-arc: rgba(14, 15, 17, 0.10);      /* shaded night hours on the ring */
+
+  /* depth */
+  --shadow-card: 0 1px 0 rgba(14, 15, 17, 0.04), 0 22px 48px rgba(14, 15, 17, 0.09);
+  --shadow-float: 0 12px 32px rgba(14, 15, 17, 0.12);
+  --shadow-moment: 0 10px 24px rgba(242, 160, 0, 0.28);
+
+  /* type */
+  --font: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --label: 600 11px/1 var(--mono);          /* upper-case labels, letter-spacing 0.08em */
+
+  /* shape */
+  --r-ticket: 32px;
+  --r-card: 22px;
+  --r-row: 18px;
+  --r-button: 22px;
+  --r-chip: 14px;
+  --r-bar: 30px;
+
+  /* motion */
+  --spring: cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  --dur: 320ms;
+
+  /* touch */
+  --tap: 44px;
+}
+
+/* Dark theme: system setting, unless the person chose light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0B0C0E;
+    --card: #17191D;
+    --well: #0B0C0E;
+    --ink: #F4F5F6;
+    --ink-2: #C9CED6;
+    --muted: #A3A8B0;
+    --hairline: #2A2D33;
+    --line-strong: #3A3D42;
+    --dash: #4A4F57;
+    --moment: #C8F53B;
+    --on-moment: #0B0C0E;
+    --moment-tint: rgba(200, 245, 59, 0.16);
+    --on-moment-tint: #C8F53B;
+    --band: #17191D;
+    --on-band: #F4F5F6;
+    --on-band-muted: #A3A8B0;
+    --band-line: #2A2D33;
+    --band-accent: #C8F53B;
+    --scrim: rgba(0, 0, 0, 0.6);
+    --glass: rgba(23, 25, 29, 0.72);
+    --glass-border: rgba(244, 245, 246, 0.10);
+    --night-arc: rgba(244, 245, 246, 0.14);
+    --shadow-card: 0 0 0 1px #2A2D33;
+    --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.5);
+    --shadow-moment: 0 10px 24px rgba(200, 245, 59, 0.18);
+  }
+}
+
+/* Dark theme: chosen by hand. Keep in step with the block above. */
+:root[data-theme="dark"] {
+  --paper: #0B0C0E;
+  --card: #17191D;
+  --well: #0B0C0E;
+  --ink: #F4F5F6;
+  --ink-2: #C9CED6;
+  --muted: #A3A8B0;
+  --hairline: #2A2D33;
+  --line-strong: #3A3D42;
+  --dash: #4A4F57;
+  --moment: #C8F53B;
+  --on-moment: #0B0C0E;
+  --moment-tint: rgba(200, 245, 59, 0.16);
+  --on-moment-tint: #C8F53B;
+  --band: #17191D;
+  --on-band: #F4F5F6;
+  --on-band-muted: #A3A8B0;
+  --band-line: #2A2D33;
+  --band-accent: #C8F53B;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --glass: rgba(23, 25, 29, 0.72);
+  --glass-border: rgba(244, 245, 246, 0.10);
+  --night-arc: rgba(244, 245, 246, 0.14);
+  --shadow-card: 0 0 0 1px #2A2D33;
+  --shadow-float: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-moment: 0 10px 24px rgba(200, 245, 59, 0.18);
+}
+
+/* How the mock-up values in reference/ map to tokens (light theme):
+   #F5F6F7 page            -> --paper        #FFFFFF cards           -> --card
+   #0E0F11                 -> --ink          #666C75                 -> --muted
+   #4A4F57                 -> --ink-2        #E3E5E8                 -> --hairline
+   #C9CED6                 -> --line-strong  #B9BEC6                 -> --dash
+   #F2A000                 -> --moment       #FFF4D9 / #5A4300       -> --moment-tint / --on-moment-tint
+   #0E0F11 buttons, bands  -> --ink or --band (solid buttons flip with the theme; bands do not)
+   #F5F6F7 text on dark    -> --paper on solid buttons, --on-band on bands
+   #A9AEB6, #C9CED6 on dark bands -> --on-band-muted
+   #FFB52E on dark bands   -> --band-accent */

@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The moment ring and the design system</title>
+<!-- remmynd 2.0 design reference. A static mock-up: copy structure, sizes and values from it.
+     Do not ship this file. Colours here are the light theme; see ../tokens.css for both themes.
+     The fonts are Geist and Geist Mono; until they are self-hosted this page falls back to system fonts. -->
+<style>
+body{margin:0;background:#E9EBEE}
+a{color:#0E0F11;text-decoration:none}a:hover{color:#3A3D42}
+</style>
+</head>
+<body>
+<div style="width: max-content; margin: 24px auto">
+<div style="width: 1300px; height: 844px; box-sizing: border-box; padding: 44px 48px; background: #F5F6F7; color: #0E0F11; font-family: 'Geist', system-ui, sans-serif; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-size: 30px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">The moment ring</h1>
+<p style="margin: 0; max-width: 760px; font-size: 15px; line-height: 1.45; color: #666C75">The logo is the interface. One shape answers three questions: when is it for me, have I set it, and how close is it.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px">
+
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #FFFFFF; border-radius: 24px">
+<svg width="96" height="96" viewBox="0 0 120 120" fill="none" role="img" aria-label="Ring with an open gap"><path d="M76.5 88.58A33 33 0 0 1 27 60" stroke="#0E0F11" stroke-opacity="0.1" stroke-width="8" stroke-linecap="round"></path><path d="M68.02 16.73A44 44 0 1 1 41.06 20.29" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><path d="M60 60L56.08 30.26" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><circle cx="60" cy="60" r="4" fill="#0E0F11"></circle><circle cx="54.26" cy="16.38" r="8" fill="#F2A000"></circle></svg>
+<div style="font-size: 16px; font-weight: 600">Open</div>
+<div style="font-size: 12px; line-height: 1.35; color: #666C75">Gap open. The dot sits at the event's time.</div>
+</div>
+
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #FFFFFF; border-radius: 24px">
+<svg width="96" height="96" viewBox="0 0 120 120" fill="none" role="img" aria-label="Closed ring"><path d="M76.5 88.58A33 33 0 0 1 27 60" stroke="#0E0F11" stroke-opacity="0.1" stroke-width="8" stroke-linecap="round"></path><circle cx="60" cy="60" r="44" stroke="#0E0F11" stroke-width="5"></circle><path d="M60 60L56.08 30.26" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><circle cx="60" cy="60" r="4" fill="#0E0F11"></circle><circle cx="54.26" cy="16.38" r="9" fill="#F2A000" stroke="#FFFFFF" stroke-width="3"></circle></svg>
+<div style="font-size: 16px; font-weight: 600">Held</div>
+<div style="font-size: 12px; line-height: 1.35; color: #666C75">The gap closes with a soft spring. You're set.</div>
+</div>
+
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #FFFFFF; border-radius: 24px">
+<svg width="96" height="96" viewBox="0 0 120 120" fill="none" role="img" aria-label="Closed ring with a glowing dot"><circle cx="54.26" cy="16.38" r="15" fill="#F2A000" fill-opacity="0.28"></circle><circle cx="60" cy="60" r="44" stroke="#0E0F11" stroke-width="5"></circle><path d="M60 60L56.08 30.26" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><circle cx="60" cy="60" r="4" fill="#0E0F11"></circle><circle cx="54.26" cy="16.38" r="9" fill="#F2A000" stroke="#FFFFFF" stroke-width="3"></circle></svg>
+<div style="font-size: 16px; font-weight: 600">Soon</div>
+<div style="font-size: 12px; line-height: 1.35; color: #666C75">The dot pulses in the last hour, beside a countdown.</div>
+</div>
+
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #FFFFFF; border-radius: 24px">
+<svg width="96" height="96" viewBox="0 0 120 120" fill="none" role="img" aria-label="Ring filled with amber"><circle cx="60" cy="60" r="46" fill="#F2A000"></circle><path d="M60 60L56.08 30.26" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><circle cx="60" cy="60" r="4" fill="#0E0F11"></circle><circle cx="54.26" cy="16.38" r="8" fill="#0E0F11" stroke="#FFFFFF" stroke-width="3"></circle></svg>
+<div style="font-size: 16px; font-weight: 600">Now</div>
+<div style="font-size: 12px; line-height: 1.35; color: #666C75">The ring fills. One button opens the link.</div>
+</div>
+
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #FFFFFF; border-radius: 24px">
+<svg width="96" height="96" viewBox="0 0 120 120" fill="none" role="img" aria-label="Ring with a check mark"><circle cx="60" cy="60" r="44" stroke="#0E0F11" stroke-width="5"></circle><path d="M42 62l12 12 24-27" stroke="#0E0F11" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="54.26" cy="16.38" r="7" fill="#F2A000" stroke="#FFFFFF" stroke-width="3"></circle></svg>
+<div style="font-size: 16px; font-weight: 600">Kept</div>
+<div style="font-size: 12px; line-height: 1.35; color: #666C75">Done. A check replaces the hand.</div>
+</div>
+
+<div style="padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #FFFFFF; border-radius: 24px">
+<svg width="96" height="96" viewBox="0 0 120 120" fill="none" role="img" aria-label="Ring with the gap open again"><path d="M68.02 16.73A44 44 0 1 1 41.06 20.29" stroke="#666C75" stroke-width="5" stroke-linecap="round"></path><path d="M60 60L56.08 30.26" stroke="#666C75" stroke-width="5" stroke-linecap="round"></path><circle cx="60" cy="60" r="4" fill="#666C75"></circle><circle cx="54.26" cy="16.38" r="7" fill="#FFFFFF" stroke="#F2A000" stroke-width="3"></circle></svg>
+<div style="font-size: 16px; font-weight: 600">Missed</div>
+<div style="font-size: 12px; line-height: 1.35; color: #666C75">The gap reopens. One tap to re-plan.</div>
+</div>
+
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+
+<div style="padding: 24px; display: flex; align-items: center; gap: 20px; background: #FFFFFF; border-radius: 24px">
+<svg width="132" height="132" viewBox="0 0 120 120" fill="none" role="img" aria-label="Day dial with the dot in the shaded night hours" style="flex-shrink: 0"><path d="M60 3v6M60 111v6" stroke="#666C75" stroke-width="2" stroke-linecap="round"></path><path d="M76.5 88.58A33 33 0 0 1 27 60" stroke="#0E0F11" stroke-opacity="0.14" stroke-width="8" stroke-linecap="round"></path><path d="M18.53 74.69A44 44 0 1 1 35.08 96.26" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><path d="M60 60L36.2 78.26" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><circle cx="60" cy="60" r="4" fill="#0E0F11"></circle><circle cx="25.09" cy="86.79" r="8" fill="#F2A000"></circle></svg>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 16px; font-weight: 600">Your own day on the dial</div>
+<div style="font-size: 13px; line-height: 1.45; color: #666C75">Noon sits at the top, midnight at the bottom, and your night hours are shaded. A start at 3:30 AM looks like 3:30 AM, so remmynd offers a 9:00 AM reminder instead.</div>
+</div>
+</div>
+
+<div style="padding: 24px; display: flex; flex-direction: column; gap: 12px; background: #FFFFFF; border-radius: 24px">
+<div style="font-size: 16px; font-weight: 600">Paper, ink and one moment</div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 14px; background: #0E0F11"></span><span style="flex-grow: 1; font-size: 14px">Ink</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">#0E0F11</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; box-sizing: border-box; border-radius: 14px; background: #F5F6F7; border: 1px solid #E3E5E8"></span><span style="flex-grow: 1; font-size: 14px">Paper</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">#F5F6F7</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 14px; background: #F2A000"></span><span style="flex-grow: 1; font-size: 14px">Moment, the only accent</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">#F2A000</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 14px; background: #666C75"></span><span style="flex-grow: 1; font-size: 14px">Graphite</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">#666C75</span></div>
+<div style="display: flex; align-items: center; gap: 12px"><span style="width: 28px; height: 28px; border-radius: 14px; background: #E3E5E8"></span><span style="flex-grow: 1; font-size: 14px">Hairline</span><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">#E3E5E8</span></div>
+</div>
+
+<div style="padding: 24px; display: flex; flex-direction: column; gap: 14px; background: #FFFFFF; border-radius: 24px">
+<div style="font-size: 26px; line-height: 1.1; font-weight: 600; letter-spacing: -0.025em">Reminders that make sure it happens.</div>
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 20px; font-weight: 600; letter-spacing: -0.03em">11:30 AM · Fri 13 Nov</div>
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">GEIST FOR WORDS · GEIST MONO FOR TIME</div>
+<div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+<button style="height: 48px; padding: 0 20px; background: #F2A000; color: #0E0F11; border: 0; border-radius: 18px; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer">Remind me</button>
+<button style="height: 48px; padding: 0 20px; background: #0E0F11; color: #F5F6F7; border: 0; border-radius: 18px; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer">Copy</button>
+<button style="height: 48px; padding: 0 20px; background: #FFFFFF; color: #0E0F11; border: 1px solid #E3E5E8; border-radius: 18px; font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer">Not yet</button>
+<button role="switch" aria-checked="true" aria-label="Example switch, on" style="width: 52px; height: 44px; padding: 6px 0; border: 0; background: transparent; cursor: pointer"><span style="display: block; width: 52px; height: 32px; box-sizing: border-box; padding: 3px 3px 3px 23px; border-radius: 16px; background: #0E0F11"><span style="display: block; width: 26px; height: 26px; border-radius: 13px; background: #FFFFFF"></span></span></button>
+</div>
+</div>
+
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+<div style="height: 64px; padding: 0 20px; display: flex; align-items: center; gap: 12px; border: 1px dashed #B9BEC6; border-radius: 20px"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">MOTION 1</span><span style="font-size: 14px; font-weight: 500">Your typed line becomes the ticket</span></div>
+<div style="height: 64px; padding: 0 20px; display: flex; align-items: center; gap: 12px; border: 1px dashed #B9BEC6; border-radius: 20px"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">MOTION 2</span><span style="font-size: 14px; font-weight: 500">The ring closes when you tap Remind me</span></div>
+<div style="height: 64px; padding: 0 20px; display: flex; align-items: center; gap: 12px; border: 1px dashed #B9BEC6; border-radius: 20px"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">MOTION 3</span><span style="font-size: 14px; font-weight: 500">The dot pulses when it is time</span></div>
+</div>
+
+</div>
+</div>
+</body>
+</html>
