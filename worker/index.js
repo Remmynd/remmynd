@@ -1,6 +1,7 @@
-// remmynd Worker. Static files in public/ are served directly by Cloudflare;
-// this code only runs for paths that are not files.
+// remmynd Worker. Every request comes here first (run_worker_first in wrangler.toml);
+// anything that isn't one of the routes below is handed to the static files in public/.
 import { icsResponse } from "./ics.js";
+import { handlePush, sendDuePings } from "./push.js";
 
 const PRESETS = new Set(["example"]);
 
@@ -20,10 +21,18 @@ export default {
       return icsResponse(request);
     }
 
+    // Push notifications: public key, schedule and cancel anonymous pings.
+    if (url.pathname.startsWith("/push/")) return handlePush(request, env, url);
+
     // Named pages: /example → /#example
     const name = url.pathname.replace(/^\/+|\/+$/g, "");
     if (PRESETS.has(name)) return Response.redirect(url.origin + "/#" + name, 302);
 
     return env.ASSETS.fetch(request);
+  },
+
+  // Cron trigger (every minute): send the pings that are due, then forget them.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(sendDuePings(env));
   }
 };

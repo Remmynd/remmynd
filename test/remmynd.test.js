@@ -150,3 +150,156 @@ test("git history credits zoof04 only", { skip: !existsGit() }, () => {
 function existsGit() {
   try { execFileSync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root, stdio: "ignore" }); return true; } catch { return false; }
 }
+
+/* ---------- push notifications ---------- */
+function mockDB() {
+  const rows = new Map();
+  const exec = (sql, a) => {
+    sql = sql.replace(/\s+/g, " ").trim();
+    const all = [...rows.values()];
+    if (sql.startsWith("SELECT COUNT(*) AS n FROM pings WHERE endpoint = ?")) return { results: [{ n: all.filter(r => r.endpoint === a[0]).length }] };
+    if (sql.startsWith("INSERT OR REPLACE INTO pings")) { rows.set(a[0], { id: a[0], endpoint: a[1], at: a[2], created: a[3] }); return { results: [] }; }
+    if (sql === "DELETE FROM pings WHERE id = ? AND endpoint = ?") { const r = rows.get(a[0]); if (r && r.endpoint === a[1]) rows.delete(a[0]); return { results: [] }; }
+    if (sql.startsWith("SELECT id, endpoint, at FROM pings WHERE at <= ?")) return { results: all.filter(r => r.at <= a[0]).sort((x, y) => x.at - y.at) };
+    if (sql === "DELETE FROM pings WHERE endpoint = ?") { all.filter(r => r.endpoint === a[0]).forEach(r => rows.delete(r.id)); return { results: [] }; }
+    if (sql === "DELETE FROM pings WHERE id = ?") { rows.delete(a[0]); return { results: [] }; }
+    if (sql === "DELETE FROM pings WHERE at < ?") { all.filter(r => r.at < a[0]).forEach(r => rows.delete(r.id)); return { results: [] }; }
+    throw new Error("unexpected SQL: " + sql);
+  };
+  const prepare = sql => ({ bind: (...a) => ({ run: async () => exec(sql, a), all: async () => exec(sql, a), first: async () => exec(sql, a).results[0] }) });
+  return { rows, prepare, batch: async stmts => Promise.all(stmts.map(s => s.run())) };
+}
+
+async function vapidEnv() {
+  const { generateKeyPairSync } = await import("node:crypto");
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const jwk = privateKey.export({ format: "jwk" });
+  const pub = Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x, "base64url"), Buffer.from(jwk.y, "base64url")]).toString("base64url");
+  return { env: { DB: mockDB(), VAPID_PUBLIC_KEY: pub, VAPID_PRIVATE_JWK: JSON.stringify(jwk), VAPID_SUBJECT: "mailto:connect@zoof04.com" }, publicJwk: publicKey.export({ format: "jwk" }) };
+}
+
+test("push: schedule, cancel and reject bad input", async () => {
+  const worker = (await import("../worker/index.js")).default;
+  const { env } = await vapidEnv();
+  env.ASSETS = { fetch: () => new Response("static") };
+  const endpoint = "https://fcm.googleapis.com/fcm/send/abc123";
+  const req = (path, body, headers = {}) => worker.fetch(new Request("https://remmynd.space" + path, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) }), env);
+  const now = Date.now();
+
+  const key = await worker.fetch(new Request("https://remmynd.space/push/key"), env);
+  assert.equal((await key.json()).key, env.VAPID_PUBLIC_KEY);
+
+  const ok = await req("/push/schedule", { endpoint, pings: [{ id: "aaaaaaaaaaaa", at: now + 3600e3 }, { id: "bbbbbbbbbbbb", at: now + 7200e3 }] });
+  assert.equal(ok.status, 200);
+  assert.equal(env.DB.rows.size, 2);
+  assert.deepEqual(Object.keys([...env.DB.rows.values()][0]).sort(), ["at", "created", "endpoint", "id"], "only id, endpoint and times are stored");
+
+  assert.equal((await req("/push/schedule", { endpoint: "https://evil.example/push", pings: [{ id: "cccccccccccc", at: now + 1e5 }] })).status, 400, "unknown push host rejected");
+  assert.equal((await req("/push/schedule", { endpoint, pings: [{ id: "x", at: now + 1e5 }] })).status, 400, "short id rejected");
+  assert.equal((await req("/push/schedule", { endpoint, pings: [{ id: "dddddddddddd", at: now + 500 * 864e5 }] })).status, 400, "too far ahead rejected");
+  assert.equal((await req("/push/schedule", { endpoint, pings: [{ id: "eeeeeeeeeeee", at: now + 1e5 }] }, { origin: "https://evil.example" })).status, 403, "cross-site rejected");
+
+  await req("/push/cancel", { endpoint: "https://fcm.googleapis.com/fcm/send/someone-else", ids: ["aaaaaaaaaaaa"] });
+  assert.equal(env.DB.rows.size, 2, "another device can't cancel your pings");
+  await req("/push/cancel", { endpoint, ids: ["aaaaaaaaaaaa"] });
+  assert.equal(env.DB.rows.size, 1);
+
+  const off = await worker.fetch(new Request("https://remmynd.space/push/key"), { ASSETS: env.ASSETS });
+  assert.equal(off.status, 503, "key route says when push isn't set up");
+});
+
+test("push: VAPID signature verifies with the public key", async () => {
+  const { vapidAuthorization } = await import("../worker/push.js");
+  const { env, publicJwk } = await vapidEnv();
+  const auth = await vapidAuthorization("https://web.push.apple.com/abc", env);
+  const m = /^vapid t=([^.]+)\.([^.]+)\.([^,]+), k=(.+)$/.exec(auth);
+  assert.ok(m, "header shape");
+  assert.equal(m[4], env.VAPID_PUBLIC_KEY);
+  const claims = JSON.parse(Buffer.from(m[2], "base64url"));
+  assert.equal(claims.aud, "https://web.push.apple.com");
+  assert.equal(claims.sub, "mailto:connect@zoof04.com");
+  const key = await crypto.subtle.importKey("jwk", publicJwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+  const valid = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, Buffer.from(m[3], "base64url"), new TextEncoder().encode(m[1] + "." + m[2]));
+  assert.ok(valid, "signature is valid ES256");
+});
+
+test("push: due pings are sent once per device, then deleted", async () => {
+  const { sendDuePings } = await import("../worker/push.js");
+  const { env } = await vapidEnv();
+  const now = Date.now();
+  const add = (id, endpoint, at) => env.DB.rows.set(id, { id, endpoint, at, created: now });
+  add("due-1-aaaaaa", "https://fcm.googleapis.com/a", now - 1000);
+  add("due-2-aaaaaa", "https://fcm.googleapis.com/a", now);
+  add("later-aaaaaa", "https://fcm.googleapis.com/a", now + 3600e3);
+  add("gone-aaaaaaa", "https://web.push.apple.com/gone", now);
+  add("gone-later-a", "https://web.push.apple.com/gone", now + 3600e3);
+  const calls = [];
+  const send = async endpoint => { calls.push(endpoint); return endpoint.endsWith("/gone") ? 410 : 201; };
+  const r = await sendDuePings(env, now, send);
+  assert.equal(r.sent, 1);
+  assert.deepEqual(calls.sort(), ["https://fcm.googleapis.com/a", "https://web.push.apple.com/gone"], "one push per device");
+  assert.deepEqual([...env.DB.rows.keys()], ["later-aaaaaa"], "sent and expired-device rows are gone");
+});
+
+test("push client script parses", () => {
+  const src = readFileSync(join(root, "public/push.js"), "utf8");
+  assert.doesNotThrow(() => new Function(src));
+});
+
+test("service worker: an empty push shows what's due, from on-device data only", async () => {
+  const vm = await import("node:vm");
+  const src = readFileSync(join(root, "public/sw.js"), "utf8");
+  const now = Date.now();
+  const data = new Map();
+  const seed = a => data.set(a.id, { ...a });
+  const base = { rkey: "k1", title: "Demo day", start: now + 3600e3, place: "https://lu.ma/demo", share: "https://remmynd.space/#abc", shown: false };
+  seed({ ...base, id: "before-1", at: now - 1000, kind: "before" });
+  seed({ ...base, id: "start-1", at: now + 3600e3, kind: "start" });
+  const store = {
+    getAll() { const r = {}; queueMicrotask(() => { r.result = [...data.values()].map(x => ({ ...x })); }); return r; },
+    put(a) { data.set(a.id, { ...a }); return {}; }, delete(id) { data.delete(id); return {}; }, createIndex() {}
+  };
+  const db = { transaction() { const t = { objectStore: () => store }; setTimeout(() => t.oncomplete && t.oncomplete(), 0); return t; }, createObjectStore: () => store };
+  const indexedDB = { open() { const q = {}; setTimeout(() => { q.result = db; q.onsuccess && q.onsuccess(); }, 0); return q; } };
+  const shown = [], listeners = {};
+  const ctx = {
+    indexedDB, crypto, btoa, atob, URL, fetch: async () => ({}), caches: {}, location: { origin: "https://remmynd.space" },
+    Notification: { prototype: { actions: null }, maxActions: 2 }, console,
+    self: { addEventListener: (t, f) => { listeners[t] = f; }, navigator: {}, clients: {},
+      registration: { showNotification: async (title, opts) => { shown.push({ title, ...opts }); }, pushManager: { getSubscription: async () => null } } }
+  };
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx);
+  const push = async () => { let p; listeners.push({ waitUntil: x => { p = x; } }); await p; };
+
+  await push();
+  assert.equal(shown.length, 1, "only the due alert is shown");
+  assert.equal(shown[0].title, "Demo day starts in 1 hour");
+  assert.match(shown[0].body, /lu\.ma\/demo/);
+  assert.equal(JSON.stringify(shown[0].actions.map(a => a.title)), JSON.stringify(["Snooze 10 min", "Open"]));
+  assert.equal(shown[0].data.url, "https://remmynd.space/#abc", "1-hour alert opens the reminder");
+  assert.equal(shown[0].badge, "/badge-mono-96.png");
+  assert.equal(data.get("before-1").shown, true, "marked as shown");
+
+  shown.length = 0;
+  data.set("start-1", { ...data.get("start-1"), at: now - 500 });
+  await push();
+  assert.equal(shown[0].title, "Demo day is starting now");
+  assert.equal(shown[0].data.url, "https://lu.ma/demo", "start alert opens the event link");
+  assert.equal(shown[0].requireInteraction, true);
+
+  shown.length = 0;
+  await push();
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].title, "remmynd", "a push with nothing due still shows something (iPhone requires it)");
+});
+
+test("sleep-safe: the 9 AM alert reads as already started", async () => {
+  const src = readFileSync(join(root, "public/sw.js"), "utf8");
+  const viewSrc = src.slice(src.indexOf("const short ="), src.indexOf("const PLATFORM_HAS_ACTIONS"));
+  const view = new Function(viewSrc + "; return view;")();
+  const start = Date.parse("2026-12-10T22:22:00Z");
+  const v = view({ kind: "after", title: "Launch", start, at: start + 5 * 3600e3, place: "https://lu.ma/x" });
+  assert.match(v.title, /^Launch started at /);
+  assert.equal(v.body, "Tap to open lu.ma/x");
+});

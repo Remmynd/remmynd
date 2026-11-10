@@ -92,6 +92,17 @@ Deploys run in Cloudflare Workers Builds, which is connected to this repository.
 
 No API tokens are stored in GitHub. The **Live check** workflow (`.github/workflows/live-check.yml`) checks the live routes every six hours and can be run by hand from **Actions → Live check → Run workflow**.
 
+### Phone alerts
+
+Run once, after the Worker has been deployed at least once:
+
+```sh
+npx wrangler@4 login   # if this machine isn't signed in yet
+npm run push:setup
+```
+
+It creates the D1 database `remmynd` and its `pings` table (`worker/schema.sql`), makes a VAPID key pair, saves the private key as the Worker secret `VAPID_PRIVATE_JWK` (it never touches disk), and fills in the D1 binding, the every-minute cron and the public key in `wrangler.toml`. Commit that `wrangler.toml` change through a pull request so Workers Builds deploys with it. Until this is done, `/push/key` answers 503 and the site hides Notify me.
+
 ### npm trusted publishing
 
 On npmjs.com → remmynd → Settings → Trusted Publisher → GitHub Actions: organization `Remmynd`, repository `remmynd`, workflow `publish.yml`. Set publishing access to require two-factor authentication and disallow tokens. Renaming `publish.yml` breaks publishing until this is updated.
@@ -118,6 +129,7 @@ Require a pull request, require the CI checks to pass, require linear history, a
 - `https://remmynd.space/` returns 200 and makes a link as you type.
 - `https://www.remmynd.space/` redirects to `https://remmynd.space/`.
 - `/example` opens the sample reminder; `/nope` shows the 404 page.
+- Once push is set up, `https://remmynd.space/push/key` returns a key, and Notify me on a test reminder sends the 1-hour alert.
 - **Remind me** works on iPhone Safari, inside an iPhone in-app browser, and on Android Chrome.
 
 The **Live check** workflow covers the first three; run it from Actions right after a deploy if you want the answer immediately.

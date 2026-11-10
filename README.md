@@ -36,9 +36,10 @@ Type what and when. Share the link. Anyone who taps it saves it to their calenda
 Most "add to calendar" tools want an account, a dashboard and your visitors' data. remmynd wants none of that.
 
 - **No sign-up**, for you or for the people you share with.
-- **Nothing stored.** The whole reminder lives in the link, after the `#`. Browsers never send that part to a server, so remmynd.space cannot see what anyone is reminded about.
+- **Private by design.** The whole reminder lives in the link, after the `#`, which browsers never send to a server. remmynd.space can't see what anyone is reminded about.
 - **One tap to save.** "Remind me" picks the right calendar for the device: Apple Calendar on iPhone, iPad and Mac Safari, Google Calendar everywhere else. Outlook, Microsoft 365, the phone's share sheet (Reminders, Notes) and plain text are one tap away.
 - **Sleep-safe.** If an event falls between 11 PM and 7 AM for a visitor, they can be reminded at 9 AM their time instead.
+- **Phone notifications.** Turn on Notify me and get an alert 1 hour before and when it starts, with Snooze on Android and desktop. The event details stay on your device.
 - **Free and open source** under the MIT licence. Host your own copy if you like.
 
 ## Use it
@@ -141,16 +142,20 @@ flowchart LR
     C --> D["Remind me<br/>Apple Calendar, Google Calendar, Outlook"]
 ```
 
-The full picture, including how requests are routed and how the `/ics` fallback works, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The full picture, including how requests are routed, how the `/ics` fallback works and how phone alerts stay private, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Privacy
 
-- No database, no accounts, no cookies, no analytics.
-- The site is static files served by Cloudflare. A tiny Worker (`worker/`) handles one route, `/ics`, used only by iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), which ignore calendar files made inside the page. It builds the file from the link in memory and stores nothing.
+Free, no sign-up, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
+
+- No accounts, no cookies, no analytics, no tracking.
+- The reminder lives in the link. Opening it sends nothing about the event to remmynd.space.
+- **Notifications** (optional, only when you turn on Notify me): the event's title, time and link are saved on your device, in the browser's own storage. The server stores only three things per alert: a random id, your browser's anonymous push address, and when to ping it. At that time it sends an empty push; your device looks up what's due and shows it. The row is deleted as soon as it's sent. See [`worker/push.js`](worker/push.js) and [`worker/schema.sql`](worker/schema.sql).
+- `/ics` is used only by iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), which ignore calendar files made inside the page. It builds the file from the link in memory and keeps nothing.
 
 ## Self-host
 
-remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles `/ics`, the `www` redirect and named pages like `/example`.
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles `/ics`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
 
 ```sh
 git clone https://github.com/Remmynd/remmynd.git
@@ -160,6 +165,12 @@ npm run ship      # runs the tests, then deploys
 ```
 
 Change `name` and the `routes` in `wrangler.toml` to your own Worker name and domain first. To deploy on every push to `main`, connect your fork in Cloudflare (Workers & Pages → your Worker → Settings → Builds) with `main` as the production branch ([details](docs/RELEASING.md#automatic-deploys)).
+
+To turn on notifications, run this once. It creates the D1 database and its table, makes a VAPID key pair, stores the private key as a Worker secret and fills in `wrangler.toml`:
+
+```sh
+npm run push:setup
+```
 
 Any static host works for the site alone. Without the Worker, everything works except the iPhone in-app browser fallback.
 
@@ -191,7 +202,8 @@ No install step: there are no dependencies. See [CONTRIBUTING.md](CONTRIBUTING.m
 
 - Calendar apps always ask for one confirming tap. No website can add an event silently.
 - A saved event does not update if the original link changes. Make a new link for a new time.
-- A web page cannot schedule a phone notification on its own, so remmynd uses your calendar's alerts.
+- Notifications use your phone's own sound; websites can't choose a custom one. On iPhone they need remmynd added to the Home Screen (iOS 16.4 and later), and they don't show Snooze or Open buttons.
+- Clearing the browser's website data removes saved reminders from Coming up and stops their alerts.
 
 ## Brand
 

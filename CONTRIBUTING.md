@@ -5,7 +5,7 @@ Thanks for helping. remmynd is small on purpose, so the bar for adding things is
 ## Ground rules
 
 - **No tracking.** No analytics, cookies, fingerprinting or third-party scripts on the site.
-- **No storage.** Reminders live in the link. Changes that need a database or accounts belong in a separate project.
+- **No personal data on the server.** Reminders live in the link and on the device. The only server data is anonymous push pings (id, push address, time), deleted once sent. No accounts.
 - **No runtime dependencies** in the npm package.
 - **Keep the page small.** `public/index.html` should stay a single file well under 50 KB.
 - **Links never break.** The link format (`t`, `s`, `d`, `l`, `n`, `h`) is a public contract. New keys must be optional, and old links must keep working.

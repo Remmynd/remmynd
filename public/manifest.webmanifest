@@ -1,7 +1,7 @@
 {
   "name": "remmynd",
   "short_name": "remmynd",
-  "description": "A reminder that is just a link. Save any event to your calendar, phone reminders or notes.",
+  "description": "Reminders, as a link. Type what and when, share the link, and anyone saves it to their calendar in one tap. Free, no sign-up, no tracking.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -37,5 +37,40 @@
   "categories": [
     "productivity",
     "utilities"
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/make-1080x1920.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Make a reminder link in seconds"
+    },
+    {
+      "src": "screenshots/remind-1080x1920.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "One tap to save it to your calendar"
+    },
+    {
+      "src": "screenshots/wide-1920x1080.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "remmynd on desktop"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New reminder",
+      "url": "/",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }
