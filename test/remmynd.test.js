@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { gzipSync } from "node:zlib";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as R from "../lib/remmynd.js";
@@ -189,6 +190,191 @@ test("CLI prints a working link", () => {
 test("package version matches the library", () => {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   assert.equal(pkg.version, R.VERSION);
+});
+
+/* ---------- guards: the rules in section 3 of docs/v2/SPEC.md ---------- */
+
+const SITE = "remmynd.space";
+// Hosts a script in public/ may name, for links out only. The page never loads from them.
+const LINK_OUT_HOSTS = new Set([
+  SITE,                  // our own address: shared links and the badge snippet
+  "calendar.google.com", // Google Calendar's add-event page
+  "www.w3.org",          // the SVG namespace, never fetched
+]);
+// <link rel> values that make the browser fetch the address.
+const LOADING_RELS = new Set(["stylesheet", "preload", "modulepreload", "prefetch", "prerender", "preconnect", "dns-prefetch", "icon", "apple-touch-icon", "apple-touch-icon-precomposed", "apple-touch-startup-image", "mask-icon", "manifest"]);
+
+// True when the browser would fetch this address from remmynd.space itself.
+function sameSite(ref) {
+  const r = ref.trim();
+  if (/^(data|blob):/i.test(r) || !/^([a-z][a-z0-9+.-]*:|\/\/)/i.test(r)) return true;
+  try { const u = new URL(r, "https://" + SITE + "/"); return /^https?:$/.test(u.protocol) && u.hostname === SITE; } catch { return false; }
+}
+
+function attrs(s) {
+  const out = {};
+  for (const m of s.matchAll(/([^\s=/>"']+)\s*(?:=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?/g)) out[m[1].toLowerCase()] = m[2] ?? m[3] ?? m[4] ?? "";
+  return out;
+}
+const srcset = v => v.split(",").map(s => s.trim().split(/\s+/)[0]).filter(Boolean);
+
+// What a stylesheet fetches: url() and @import.
+const cssLoads = css => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/url\(\s*(["']?)([^"')]*)\1\s*\)|@import\s+(["'])([^"']+)\3/gi)]
+  .map(m => ({ ref: m[2] ?? m[4], by: "css", file: true }));
+
+// What a script fetches when the address is written as a plain string. "file" marks what a
+// visit downloads (imports, the service worker, src); the rest are on-demand requests.
+function jsLoads(js) {
+  const kinds = [
+    [/\b(fetch|sendBeacon|EventSource|WebSocket)\s*\(\s*(["'`])([^"'`]*)\2/g, false],
+    [/\b(importScripts|Worker|SharedWorker|import|register)\s*\(\s*(["'`])([^"'`]*)\2/g, true],
+    [/\b(import|export)\b[^"'`;()]*?\bfrom\s*(["'`])([^"'`]*)\2/g, true],
+    [/\b(import)\s*(["'`])([^"'`]*)\2/g, true],
+    [/\.(src)\s*=\s*(["'`])([^"'`]*)\2/g, true],
+  ];
+  return kinds.flatMap(([re, file]) => [...js.matchAll(re)].map(m => ({ ref: m[3], by: m[1], file })));
+}
+
+// Inline script bodies of an HTML page (not JSON data blocks), or a whole script file.
+function scriptsIn(file, text) {
+  if (/\.m?js$/.test(file)) return [text];
+  if (!/\.(html|svg)$/.test(file)) return [];
+  return [...text.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+    .filter(m => !/type\s*=\s*["']?[^"'\s>]*json/i.test(m[1])).map(m => m[2]);
+}
+
+// What a page or SVG fetches by itself. Markup written inside a script is not markup.
+function markupLoads(file, html) {
+  const out = scriptsIn(file, html).flatMap(jsLoads);
+  html = html.replace(/<!--[\s\S]*?-->/g, "").replace(/(<script\b[^>]*>)[\s\S]*?<\/script>/gi, "$1")
+    .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_, css) => { out.push(...cssLoads(css)); return ""; });
+  for (const [, name, rest] of html.matchAll(/<([a-z][a-z0-9:-]*)\b([^>]*)>/gi)) {
+    const tag = name.toLowerCase(), a = attrs(rest), add = (ref, at) => out.push({ ref, by: "<" + tag + " " + at + ">", file: true });
+    if (a.style) cssLoads(a.style).forEach(l => add(l.ref, "style"));
+    if (a.src && /^(script|img|iframe|frame|embed|video|audio|source|track|input)$/.test(tag)) add(a.src, "src");
+    if (a.srcset && /^(img|source)$/.test(tag)) srcset(a.srcset).forEach(r => add(r, "srcset"));
+    if (a.poster && tag === "video") add(a.poster, "poster");
+    if (a.data && tag === "object") add(a.data, "data");
+    if (a.href && tag === "base") add(a.href, "href");
+    if (a.href && tag === "link" && (a.rel || "").toLowerCase().split(/\s+/).some(r => LOADING_RELS.has(r))) add(a.href, "href");
+    if (a.imagesrcset && tag === "link") srcset(a.imagesrcset).forEach(r => add(r, "imagesrcset"));
+    if (/^(image|use|feimage|script)$/.test(tag)) for (const k of ["href", "xlink:href"]) if (a[k]) add(a[k], k);
+  }
+  return out;
+}
+
+// Addresses in a web app manifest (icons, screenshots, start_url, scope, shortcuts).
+function manifestLoads(text) {
+  const out = [], walk = v => {
+    if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) typeof x === "string" && /^(src|start_url|scope|url)$/.test(k) ? out.push({ ref: x, by: "manifest " + k, file: true }) : walk(x);
+  };
+  walk(JSON.parse(text));
+  return out;
+}
+
+function loadsIn(file, text) {
+  if (/\.css$/.test(file)) return cssLoads(text);
+  if (/\.m?js$/.test(file)) return jsLoads(text);
+  if (/\.(webmanifest|json)$/.test(file)) return manifestLoads(text);
+  if (/\.(html|svg)$/.test(file)) return markupLoads(file, text);
+  return [];
+}
+
+const TEXT = /\.(html|css|m?js|svg|webmanifest|json|txt|xml)$/;
+const publicFiles = (d = "") => readdirSync(join(root, "public", d)).flatMap(f => statSync(join(root, "public", d, f)).isDirectory() ? publicFiles(join(d, f)) : [join(d, f)]);
+
+test("no third parties: nothing in public/ loads from another host", () => {
+  // The guard must catch what it guards against.
+  const hostile = [
+    ["a.html", '<script src="https://cdn.example.com/x.js"></script>'],
+    ["a.html", '<link rel="stylesheet" href="//fonts.example.com/css">'],
+    ["a.html", '<link rel="preconnect" href="https://fonts.example.com">'],
+    ["a.html", '<img srcset="a.png 1x, https://img.example.com/b.png 2x">'],
+    ["a.html", '<p style="background:url(https://img.example.com/c.png)"></p>'],
+    ["a.html", '<script>fetch("https://api.example.com/hit")</script>'],
+    ["a.css", '@import url("https://css.example.com/a.css");'],
+    ["a.js", 'import x from "https://esm.example.com/y.js";'],
+    ["a.js", 'navigator.sendBeacon("https://stats.example.com/b")'],
+    ["a.svg", '<svg><image href="https://img.example.com/d.png"/></svg>'],
+    ["a.webmanifest", '{"icons":[{"src":"https://img.example.com/i.png"}]}'],
+  ];
+  for (const [f, text] of hostile) assert.ok(loadsIn(f, text).some(l => !sameSite(l.ref)), "the guard misses " + text);
+  const fine = '<a href="https://github.com/x">Source</a><link rel="canonical" href="https://remmynd.space/"><img src="icon.svg"><script>const s=\'<img src="https://x.example.com/b.svg">\'</script>';
+  assert.deepEqual(loadsIn("b.html", fine).filter(l => !sameSite(l.ref)), [], "links out, and markup inside a script string, are allowed");
+
+  const problems = [];
+  for (const f of publicFiles().filter(f => TEXT.test(f))) {
+    const text = readFileSync(join(root, "public", f), "utf8");
+    for (const l of loadsIn(f, text)) if (!sameSite(l.ref)) problems.push(f + ": " + l.by + " loads " + l.ref + " (self-host it instead)");
+    for (const js of scriptsIn(f, text)) {
+      for (const m of js.matchAll(/\bhttps?:\/\/([a-z0-9.-]+)|["'`]\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)+)/gi)) {
+        const host = (m[1] ?? m[2]).toLowerCase();
+        if (!LINK_OUT_HOSTS.has(host)) problems.push(f + ": a script names " + host + " (add it to LINK_OUT_HOSTS only if it is a link out)");
+      }
+    }
+  }
+  assert.deepEqual(problems, []);
+});
+
+// Bytes on the wire. Text counts gzipped (a little larger than the brotli Cloudflare usually
+// serves); fonts and images are already compressed and count as they are.
+const wireSize = f => { const b = readFileSync(join(root, "public", f)); return TEXT.test(f) ? gzipSync(b).length : b.length; };
+
+// The files a first visit downloads: index.html and everything it loads by itself
+// (stylesheets, fonts, scripts and their imports, icons, the manifest, the service worker),
+// plus, with cache, what the service worker stores when it installs on that same visit.
+function firstVisit({ cache }) {
+  const seen = new Set(), queue = ["index.html"];
+  while (queue.length) {
+    const f = queue.shift();
+    if (seen.has(f)) continue;
+    assert.ok(existsSync(join(root, "public", f)), "a first visit asks for " + f + ", which isn't in public/");
+    seen.add(f);
+    // Manifest icons are fetched when the app is installed; the service worker caches them anyway.
+    if (!TEXT.test(f) || /\.(webmanifest|json)$/.test(f)) continue;
+    const text = readFileSync(join(root, "public", f), "utf8");
+    const refs = loadsIn(f, text).filter(l => l.file).map(l => l.ref);
+    if (f === "sw.js" && cache) {
+      const shell = /const SHELL\s*=\s*\[([^\]]*)\]/.exec(text);
+      assert.ok(shell, "sw.js lists the files it caches in const SHELL = [...]");
+      refs.push(...[...shell[1].matchAll(/["']([^"']+)["']/g)].map(m => m[1]));
+    }
+    for (const r of refs) {
+      if (!sameSite(r) || /^(data:|blob:|#)/i.test(r.trim())) continue;
+      let p = decodeURIComponent(new URL(r, "https://" + SITE + "/" + f).pathname);
+      if (p.endsWith("/")) p += "index.html";
+      queue.push(p.slice(1));
+    }
+  }
+  return [...seen].sort();
+}
+
+test("size budgets: app code under 60 KB, first visit under 150 KB", t => {
+  const KB = 1000; // the stricter reading
+  const sum = files => files.reduce((n, f) => n + wireSize(f), 0);
+  const all = firstVisit({ cache: true }), page = firstVisit({ cache: false });
+  for (const f of ["index.html", "app.css", "push.js", "sw.js", "fonts/geist-5.3-latin.woff2", "fonts/geist-mono-5.3-latin.woff2"]) assert.ok(all.includes(f), "the first visit includes " + f);
+  const code = all.filter(f => /\.(html|css|m?js)$/.test(f));
+  const k = n => (n / KB).toFixed(1) + " KB";
+  t.diagnostic("app code " + k(sum(code)) + " (" + code.join(", ") + ")");
+  t.diagnostic("first visit " + k(sum(all)) + ": the page " + k(sum(page)) + ", the service worker's cache adds " + k(sum(all) - sum(page)));
+  assert.ok(sum(code) < 60 * KB, "app code is " + k(sum(code)) + ", over the 60 KB budget");
+  assert.ok(sum(all) < 150 * KB, "the first visit is " + k(sum(all)) + ", over the 150 KB budget");
+});
+
+test("public/remmynd.js is the library, byte for byte", () => {
+  assert.ok(readFileSync(join(root, "public/remmynd.js")).equals(readFileSync(join(root, "lib/remmynd.js"))),
+    "public/remmynd.js differs from lib/remmynd.js. Copy it: cp lib/remmynd.js public/remmynd.js");
+});
+
+test("no logs: wrangler.toml keeps Workers observability off", () => {
+  const toml = readFileSync(join(root, "wrangler.toml"), "utf8").replace(/#.*$/gm, "");
+  const table = /^\[observability\][ \t]*$([\s\S]*?)(?=^\[|(?![\s\S]))/m.exec(toml);
+  assert.ok(table, "wrangler.toml has an [observability] table");
+  assert.match(table[1], /^\s*enabled\s*=\s*false\s*$/m, "[observability] says enabled = false");
+  assert.doesNotMatch(toml, /^\s*\[\[?(observability\.|tail_consumers)/m, "no observability sub-tables or tail consumers");
+  assert.doesNotMatch(toml, /^\s*(observability\s*=|head_sampling_rate|invocation_logs|logpush|tail_consumers)\b/m, "no other logging settings");
 });
 
 // Every tracked file (or every file on disk when git isn't available), except the test folder.

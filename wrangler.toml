@@ -7,6 +7,11 @@ workers_dev = true
 # No per-version preview addresses; remmynd.space and the workers.dev address are enough.
 preview_urls = false
 
+# No logs: Workers observability stays off, so Cloudflare keeps no record of requests.
+# A test in test/remmynd.test.js keeps it off.
+[observability]
+enabled = false
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
