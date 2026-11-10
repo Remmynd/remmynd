@@ -222,7 +222,7 @@ The logo is the interface. Draw it in a `0 0 120 120` box, centre (60, 60).
 - Re-plan sheet: "Not yet? Pick when." with "We'll bring it back then, one tap from the link."
 - Private switch: "Private link" with "Keeps the title and time out of link previews."
 - Check alert: "<title>: did you make it?" Nudge alert: "<title> has started" with "Nudge 1 of 3. Tap to open."
-- Footer everywhere: "A free tool by zoof04. MIT licence."
+- Footer everywhere: "A free tool by Zoof04 Inc. MIT licence." (The owner changed the credit from "zoof04" to "Zoof04 Inc." on 11 November 2026.)
 - Style: short sentences, plain words, no hype.
 
 ## 10. Research on the /why page

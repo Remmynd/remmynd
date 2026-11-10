@@ -1,7 +1,7 @@
 {
   "name": "remmynd",
   "version": "2.0.0",
-  "description": "Reminders, as a link. Turn any event into a link people save to their calendar in one tap. Zero dependencies.",
+  "description": "Reminders that make sure it happens. Turn any event into a link: anyone who taps it is reminded by calendar and phone alert. Zero dependencies.",
   "keywords": [
     "reminder",
     "calendar",
@@ -24,7 +24,7 @@
     "url": "https://github.com/Remmynd/remmynd/issues"
   },
   "license": "MIT",
-  "author": "zoof04 (https://zoof04.com)",
+  "author": "Zoof04 Inc. (https://zoof04.com)",
   "type": "module",
   "main": "./lib/remmynd.js",
   "types": "./lib/remmynd.d.ts",

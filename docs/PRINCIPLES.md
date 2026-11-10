@@ -75,4 +75,4 @@ A "no" to any of these ends the discussion.
 
 ---
 
-remmynd is built and maintained by [zoof04](https://zoof04.com).
+remmynd is built and maintained by [Zoof04 Inc.](https://zoof04.com)

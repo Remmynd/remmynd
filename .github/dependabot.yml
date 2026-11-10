@@ -1,12 +1,10 @@
+# Keeps the GitHub Actions used by CI, release and live-check workflows up to date.
+# remmynd has no npm dependencies, so there is nothing else to watch.
 version: 2
 updates:
-  # remmynd has no runtime or dev dependencies, so only the GitHub Actions are tracked.
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
-    groups:
-      actions:
-        patterns: ["*"]
+      interval: weekly
     commit-message:
-      prefix: "Bump"
+      prefix: "ci"

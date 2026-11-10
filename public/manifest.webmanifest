@@ -1,7 +1,7 @@
 {
   "name": "remmynd",
   "short_name": "remmynd",
-  "description": "Reminders, as a link. Type what and when, share the link, and anyone saves it to their calendar in one tap. Free, no sign-up, no tracking.",
+  "description": "Reminders that make sure it happens. Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through. Free, no sign-up, no tracking.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -44,21 +44,21 @@
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Make a reminder link in seconds"
+      "label": "Write a reminder in one line"
     },
     {
       "src": "screenshots/remind-1080x1920.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "One tap to save it to your calendar"
+      "label": "One tap: calendar, phone alerts and follow-through"
     },
     {
       "src": "screenshots/wide-1920x1080.png",
       "sizes": "1920x1080",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "remmynd on desktop"
+      "label": "remmynd on a computer"
     }
   ],
   "shortcuts": [
