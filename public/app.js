@@ -63,11 +63,14 @@ const I={
   bell:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>',
   link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M8 3v4M16 3v4"/></svg>',
+  mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 8l8 6 8-6"/></svg>',
+  on:'<svg class="s-on" viewBox="0 0 24 24" fill="none" role="img" aria-label="On"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   mark:'<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>'
 };
 
 /* ---------- ticket ---------- */
-const S={r:null,key:null,priv:false,morning:null,blob:null,held:false,rkey:""};
+const S={r:null,key:null,priv:false,morning:null,blob:null,held:false,rkey:"",rec:null,ctx:null};
 const rkeyOf=(t,start)=>pack(start)+"-"+hash(t);
 /* The host's own clock, when the link carries their zone (z) and it differs from the viewer's. */
 function hostClock(start,z){if(!z||z===TZ)return"";try{const t=fShort(start,z),day=fDate(start,z)!==fDate(start,TZ);if(!day&&t===fShort(start,TZ))return"";
@@ -86,8 +89,51 @@ const soundOn=()=>{try{return localStorage.getItem("rm:sound")!=="off";}catch(e)
 function chime(){if(!soundOn())return;try{const ac=new(window.AudioContext||window.webkitAudioContext)(),t=ac.currentTime;
   [[659,0],[988,.09]].forEach(([f,dt])=>{const o=ac.createOscillator(),g=ac.createGain();o.type="sine";o.frequency.value=f;g.gain.setValueAtTime(0,t+dt);g.gain.linearRampToValueAtTime(.05,t+dt+.01);g.gain.exponentialRampToValueAtTime(.0001,t+dt+.09);o.connect(g);g.connect(ac.destination);o.start(t+dt);o.stop(t+dt+.1);});
   setTimeout(()=>ac.close(),500);}catch(e){}}
-function hold(el,r,start){if(S.held)return;S.held=true;el.dataset.held="1";tick();setTimeout(chime,320);try{navigator.vibrate&&navigator.vibrate(20);}catch(e){}
-  const DB=window.remmyndDB;if(DB)DB.put("reminders",{rkey:S.rkey,title:r.t,start:start.getTime(),dur:r.d||60,place:r.l||"",host:r.h||"",z:r.z||"",share:linkFor(r,S.key,S.priv),state:"held",nudge:false,heldAt:Date.now(),doneAt:null,replanAt:null}).catch(()=>{});}
+const CAL_NAME={apple:"Apple Calendar",google:"Google Calendar",outlook:"Outlook"};
+const MOBILE=IOS||/Mobi|Android/.test(UA),DEVICE=MOBILE?"phone":"computer";
+const PUSH_OK="serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&OWN;
+const keepRec=()=>{const DB=window.remmyndDB;if(DB&&S.rec)DB.put("reminders",S.rec).catch(()=>{});};
+function hold(cal){const c=S.ctx;if(S.held||!c)return;S.held=true;c.el.dataset.held="1";tick();setTimeout(chime,320);try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.isActive))navigator.vibrate(20);}catch(e){}
+  S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null};
+  keepRec();
+  /* Notifications where they are allowed: push.js asks inside this same tap, then fills the stack's row. */
+  if(window.__rmPush)window.__rmPush.remind(c.nd,false);
+  /* Swap Remind me for the stack after the tap, so the link it was on still opens the calendar. */
+  setTimeout(renderBottom,60);}
+const VIA=()=>'<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I.mark+'remmynd</a>';
+const ALTS='<div class="alts" id="alts" hidden><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button></div>';
+function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+esc(fShort(c.start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(c.start,TZ),TZ))+'</b> instead.</span><label class="switch"><input type="checkbox" id="sleep"'+(c.morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
+  '<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+(PUSH_OK?"Calendar and a notification on this "+DEVICE+", in one tap.":"Adds it to your calendar, with alerts.")+'</div>'+
+  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
+/* The stack (mock-up 05): what this one tap set up, plus the nudge switch. */
+function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
+  return'<p class="held-line">'+I.on+'Held. You\'re set.</p><div class="label">Your reminder stack</div><div class="stack">'+
+    '<a class="srow" id="s-cal">'+I.cal+'<span class="stext"><b>Calendar</b><span>'+(cal?"Sent to "+CAL_NAME[cal]+". Confirm there.":"Not sent yet. Tap to add it.")+'</span></span>'+(cal?I.on:'')+'</a>'+
+    '<div id="s-notify"></div>'+
+    '<div class="srow muted">'+I.mail+'<span class="stext"><b>Email</b><span>Coming in December</span></span><span class="s-soon">Soon</span></div></div>'+
+    '<label class="opt-row"><span class="opt-text"><b id="nudge-l">Nudge me until I\'m in</b><span id="nudge-d">Up to 3 nudges, 10 minutes apart.</span></span><span class="switch"><input type="checkbox" id="s-nudge" role="switch" aria-labelledby="nudge-l" aria-describedby="nudge-d"'+(rec.nudge?" checked":"")+'><span></span></span></label>'+
+    '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
+    '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+VIA();}
+function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.el.querySelector(".t-bottom");
+  b.innerHTML=S.held?stackHTML(c):remindHTML(c);c.el.querySelector(".t-head .label").textContent=S.held?"Held":"Reminder";
+  const on=(sel,fn)=>{const x=b.querySelector(sel);if(x)fn(x);};
+  const sent=(k,a)=>()=>{hold(k);setTimeout(()=>toast("Sent to "+CAL_NAME[k]+". Confirm there."),250);};
+  on("#remind",btn=>{if(PREF==="apple")c.setApple(btn);else{btn.href=c.g;btn.target="_blank";btn.rel="noopener";}
+    btn.addEventListener("click",()=>{btn.classList.remove("rung");void btn.offsetWidth;btn.classList.add("rung");sent(PREF)();});});
+  on("#a-google",a=>{a.href=c.g;a.addEventListener("click",sent("google"));});
+  on("#a-apple",a=>{c.setApple(a);a.addEventListener("click",sent("apple"));});
+  on("#a-outlook",a=>{a.href=c.ol;a.addEventListener("click",sent("outlook"));});
+  on("#a-o365",a=>{a.href=c.o365;a.addEventListener("click",sent("outlook"));});
+  on("#a-share",x=>x.addEventListener("click",()=>shareIt({title:c.r.t,text:c.r.t+" · "+fDate(c.start,TZ)+", "+fShort(c.start,TZ),url:c.share},"Pick Reminders or Notes to save it")));
+  on("#a-copy",x=>x.addEventListener("click",()=>copy(c.r.t+"\n"+fDate(c.start,TZ)+", "+fShort(c.start,TZ)+" ("+fZone(c.start,TZ)+")"+(c.r.l?"\n"+c.r.l:"")+"\n"+c.share,"Copied")));
+  on("#more",m=>m.addEventListener("click",()=>{const al=b.querySelector("#alts");al.hidden=!al.hidden;m.setAttribute("aria-expanded",String(!al.hidden));}));
+  on("#sleep",sw=>sw.addEventListener("change",()=>{S.morning=sw.checked;renderTicket(c.el,c.r,c.o);}));
+  on("#s-cal",a=>{const k=S.rec&&S.rec.cal||PREF;if(k==="apple")c.setApple(a);else{a.href=k==="google"?c.g:c.ol;a.target="_blank";a.rel="noopener";}
+    if(!(S.rec&&S.rec.cal))a.addEventListener("click",()=>{if(S.rec){S.rec.cal=k;keepRec();setTimeout(renderBottom,60);}});});
+  on("#s-nudge",sw=>sw.addEventListener("change",()=>{if(!S.rec)return;S.rec.nudge=sw.checked;keepRec();toast(sw.checked?"Nudges on: up to 3, 10 minutes apart":"Nudges off");}));
+  on("#s-add-b",x=>x.addEventListener("click",()=>{if(!openSheet())toast("Open remmynd.space in Safari or Chrome to install it");}));
+  if(S.held){c.nd.el=b.querySelector("#s-notify");window.__rmLast={type:"stack",detail:c.nd};window.dispatchEvent(new CustomEvent("rm:stack",{detail:c.nd}));refreshInstall();}
+  else window.__rmLast={type:"ticket"};}
 
 function renderTicket(el,r,o){
   const start=startOf(r),end=new Date(start.getTime()+(r.d||60)*6e4),p=parts(start,TZ),night=p.h>=23||p.h<7;
@@ -97,7 +143,6 @@ function renderTicket(el,r,o){
   const t=fTime(start,TZ),host=hostClock(start,r.z),H=o.interactive?"h1":"h2",held=o.interactive&&S.held;
   el.dataset.start=start.getTime();el.dataset.end=end.getTime();el.dataset.held=held?"1":"0";
   const where=r.l?'<div class="t-where">'+(isHttp(r.l)?I.link+'<a href="'+esc(r.l)+'" target="_blank" rel="noopener">'+esc(r.l.replace(/^https?:\/\//,"").replace(/\/$/,""))+'</a>':I.pin+'<span>'+esc(r.l)+'</span>')+'</div>':'';
-  const sub=PREF==="apple"?"Adds to your calendar with alerts":"Opens Google Calendar · tap Save";
   el.innerHTML=
    '<div class="t-top">'+
      '<div class="t-head"><span class="label">Reminder</span>'+(r.h?'<span class="t-from">from '+esc(r.h)+'</span>':'')+'</div>'+
@@ -106,39 +151,24 @@ function renderTicket(el,r,o){
      '<'+H+' class="t-title'+(o.ph?" ph":"")+'">'+esc(r.t)+'</'+H+'>'+(r.n?'<p class="t-notes">'+esc(r.n)+'</p>':'')+where+
    '</div><div class="t-perf" aria-hidden="true"><span></span></div>'+
    '<div class="t-meta">'+(host?'<div><span class="label">Host time</span><b>'+esc(host)+'</b></div>':'')+'<div class="t-len"><span class="label">Length</span><b>'+esc(lengthText(r.d||60))+'</b></div></div>'+
-   '<div class="t-bottom">'+
-     (o.interactive&&night?'<div class="sleep"><span>That’s <b>'+esc(fShort(start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(start,TZ),TZ))+'</b> instead.</span><label class="switch"><input type="checkbox" id="sleep"'+(morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
-     (o.interactive?'<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+sub+'</div>'+
-       '<div class="alts"><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button></div><div id="notify-row"></div>'
-     :'<div class="remind" aria-hidden="true">'+I.bell+'Remind me</div>')+
-     '<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I.mark+'remmynd</a>'+
-   '</div>';
+   '<div class="t-bottom">'+(o.interactive?'':'<div class="remind" aria-hidden="true">'+I.bell+'Remind me</div>')+'</div>';
   tick();
   if(!o.interactive)return;
   S.rkey=rkeyOf(r.t,start);
-  /* Held already, from an earlier visit: show it without the animation. */
-  if(!S.held&&window.remmyndDB)window.remmyndDB.getAll("reminders").then(list=>{if(!S.held&&list.some(x=>x.rkey===S.rkey)&&el.dataset.start===String(start.getTime())){S.held=true;el.dataset.held="1";el.classList.add("still");tick();requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.remove("still")));}}).catch(()=>{});
+  /* Held already, from an earlier visit: show it and its stack without the animation. */
+  if(!S.held&&window.remmyndDB)window.remmyndDB.getAll("reminders").then(list=>{const rec=list.find(x=>x.rkey===S.rkey);
+    if(!S.held&&rec&&el.dataset.start===String(start.getTime())){S.held=true;S.rec=rec;el.dataset.held="1";el.classList.add("still");tick();renderBottom();requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.remove("still")));}}).catch(()=>{});
   const title=morning?r.t+" (live since "+fShort(start,TZ)+")":r.t;
   const ev=eventOf(r,S.key,when,title,morning?15:(r.d||60));
   const file=(r.t.replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase().slice(0,40)||"reminder")+".ics";
   let icsHref,useDownload;
   if(IN_APP&&IOS&&OWN){icsHref="/ics?d="+enc({t:title,s:pack(when),d:morning?15:(r.d||60),l:r.l,n:r.n,u:linkFor(r,S.key,S.priv),k:pack(start),o:r.t});useDownload=false;}
   else{if(S.blob)URL.revokeObjectURL(S.blob);S.blob=URL.createObjectURL(new Blob([ics(ev)],{type:"text/calendar;charset=utf-8"}));icsHref=S.blob;useDownload=true;}
-  const setApple=a=>{a.href=icsHref;if(useDownload)a.download=file;};
-  const g=gcal(ev);
-  $("#a-google").href=g;setApple($("#a-apple"));
-  $("#a-outlook").href=outlook(ev,"outlook.live.com");$("#a-o365").href=outlook(ev,"outlook.office.com");
-  const btn=$("#remind");
-  if(PREF==="apple")setApple(btn);else{btn.href=g;btn.target="_blank";btn.rel="noopener";}
-  const after=msg=>()=>{btn.classList.remove("rung");void btn.offsetWidth;btn.classList.add("rung");setTimeout(()=>toast(msg),250);};
-  btn.addEventListener("click",after(PREF==="apple"?"Your calendar will ask you to add it":"Google Calendar opened. Tap Save to finish."));
-  ["#remind","#a-google","#a-apple","#a-outlook","#a-o365"].forEach(sel=>$(sel).addEventListener("click",()=>hold(el,r,start)));
-  $("#a-google").addEventListener("click",()=>setTimeout(()=>toast("Tap Save in Google Calendar"),250));
-  $("#a-apple").addEventListener("click",()=>setTimeout(()=>toast("Open the file to add it to your calendar"),250));
-  $("#a-share").addEventListener("click",()=>shareIt({title:r.t,text:r.t+" · "+fDate(start,TZ)+", "+fShort(start,TZ),url:linkFor(r,S.key,S.priv)},"Pick Reminders or Notes to save it"));
-  $("#a-copy").addEventListener("click",()=>copy(r.t+"\n"+fDate(start,TZ)+", "+fShort(start,TZ)+" ("+fZone(start,TZ)+")"+(r.l?"\n"+r.l:"")+"\n"+linkFor(r,S.key,S.priv),"Copied"));
-  const sw=$("#sleep");if(sw)sw.addEventListener("change",()=>{S.morning=sw.checked;renderTicket(el,r,o);});
-  const nd={el:$("#notify-row"),r,key:S.key,start,share:linkFor(r,S.key,S.priv),morningAt:morning?when:null};window.__rmLast={type:"ticket",detail:nd};window.dispatchEvent(new CustomEvent("rm:ticket",{detail:nd}));
+  const setApple=a=>{a.href=icsHref;if(useDownload)a.download=file;else a.removeAttribute("download");};
+  const share=linkFor(r,S.key,S.priv);
+  S.ctx={el,r,o,start,night,morning,setApple,g:gcal(ev),ol:outlook(ev,"outlook.live.com"),o365:outlook(ev,"outlook.office.com"),share,
+    nd:{el:null,r,key:S.key,start,share,morningAt:morning?when:null}};
+  renderBottom();
 }
 
 /* ---------- utilities ---------- */
@@ -160,7 +190,7 @@ function draft(){const p=R.parse(D.line,{timeZone:TZ});return Object.assign({tit
 function whenText(d){return fDate(d,TZ)+" · "+fShort(d,TZ);}
 /* Line to ticket: a same-document view transition where the browser has one, a plain swap elsewhere. */
 const STILL=matchMedia("(prefers-reduced-motion: reduce)");
-function swap(fn){if(document.startViewTransition&&!STILL.matches)document.startViewTransition(fn);else fn();}
+function swap(fn){if(document.startViewTransition&&!STILL.matches){const t=document.startViewTransition(fn);t.ready.catch(()=>{});t.finished.catch(()=>{});}else fn();}
 function setMode(m){D.mode=m;$("#home").dataset.mode=m;$("#pane-l").textContent=m==="draft"?"Live preview":m==="ready"?"Your link":"Example";C.hero.hidden=C.try.hidden=m!=="home";C.draft.hidden=m!=="draft";C.ready.hidden=m!=="ready";$("#badge").hidden=$(".facts").hidden=m==="draft";
   C.form.classList.toggle("typing",m==="draft");C.label.textContent=m==="draft"?"Enter makes the link":"New reminder";
   const n=$("#nav-right");if(m==="draft"){n.textContent="Cancel";n.href="/";n.dataset.act="cancel";}else{n.textContent="See an example";n.href="/#example";delete n.dataset.act;}}
@@ -231,7 +261,7 @@ $("#snip-copy").addEventListener("click",()=>copy($("#snip").textContent,"Code c
 
 /* ---------- routing ---------- */
 function showHome(){$("#view").hidden=true;$("#home").hidden=false;C.form.hidden=false;document.body.classList.add("has-cap");setMode(D.mode);document.title="remmynd";renderMaker();window.__rmLast={type:"home"};window.dispatchEvent(new Event("rm:home"));}
-function showView(r,key,priv){S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.textContent="Make your own";n.href="/";delete n.dataset.act;
+function showView(r,key,priv){S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;S.rec=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.textContent="Make your own";n.href="/";delete n.dataset.act;
   renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
 /* /r/<payload> is a shared link, /#<payload> a private one (and every 1.x link), /#<name> a named page. */
 let routed="";
@@ -307,7 +337,7 @@ $("#sheet-x").addEventListener("click",closeSheet);
 $("#sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#sheet").hidden)closeSheet();});
 const inst=$("#install"),heroInst=$("#hero-install");
-function refreshInstall(){installMode=detectInstall();const show=!!installMode&&OWN;inst.hidden=!show;heroInst.hidden=!show;}
+function refreshInstall(){installMode=detectInstall();const show=!!installMode&&OWN;inst.hidden=!show;heroInst.hidden=!show;const sa=$("#s-add");if(sa)sa.hidden=!show;}
 [inst,heroInst].forEach(b=>b.addEventListener("click",()=>{if(!openSheet())toast("Open remmynd.space in Safari or Chrome to install it");}));
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferred=e;refreshInstall();});
 window.addEventListener("appinstalled",()=>{deferred=null;closeSheet();refreshInstall();toast("Added. Find remmynd on your home screen.");});

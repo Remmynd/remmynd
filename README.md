@@ -39,7 +39,7 @@ Most "add to calendar" tools want an account, a dashboard and your visitors' dat
 - **Private by design.** The whole reminder lives in the link, after the `#`, which browsers never send to a server. remmynd.space can't see what anyone is reminded about.
 - **One tap to save.** "Remind me" picks the right calendar for the device: Apple Calendar on iPhone, iPad and Mac Safari, Google Calendar everywhere else. Outlook, Microsoft 365, the phone's share sheet (Reminders, Notes) and plain text are one tap away.
 - **Sleep-safe.** If an event falls between 11 PM and 7 AM for a visitor, they can be reminded at 9 AM their time instead.
-- **Phone notifications.** Turn on Notify me and get an alert 1 hour before and when it starts, with Snooze on Android and desktop. The event details stay on your device.
+- **Phone notifications.** Remind me also turns on an alert 1 hour before and when it starts, where the device allows it, with Snooze on Android and desktop. The event details stay on your device.
 - **Free and open source** under the MIT licence. Host your own copy if you like.
 
 ## Use it
@@ -47,6 +47,8 @@ Most "add to calendar" tools want an account, a dashboard and your visitors' dat
 ### On the web
 
 Go to [remmynd.space](https://remmynd.space) and write it in one line, like `Demo day Fri 5pm zoom.us/j/123`. The ticket fills in as you type, and the What, When and Where chips let you fix any part. Press Enter: the link is made and copied, ready to share. Pasting an invitation works too.
+
+Whoever opens the link taps **Remind me** once: the event goes to their calendar (they confirm it there), notifications turn on where their device allows, and the ticket shows their reminder stack.
 
 ### Put a Remind me button on your site
 
@@ -181,7 +183,7 @@ Free, no sign-up, no tracking. Your reminder lives in the link and on your devic
 
 - No accounts, no cookies, no analytics, no tracking.
 - The reminder lives in the link. A shared link (`/r/…`) passes through remmynd.space so chat apps can show its title and time; the Worker reads it only to fill those preview tags, and stores and logs nothing. A private link (`/#…`) keeps everything after `#`, which browsers never send to a server.
-- **Notifications** (optional, only when you turn on Notify me): the event's title, time and link are saved on your device, in the browser's own storage. The server stores only three things per alert: a random id, your browser's anonymous push address, and when to ping it. At that time it sends an empty push; your device looks up what's due and shows it. The row is deleted as soon as it's sent. See [`worker/push.js`](worker/push.js) and [`worker/schema.sql`](worker/schema.sql).
+- **Notifications** (optional, only when you allow them after Remind me): the event's title, time and link are saved on your device, in the browser's own storage. The server stores only three things per alert: a random id, your browser's anonymous push address, and when to ping it. At that time it sends an empty push; your device looks up what's due and shows it. The row is deleted as soon as it's sent. See [`worker/push.js`](worker/push.js) and [`worker/schema.sql`](worker/schema.sql).
 - `/ics` is used only by iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), which ignore calendar files made inside the page. It builds the file from the link in memory and keeps nothing.
 
 ## Self-host

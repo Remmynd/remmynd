@@ -4,7 +4,7 @@ remmynd has three parts that share one link format:
 
 | Part | Where | What it does |
 |---|---|---|
-| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the markup, `app.js` the app (an ES module that imports `remmynd.js`, an exact copy of the library, to read typed lines and make links, and `ring.js`, the moment ring), `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `db.js` the on-device storage, `push.js` adds Notify me, `sw.js` works offline and shows alerts. No build step. |
+| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the markup, `app.js` the app (an ES module that imports `remmynd.js`, an exact copy of the library, to read typed lines and make links, and `ring.js`, the moment ring), `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `db.js` the on-device storage, `push.js` turns on notifications and fills the stack's Notification row, `sw.js` works offline and shows alerts. No build step. |
 | **Worker** | `worker/` | Serves the site on Cloudflare, adds link-preview tags to shared `/r/` links (`preview.js`), turns `/new` addresses into links, redirects `www`, builds `.ics` files for iPhone in-app browsers, and wakes devices for phone alerts. It reads links with the library itself. |
 | **Library and CLI** | `lib/`, `bin/` | The `remmynd` npm package and `npx remmynd`. Zero dependencies. |
 
@@ -74,7 +74,7 @@ sequenceDiagram
 
 ## How phone alerts work
 
-Notify me is optional and needs the person's permission. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
+Notifications are optional and need the person's permission: Remind me asks once, inside the tap, and the stack's Notification row turns them on or off. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
 
 ```mermaid
 sequenceDiagram
@@ -86,7 +86,7 @@ sequenceDiagram
     participant DB as D1 table pings
     participant S as Service worker (sw.js)
 
-    V->>P: Taps "Notify me" and allows notifications
+    V->>P: Taps "Remind me" and allows notifications
     P->>D: Saves title, time and link, one row per alert
     P->>E: POST /push/schedule (push address, random ids, times)
     E->>DB: Stores id, push address and time only
@@ -125,7 +125,7 @@ IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the pa
 | State | When |
 |---|---|
 | Open | Not held on this device |
-| Held | Held (Remind me or a calendar option was tapped); kept in `reminders` |
+| Held | Held (Remind me or a calendar option was tapped); kept in `reminders`, with which calendar it went to and the nudge switch |
 | Soon | Held, and starting within the hour; a countdown shows beside it |
 | Now | From the start until it ends |
 | Kept | Marked done (step 5) |

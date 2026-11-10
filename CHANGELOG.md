@@ -8,6 +8,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- The reminder stack: one tap on Remind me sends the event to your calendar as before, turns on notifications where this device allows them, and holds the reminder. The ticket then shows "Held. You're set." and the stack: Calendar ("Sent to Apple Calendar. Confirm there."), Notification, a muted Email row (coming in December) and "Nudge me until I'm in", off by default. Google, Apple, Outlook, Office 365, Reminders & Notes and Copy are under "More ways to be reminded".
 - The moment ring (`ring.js`): a 24-hour dial of your own day, noon at the top, with the night shaded and the reminder's time as the dot. It shows whether a reminder is open, held, starting within the hour (with a countdown), happening now or missed, and says so to screen readers.
 - New ticket: the ring beside the time, the host, title, notes and place, then the host's time and the length below the perforation. Remind me (or any calendar option) holds the reminder on this device: the ring closes, a quiet two-note chime plays and the phone buzzes. Sound can be switched off in the footer.
 - Two panes from 960 px: the maker on the left, the ticket on the right. The line becomes the ticket with a view transition where the browser supports it.
@@ -33,6 +34,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- Notify me is no longer a separate switch: Remind me turns notifications on, and the stack's Notification row shows whether they are on, blocked, or need remmynd on the Home Screen (iPhone), with Turn on and off.
 - The days, hours, minutes and seconds countdown on the ticket is replaced by the ring; a countdown appears beside it in the last hour.
 - The app's code moved from `index.html` into `app.js`, an ES module that imports the library. The old form (what, when, where, notes, host, length, time zone) is replaced by the one-line capture; links carry the device's time zone.
 - The service worker no longer stores the large install icons up front; phones fetch them when the app is installed. The first visit drops from about 145 KB to 114 KB.

@@ -342,6 +342,30 @@ body.has-cap .toast{bottom:calc(112px + env(safe-area-inset-bottom,0px))}
 .alts{display:flex;flex-wrap:wrap;justify-content:center;gap:2px}
 .alts a,.alts button{display:inline-flex;align-items:center;min-height:var(--tap);font:500 14px var(--font);color:var(--ink);background:none;border:0;padding:0 10px;border-radius:12px;cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
 .alts a:hover,.alts button:hover{background:var(--well)}
+.alts[hidden]{display:none}
+.more{justify-self:center;min-height:var(--tap);padding:0 12px;background:none;border:0;border-radius:12px;font:500 14px var(--font);color:var(--muted);cursor:pointer;text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+.more:hover{color:var(--ink)}
+/* ---------- the reminder stack (mock-up 05) ---------- */
+.held-line{display:flex;align-items:center;gap:8px;margin:0;font-size:16px;font-weight:600}
+.held-line .s-on{width:22px;height:22px}
+.stack{background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-card);overflow:hidden}
+.srow{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 10px 8px 16px;border-top:1px solid var(--hairline);color:var(--ink);text-decoration:none}
+.stack>.srow:first-child{border-top:0}
+.srow>svg:first-child{width:22px;height:22px;flex:none}
+.stext{flex:1;min-width:0;display:grid;gap:1px}
+.stext b{font-size:15px;font-weight:600}
+.stext span{font-size:12px;line-height:1.35;color:var(--muted)}
+.srow.muted,.srow.muted b{color:var(--muted)}
+.s-on{width:22px;height:22px;flex:none}
+.s-on circle{fill:var(--ink)}
+.s-on path{stroke:var(--card)}
+.s-btn{display:grid;place-items:center;width:var(--tap);height:var(--tap);flex:none;background:none;border:0;border-radius:50%;cursor:pointer}
+.s-soon{padding:3px 8px;border:1px solid var(--dash);border-radius:8px;font:var(--label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.s-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.s-actions .btn{font-size:14px;padding:0 12px}
+.s-add{display:flex;align-items:center;gap:12px;min-height:60px;padding:0 8px 0 16px;border:1px dashed var(--dash);border-radius:var(--r-card);font-size:13px;line-height:1.35;color:var(--muted)}
+.s-add span{flex:1}
+.s-add[hidden]{display:none}
 .sleep{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--well);color:var(--ink);border-radius:var(--r-chip);padding:10px 12px;font-size:13px;line-height:1.4}
 .sleep b{font-weight:600}
 .switch{position:relative;width:52px;height:var(--tap);flex:none}
@@ -371,14 +395,6 @@ body.has-cap .toast{bottom:calc(112px + env(safe-area-inset-bottom,0px))}
 pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row);padding:14px 16px;overflow-x:auto;white-space:pre}
 
 /* ---------- notify me and coming up ---------- */
-.notify{border:1px solid var(--hairline);border-radius:var(--r-row);padding:12px 14px;display:grid;gap:10px}
-.nrow{display:flex;align-items:center;gap:12px}
-.nrow>svg{width:20px;height:20px;flex:none}
-.ntext{flex:1;min-width:0;display:grid}
-.ntext b{font-size:15px;font-weight:600}
-.ntext span{font-size:13px;color:var(--muted)}
-.nchips{display:flex;gap:6px;flex-wrap:wrap}
-.nchips span{font-size:12px;font-weight:500;background:var(--well);border-radius:999px;padding:4px 10px}
 .cu{margin:0 0 28px}
 .cu h2{font-size:22px;letter-spacing:-.02em;font-weight:600;margin:0}
 .cu-note{font-size:13px;color:var(--muted);margin:2px 0 12px}

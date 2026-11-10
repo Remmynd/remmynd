@@ -727,7 +727,7 @@ test("ticket: ring, host time and length, the Held chime, view transitions and t
   assert.match(app, /localStorage\.getItem\("rm:sound"\)!=="off"/);
   assert.match(readFileSync(join(root, "public/index.html"), "utf8"), /data-sound="on"[^>]*>On<\/button><button type="button" data-sound="off"[^>]*>Off</);
   // Line to ticket uses a same-document view transition, with a plain swap where there is none or motion is reduced.
-  assert.match(app, /function swap\(fn\)\{if\(document\.startViewTransition&&!STILL\.matches\)document\.startViewTransition\(fn\);else fn\(\);\}/);
+  assert.match(app, /function swap\(fn\)\{if\(document\.startViewTransition&&!STILL\.matches\)\{const t=document\.startViewTransition\(fn\);t\.ready\.catch\(\(\)=>\{\}\);t\.finished\.catch\(\(\)=>\{\}\);\}else fn\(\);\}/);
   assert.match(app, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
   // Two panes from 960 px: the maker on the left, the ticket on the right.
   assert.match(css, /@media \(min-width:960px\)\{[^@]*#home:not\(\[hidden\]\)\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,460px\)/);
@@ -741,7 +741,10 @@ test("words: the maker uses the spec's wording", () => {
     "Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.",
     ">New reminder<", 'placeholder="Demo day Fri 5pm zoom.us/j/123"', "Private link", "Keeps the title and time out of link previews.",
     "A free tool by <a href=\"https://zoof04.com\">zoof04</a>. MIT licence."]) assert.ok(html.includes(w), "index.html says: " + w);
-  for (const w of ["Enter makes the link", "Not a link yet. Press Enter to make it."]) assert.ok(app.includes(w), "app.js says: " + w);
+  for (const w of ["Enter makes the link", "Not a link yet. Press Enter to make it.", "Held. You\\'re set.", "Your reminder stack", "Nudge me until I\\'m in",
+    "Up to 3 nudges, 10 minutes apart.", "Coming in December", "More ways to be reminded", ". Confirm there.", "Calendar and a notification on this "]) assert.ok(app.includes(w), "app.js says: " + w);
+  assert.match(app, /CAL_NAME=\{apple:"Apple Calendar",google:"Google Calendar",outlook:"Outlook"\}/, "Sent to Apple Calendar. Confirm there. (and Google or Outlook)");
+  assert.doesNotMatch(app, /Added to (Apple|Google)/, "never claim it was added");
   assert.doesNotMatch(html + app, /microphone|Speak it/i, "no microphone in 2.0");
 });
 
@@ -995,6 +998,76 @@ test("on-device storage: version 2 adds reminders and links, built from version 
   assert.deepEqual(Object.keys(fresh.stores).sort(), ["alerts", "links", "reminders"]);
   // Nothing else opens the database: push.js and sw.js go through db.js.
   for (const f of ["push.js", "sw.js", "app.js"]) assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8"), /indexedDB\.open/, f + " opens IndexedDB itself");
+});
+
+test("stack: Remind me turns on notifications inside the tap, and the Notification row says where things stand", async () => {
+  const vm = await import("node:vm");
+  const src = readFileSync(join(root, "public/push.js"), "utf8");
+  const load = ({ permission = "granted", ask = "granted", push = true, ios = false } = {}) => {
+    const alerts = new Map(), posts = [];
+    const state = { asked: false };
+    const Notification = { permission, requestPermission: () => { state.asked = true; Notification.permission = ask; return Promise.resolve(ask); } };
+    const reg = { pushManager: { getSubscription: async () => null, subscribe: async () => ({ endpoint: "https://fcm.googleapis.com/fcm/send/abc" }) } };
+    const ctx = {
+      crypto, btoa, atob, console, setTimeout, Promise, Uint8Array, JSON,
+      navigator: { userAgent: ios ? "iPhone" : "Mozilla/5.0", maxTouchPoints: 0, ...(push ? { serviceWorker: { ready: Promise.resolve(reg) } } : {}) },
+      document: { querySelector: () => null },
+      fetch: async (path, opts) => { if (path === "/push/key") return { ok: true, json: async () => ({ key: "BL1wKLc" }) }; posts.push([path, JSON.parse(opts.body)]); return { ok: true, json: async () => ({ ok: true }) }; },
+      remmyndDB: {
+        getAll: async () => [...alerts.values()],
+        putMany: async (_, list) => list.forEach(a => alerts.set(a.id, a)),
+        delMany: async (_, ids) => ids.forEach(id => alerts.delete(id))
+      },
+      __rm: { OWN: true, IOS: ios, STANDALONE: false, TZ: "Asia/Kolkata", openSheet() {}, toast() {}, fShort: d => d.toISOString().slice(11, 16) },
+      addEventListener() {}
+    };
+    if (push) { ctx.PushManager = function () {}; ctx.Notification = Notification; }
+    ctx.window = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(src, ctx);
+    return { push: ctx.__rmPush, alerts, posts, state };
+  };
+  const el = () => ({ isConnected: true, innerHTML: "", querySelector: () => ({ addEventListener() {} }) });
+  const day = { r: { t: "Demo day", l: "https://lu.ma/demo" }, start: new Date(Date.now() + 2 * 864e5), share: "https://remmynd.space/r/x", morningAt: null };
+
+  // Allowed already: two alerts, scheduled as two anonymous pings, and the row says so.
+  let t = load(), d = { ...day, el: el() };
+  await t.push.remind(d);
+  assert.deepEqual([...t.alerts.values()].map(a => a.kind).sort(), ["before", "start"]);
+  assert.equal(t.posts.length, 1);
+  assert.equal(t.posts[0][0], "/push/schedule");
+  assert.deepEqual(Object.keys(t.posts[0][1].pings[0]).sort(), ["at", "id"], "the server gets an id and a time, nothing about the event");
+  assert.match(d.el.innerHTML, /1 hour before, and at the start/);
+  assert.match(d.el.innerHTML, /Notifications on\. Turn them off/);
+  await t.push.remind(d);
+  assert.equal(t.alerts.size, 2, "holding twice doesn't double the alerts");
+
+  // Not asked yet: the prompt starts inside the tap, before anything is awaited.
+  t = load({ permission: "default" }); d = { ...day, el: el() };
+  const pending = t.push.remind(d);
+  assert.equal(t.state.asked, true, "permission is asked synchronously");
+  await pending;
+  assert.equal(t.alerts.size, 2);
+
+  // Said no: nothing is scheduled, and the row says where it's blocked.
+  t = load({ permission: "default", ask: "denied" }); d = { ...day, el: el() };
+  await t.push.remind(d);
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(t.posts.length, 0);
+  assert.match(d.el.innerHTML, /Blocked in this browser's settings/);
+
+  // Already started, an iPhone outside the Home Screen, and a browser without push.
+  t = load(); d = { ...day, start: new Date(Date.now() - 6e4), el: el() };
+  await t.push.remind(d);
+  assert.match(d.el.innerHTML, /It has already started/);
+  t = load({ push: false, ios: true }); d = { ...day, el: el() };
+  await t.push.remind(d);
+  await new Promise(r => setTimeout(r, 10));
+  assert.match(d.el.innerHTML, /On iPhone, add remmynd to your Home Screen first/);
+  t = load({ push: false }); d = { ...day, el: el() };
+  await t.push.remind(d);
+  await new Promise(r => setTimeout(r, 10));
+  assert.match(d.el.innerHTML, /Not available in this browser/);
 });
 
 test("sleep-safe: the 9 AM alert reads as already started", async () => {
