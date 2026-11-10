@@ -8,6 +8,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- Lists: Coming up (reminders held on this device) and My links (links made on it), at `/#coming-up` and `/#links`, grouped Today, This week, Later and Kept. Swipe a row left for Re-plan and Done; on a computer J and K move, D marks done, S re-plans and Enter opens, with the ticket shown beside the list. Empty lists say what to do next.
 - Follow through: from the start, a held reminder shows Open the link (or Directions for a place), Not yet and Done. "We ask once whether you made it. Then we stop."
 - Not yet opens "Not yet? Pick when.": in 10 minutes, tonight at 8:00 PM (until 7:00 PM), tomorrow at 9:00 AM, Monday at 9:00 AM, pick a time, or drop it. It comes back once at that time, one tap from the link.
 - New alerts: one "did you make it?" check when the event ends (start plus its length, or 30 minutes), with Done and Not yet where the phone shows buttons, and, with the nudge switch on, nudges 10, 20 and 30 minutes after the start ("Nudge 1 of 3. Tap to open.") that stop once you open the link, tap Done, re-plan or drop it. Each is one more anonymous ping; unused ones are cancelled.
@@ -38,6 +39,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- The Coming up card on the home page is replaced by the Coming up list, which reads the reminders this device holds.
 - Notify me is no longer a separate switch: Remind me turns notifications on, and the stack's Notification row shows whether they are on, blocked, or need remmynd on the Home Screen (iPhone), with Turn on and off.
 - The days, hours, minutes and seconds countdown on the ticket is replaced by the ring; a countdown appears beside it in the last hour.
 - The app's code moved from `index.html` into `app.js`, an ES module that imports the library. The old form (what, when, where, notes, host, length, time zone) is replaced by the one-line capture; links carry the device's time zone.

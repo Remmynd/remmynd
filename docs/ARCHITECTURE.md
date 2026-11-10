@@ -116,8 +116,8 @@ IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the pa
 | Store | Key | Holds |
 |---|---|---|
 | `alerts` | `id` (index `rkey`) | Phone alerts waiting to be shown |
-| `reminders` | `rkey` | Reminders held on this device. On the upgrade from version 1 it is built from the existing alerts, one per `rkey` |
-| `links` | `share` | Links made on this device: title, start, when it was made, and whether it is private |
+| `reminders` | `rkey` | Reminders held on this device, shown in Coming up (`/#coming-up`). On the upgrade from version 1 it is built from the existing alerts, one per `rkey` |
+| `links` | `share` | Links made on this device, shown in My links (`/#links`): title, start, when it was made, and whether it is private |
 
 ## The moment ring
 
