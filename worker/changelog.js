@@ -71,7 +71,8 @@ export function renderChangelog(md) {
     }
   }
   flush();
-  return out.join("\n");
+  // A release heading with nothing under it (an empty Unreleased) is left out.
+  return out.filter((h, i) => !(h.startsWith("<h2") && (i === out.length - 1 || out[i + 1].startsWith("<h2")))).join("\n");
 }
 
 let rendered = null;

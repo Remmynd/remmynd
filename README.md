@@ -7,8 +7,8 @@
   </a>
 </p>
 
-<p align="center"><strong>Reminders, as a link.</strong><br>
-Type what and when. Share the link. Anyone who taps it saves it to their calendar in one tap.</p>
+<p align="center"><strong>Reminders that make sure it happens.</strong><br>
+Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/remmynd"><img src="https://img.shields.io/npm/v/remmynd?color=0e0f11&label=npm" alt="npm version"></a>
@@ -20,6 +20,8 @@ Type what and when. Share the link. Anyone who taps it saves it to their calenda
 
 <p align="center">
   <a href="https://remmynd.space"><strong>remmynd.space</strong></a> ·
+  <a href="https://remmynd.space/why">Why</a> ·
+  <a href="https://remmynd.space/docs">Docs</a> ·
   <a href="docs/PRINCIPLES.md">Principles</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
   <a href="CHANGELOG.md">Changelog</a>
@@ -36,10 +38,11 @@ Type what and when. Share the link. Anyone who taps it saves it to their calenda
 Most "add to calendar" tools want an account, a dashboard and your visitors' data. remmynd wants none of that.
 
 - **No sign-up**, for you or for the people you share with.
-- **Private by design.** The whole reminder lives in the link, after the `#`, which browsers never send to a server. remmynd.space can't see what anyone is reminded about.
-- **One tap to save.** "Remind me" picks the right calendar for the device: Apple Calendar on iPhone, iPad and Mac Safari, Google Calendar everywhere else. Outlook, Microsoft 365, the phone's share sheet (Reminders, Notes) and plain text are one tap away.
+- **One line in.** Write `Demo day Fri 5pm zoom.us/j/123`, or paste an invitation. The ticket fills in as you type, and Enter makes the link.
+- **Reminded in layers.** One tap on Remind me sends the event to the calendar (Apple Calendar on iPhone, iPad and Mac Safari, Google Calendar elsewhere, with Outlook, Office 365 and more one tap away), turns on phone alerts an hour before and at the start where the device allows, and holds the reminder on the device.
+- **Followed through.** At the start the ticket offers Open the link, Not yet and Done. It asks once whether you made it, and nudges up to three times if you want.
+- **Private where it counts.** The reminder lives in the link. A shared link passes through remmynd.space only to fill its chat preview, and is never stored or logged; a private link never reaches a server. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
 - **Sleep-safe.** If an event falls between 11 PM and 7 AM for a visitor, they can be reminded at 9 AM their time instead.
-- **Phone notifications.** Remind me also turns on an alert 1 hour before and when it starts, where the device allows it, with Snooze on Android and desktop. The event details stay on your device.
 - **Free and open source** under the MIT licence. Host your own copy if you like.
 
 ## Use it
