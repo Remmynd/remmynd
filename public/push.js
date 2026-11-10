@@ -159,33 +159,6 @@
     refreshBadge();
   }
 
-  /* ---------- Coming up (home) ---------- */
-  async function renderHome() {
-    const box = $("#coming-up");
-    if (!box) return;
-    const now = Date.now();
-    const list = await getAll();
-    const old = list.filter(a => a.start < now - 2 * 864e5).map(a => a.id);
-    if (old.length) await delMany(old);
-    const byKey = new Map();
-    for (const a of list) {
-      if (a.start < now - 1800e3) continue;
-      const g = byKey.get(a.rkey) || { ...a, alerts: 0 };
-      if (!a.shown) g.alerts++;
-      byKey.set(a.rkey, g);
-    }
-    const items = [...byKey.values()].sort((a, b) => a.start - b.start).slice(0, 20);
-    if (!items.length) { box.hidden = true; box.innerHTML = ""; return; }
-    box.hidden = false;
-    box.innerHTML = '<h2>Coming up</h2><p class="cu-note">Saved on this ' + DEVICE + ' only.</p><div class="cu-list">' + items.map(a => {
-      const dt = new Date(a.start);
-      const wd = new Intl.DateTimeFormat(undefined, { timeZone: RM.TZ, weekday: "short" }).format(dt).toUpperCase();
-      const day = new Intl.DateTimeFormat(undefined, { timeZone: RM.TZ, day: "numeric" }).format(dt);
-      return '<a class="cu-item" href="' + esc(a.share) + '"><span class="cu-date"><i>' + esc(wd) + '</i><b>' + esc(day) + '</b></span><span class="cu-main"><b>' + esc(a.title) + '</b><span>' + esc(RM.fShort(dt, RM.TZ)) + '</span></span>' +
-        (a.alerts ? '<span class="cu-chip"><span class="dot"></span>Alerts on</span>' : '<span class="cu-chip muted">Sent</span>') + '</a>';
-    }).join("") + '</div>';
-  }
-
   /* ---------- Home Screen badge ---------- */
   async function refreshBadge() {
     if (!navigator.setAppBadge || !RM.STANDALONE) return;
@@ -196,7 +169,6 @@
 
   window.__rmPush = { remind, renderRow, cancel, replan, setNudge };
   window.addEventListener("rm:stack", e => renderRow(e.detail));
-  window.addEventListener("rm:home", () => renderHome());
-  if (window.__rmLast) (window.__rmLast.type === "stack" ? renderRow(window.__rmLast.detail) : window.__rmLast.type === "home" ? renderHome() : null);
+  if (window.__rmLast && window.__rmLast.type === "stack") renderRow(window.__rmLast.detail);
   refreshBadge();
 })();

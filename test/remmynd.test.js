@@ -1176,6 +1176,25 @@ test("follow through: check and nudge alerts on the device, Done and Not yet", a
   assert.equal(opened.length, 2, "Done opens nothing");
 });
 
+test("lists: Coming up and My links, grouped Today, This week, Later, Kept", () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+  const groupOf = new Function(line("function parts(") + line("const dayNum=") + line("const groupOf=") + "; return groupOf;")();
+  const relText = new Function(line("const relText=") + "; return relText;")();
+  const tz = "Asia/Kolkata", at = (d, h, mi = 0) => R.zonedTime(2026, 11, d, h, mi, tz).getTime(), now = at(11, 10);
+  // By the viewer's own calendar day: today until midnight, then the next seven days, then later.
+  assert.deepEqual([at(11, 23, 59), at(12, 0, 5), at(18, 9), at(19, 9), at(10, 23)].map(t => groupOf(t, now, tz)), ["today", "week", "week", "later", "earlier"]);
+  assert.deepEqual([relText(at(11, 10, 42), at(11, 11), now), relText(at(11, 13), at(11, 14), now), relText(at(11, 9, 30), at(11, 10, 30), now), relText(at(11, 8), at(11, 9), now)],
+    ["in 42 min", "in 3 h", "now", "ended"]);
+  assert.match(html, /<a href="\/#coming-up" id="tab-coming">Coming up<\/a><a href="\/#links" id="tab-links">My links<\/a>/);
+  for (const w of ["Swipe a row left to re-plan it or mark it done.", "J and K move, D marks done, S re-plans, Enter opens.", 'data-act="replan">Re-plan', 'data-act="done">Done',
+    "Nothing coming up yet.", "No links yet. Write one in the bar below and press Enter.", 'GROUPS={today:"Today",week:"This week",later:"Later",kept:"Kept"']) assert.ok(app.includes(w), "app.js has " + w);
+  assert.match(app, /if\(k==="j"\|\|k==="k"\)/, "J and K move");
+  assert.match(app, /rowAct\(li\.dataset\.rkey,k==="d"\?"done":"replan",i\)/, "D marks done, S re-plans");
+  assert.doesNotMatch(app, /Kept \d+ of \d+/, "the monthly count waits until everything else is built");
+  assert.doesNotMatch(readFileSync(join(root, "public/push.js"), "utf8"), /renderHome|coming-up/, "the old home card is gone");
+});
+
 test("follow through: the re-plan sheet's choices", () => {
   const app = readFileSync(join(root, "public/app.js"), "utf8");
   const line = p => app.split("\n").find(l => l.startsWith(p));

@@ -135,6 +135,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   b.innerHTML=!S.held?remindHTML(c):ph==="due"?followHTML(c):ph==="kept"?'<p class="held-line">'+I.on+'Done. You kept it.</p>'+VIA():
     ph==="dropped"?'<p class="held-line muted">Dropped. No more alerts for this one.</p><button type="button" class="btn" id="f-later">Pick a new time</button>'+VIA():stackHTML(c);
   c.el.querySelector(".t-head .label").textContent=labelFor(c,ph);
+  if(S.held){const n=$("#nav-right");n.textContent="Coming up";n.href="/#coming-up";}
   const on=(sel,fn)=>{const x=b.querySelector(sel);if(x)fn(x);};
   const sent=(k,a)=>()=>{hold(k);setTimeout(()=>toast("Sent to "+CAL_NAME[k]+". Confirm there."),250);};
   on("#remind",btn=>{if(PREF==="apple")c.setApple(btn);else{btn.href=c.g;btn.target="_blank";btn.rel="noopener";}
@@ -228,7 +229,7 @@ const C={form:$("#cap-form"),input:$("#cap"),label:$("#cap-l"),hero:$("#hero"),t
   what:$("#c-what"),when:$("#c-when"),whenIn:$("#c-when-in"),where:$("#c-where"),note:$("#c-note"),edit:$("#edit"),editIn:$("#edit-in"),editL:$("#edit-l"),editOk:$("#edit-ok")};
 const F={link:$("#f-link"),copy:$("#f-copy"),share:$("#f-share"),priv:$("#f-private"),copied:$("#copied"),card:$("#ready-card")};
 /* D.line is the typed line; D.set holds parts fixed with a chip, which win over the line; D.made is the last link made. */
-const D={line:"",set:{},made:null,mode:"home",editing:null};
+const D={line:"",set:{},made:null,mode:"home",base:"home",editing:null};
 const short=u=>String(u||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
 const webish=s=>/^(https?:\/\/|www\.)|^[\w-]+(\.[\w-]+)+(\/|$)/i.test(s);
 const nextHour=()=>new Date(Math.ceil((Date.now()+1)/36e5)*36e5);
@@ -237,9 +238,10 @@ function whenText(d){return fDate(d,TZ)+" · "+fShort(d,TZ);}
 /* Line to ticket: a same-document view transition where the browser has one, a plain swap elsewhere. */
 const STILL=matchMedia("(prefers-reduced-motion: reduce)");
 function swap(fn){if(document.startViewTransition&&!STILL.matches){const t=document.startViewTransition(fn);t.ready.catch(()=>{});t.finished.catch(()=>{});}else fn();}
-function setMode(m){D.mode=m;$("#home").dataset.mode=m;$("#pane-l").textContent=m==="draft"?"Live preview":m==="ready"?"Your link":"Example";C.hero.hidden=C.try.hidden=m!=="home";C.draft.hidden=m!=="draft";C.ready.hidden=m!=="ready";$("#badge").hidden=$(".facts").hidden=m==="draft";
+function setMode(m){D.mode=m;$("#home").dataset.mode=m;$("#pane-l").textContent=m==="draft"?"Live preview":m==="ready"?"Your link":m==="lists"?(L.tab==="links"?"My links":"Coming up"):"Example";C.hero.hidden=C.try.hidden=m!=="home";C.draft.hidden=m!=="draft";C.ready.hidden=m!=="ready";L.el.hidden=m!=="lists";$("#badge").hidden=$(".facts").hidden=m==="draft"||m==="lists";
   C.form.classList.toggle("typing",m==="draft");C.label.textContent=m==="draft"?"Enter makes the link":"New reminder";
-  const n=$("#nav-right");if(m==="draft"){n.textContent="Cancel";n.href="/";n.dataset.act="cancel";}else{n.textContent="See an example";n.href="/#example";delete n.dataset.act;}}
+  const n=$("#nav-right");delete n.dataset.act;if(m==="draft"){n.textContent="Cancel";n.href="/";n.dataset.act="cancel";}else if(m==="ready"){n.textContent="My links";n.href="/#links";}
+  else if(m==="home"&&L.has){n.textContent="Coming up";n.href="/#coming-up";}else{n.textContent="See an example";n.href="/#example";}}
 function chip(el,text,empty){el.querySelector("b").textContent=text;el.classList.toggle("empty",!!empty);}
 function renderDraft(){const d=draft();
   renderTicket(C.prev,{t:d.title||"Your event",s:pack(d.start||nextHour()),...(d.dur&&d.dur!==60?{d:d.dur}:{}),...(d.place?{l:d.place}:{}),...(d.notes?{n:d.notes}:{}),z:TZ},{interactive:false,ph:!d.title});
@@ -248,15 +250,15 @@ function renderDraft(){const d=draft();
   const s=d.start||nextHour(),p=parts(s,TZ);C.whenIn.value=p.y+"-"+pad(p.mo)+"-"+pad(p.d)+"T"+pad(p.h)+":"+pad(p.mi);
   C.hint.textContent=!d.title?"Add what it is to make the link.":!d.start?"Add a time to make the link.":"Not a link yet. Press Enter to make it.";}
 /* The pane: the live preview while typing; otherwise the link just made, or an example (seen beside the maker from 960 px). */
-function renderPane(){if(D.mode==="draft")return renderDraft();
+function renderPane(){if(D.mode==="draft")return renderDraft();if(D.mode==="lists")return previewRow(L.body.querySelector(".li-main"));
   const x=D.mode==="ready"&&D.made?D.made.ev:EX[0];if(!x)return;
   renderTicket(C.prev,{t:x.title,s:pack(x.start),...(x.durationMinutes&&x.durationMinutes!==60?{d:x.durationMinutes}:{}),...(x.location?{l:x.location}:{}),...(x.notes?{n:x.notes}:{}),z:TZ},{interactive:false});}
 function renderMaker(){renderPane();snippet();}
-function clearDraft(){swap(()=>{D.line="";D.set={};C.input.value="";closeEdit();setMode(D.made?"ready":"home");renderMaker();});}
+function clearDraft(){swap(()=>{D.line="";D.set={};C.input.value="";closeEdit();setMode(D.made?"ready":D.base);renderMaker();});}
 C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.line.trim()||Object.keys(D.set).length);
   if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{setMode("draft");renderDraft();});}
   else if(typing)renderDraft();
-  else if(D.mode==="draft"){const m=D.made?"ready":"home";D.mode=m;swap(()=>{setMode(m);renderMaker();});}});
+  else if(D.mode==="draft"){const m=D.made?"ready":D.base;D.mode=m;swap(()=>{setMode(m);renderMaker();});}});
 C.form.addEventListener("submit",e=>{e.preventDefault();make();});
 /* Chips: What, Where and Note open a small editor; When opens the device's own date and time picker. */
 const EDIT={title:"What",place:"Where",notes:"Note"};
@@ -305,8 +307,62 @@ document.querySelectorAll("[data-fmt],[data-theme-b]").forEach(b=>b.addEventList
   b.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));snippet();}));
 $("#snip-copy").addEventListener("click",()=>copy($("#snip").textContent,"Code copied"));
 
+/* ---------- lists: Coming up and My links (mock-up 08) ---------- */
+const L={el:$("#lists"),body:$("#list-body"),hint:$("#list-hint"),tab:"coming",recs:[],links:[],has:false};
+const dayNum=(t,tz)=>{const p=parts(new Date(t),tz);return Date.UTC(p.y,p.mo-1,p.d)/864e5;};
+/* Today, This week (the next seven days), Later; links that have passed go under Earlier, kept reminders under Kept. */
+const groupOf=(t,now,tz)=>{const d=dayNum(t,tz)-dayNum(now,tz);return d===0?"today":d<0?"earlier":d<=7?"week":"later";};
+const GROUPS={today:"Today",week:"This week",later:"Later",kept:"Kept",earlier:"Earlier"};
+const relText=(t,end,now)=>now>=t&&now<end?"now":now>=end?"ended":(t-now)<36e5?"in "+Math.max(1,Math.round((t-now)/6e4))+" min":"in "+Math.round((t-now)/36e5)+" h";
+function upRow(x,now){const later=x.replanAt>now,t=later?x.replanAt:x.start,end=x.start+(x.dur||60)*6e4,kept=x.state==="kept";
+  const st=kept?"kept":ringState(x.start,end,true,x.state,x.replanAt||0),g=kept?"kept":groupOf(t,now,TZ),d=new Date(t);
+  const sub=kept?fDate(new Date(x.doneAt||x.start),TZ)+" · done":g==="today"?fShort(d,TZ)+" · "+(later?"back ":"")+relText(t,later?t+1:end,now):fDate(d,TZ)+" · "+fShort(d,TZ)+(x.host?" · "+x.host:"");
+  const chip=st==="soon"?'<span class="li-chip">Soon</span>':st==="now"?'<span class="li-chip">Now</span>':"";
+  return{g,t:kept?(x.doneAt||x.start):t,html:'<div class="li" data-rkey="'+esc(x.rkey)+'">'+(kept?"":'<div class="li-acts"><button type="button" data-act="replan">Re-plan</button><button type="button" data-act="done">Done</button></div>')+
+    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub)+'</i></span>'+chip+'</a></div>'};}
+function linkRow(x,now){const d=new Date(x.start);
+  return{g:groupOf(x.start,now,TZ),t:x.start,html:'<div class="li"><a class="li-main" href="'+esc(x.share)+'">'+ringFor(d,x.start<now?"missed":"open",28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(fDate(d,TZ)+" · "+fShort(d,TZ)+(x.private?" · private":""))+'</i></span></a>'+
+    '<button type="button" class="btn small li-copy" data-share="'+esc(x.share)+'">Copy</button></div>'};}
+async function loadLists(){const DB=window.remmyndDB;if(!DB)return;try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}L.has=!!(L.recs.length||L.links.length);}
+async function renderLists(focusAt){await loadLists();const now=Date.now(),up=L.tab==="coming";
+  $("#tab-coming").setAttribute("aria-current",up?"page":"false");$("#tab-links").setAttribute("aria-current",up?"false":"page");
+  const rows=up?L.recs.filter(x=>x.state!=="dropped").map(x=>upRow(x,now)).filter(r=>r.g!=="earlier"&&!(r.g==="kept"&&now-r.t>30*864e5)):L.links.map(x=>linkRow(x,now));
+  const order=up?["today","week","later","kept"]:["today","week","later","earlier"];
+  L.body.innerHTML=rows.length?order.map(g=>{const rs=rows.filter(r=>r.g===g).sort((a,b)=>g==="kept"||g==="earlier"?b.t-a.t:a.t-b.t);
+      return rs.length?'<div class="label">'+GROUPS[g]+'</div><div class="li-group">'+rs.map(r=>r.html).join("")+'</div>':"";}).join(""):
+    '<p class="li-empty">'+(up?"Nothing coming up yet. Tap Remind me on any reminder link, or write one in the bar below.":"No links yet. Write one in the bar below and press Enter.")+'</p>';
+  L.hint.textContent=up&&rows.some(r=>r.g!=="kept")?(MOBILE?"Swipe a row left to re-plan it or mark it done.":"J and K move, D marks done, S re-plans, Enter opens."):"";L.hint.hidden=!L.hint.textContent;
+  const mains=[...L.body.querySelectorAll(".li-main")];if(focusAt!=null&&mains.length)mains[Math.min(focusAt,mains.length-1)].focus();else if(D.mode==="lists")previewRow(mains[0]);}
+/* From 960 px the pane shows the row in focus (J and K move through them). */
+function previewRow(a){if(!a)return renderTicket(C.prev,{t:EX[0].title,s:pack(EX[0].start),z:TZ},{interactive:false});
+  const m=/\/r\/([A-Za-z0-9_-]+)|#(.+)$/.exec(a.getAttribute("href")||""),r=m&&dec(m[1]||m[2]);if(r)renderTicket(C.prev,r,{interactive:false});}
+async function rowAct(rkey,act,at){const x=L.recs.find(r=>r.rkey===rkey);if(!x)return;
+  if(act==="replan"){const u=new URL(x.share,location.origin);u.searchParams.set("act","replan");location.href=u.href;return;}
+  await window.remmyndDB.put("reminders",{...x,state:"kept",doneAt:Date.now()}).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(rkey).catch(()=>{});
+  toast("Done. You kept it.");renderLists(at);}
+/* Swipe a row left to reveal Re-plan and Done. */
+L.body.addEventListener("pointerdown",e=>{const a=e.target.closest(".li-main"),row=a&&a.parentElement;if(!a||e.pointerType==="mouse"||!row.querySelector(".li-acts"))return;
+  const x0=e.clientX,y0=e.clientY,base=row.classList.contains("open")?-168:0;let dx=base,drag=false;
+  const move=ev=>{if(!drag&&Math.abs(ev.clientX-x0)>8&&Math.abs(ev.clientX-x0)>Math.abs(ev.clientY-y0))drag=true;if(drag){row.classList.add("swiping");dx=Math.min(0,Math.max(-168,base+ev.clientX-x0));a.style.transition="none";a.style.marginRight=(-dx)+"px";}};
+  const up=()=>{a.removeEventListener("pointermove",move);a.removeEventListener("pointerup",up);a.removeEventListener("pointercancel",up);a.style.transition=a.style.marginRight="";row.classList.remove("swiping");
+    if(drag){row.classList.toggle("open",dx<-60);a.dataset.swiped="1";setTimeout(()=>{delete a.dataset.swiped;},60);}};
+  a.addEventListener("pointermove",move);a.addEventListener("pointerup",up);a.addEventListener("pointercancel",up);});
+L.body.addEventListener("click",e=>{const a=e.target.closest(".li-main");
+  if(a&&(a.dataset.swiped||a.parentElement.classList.contains("open"))){e.preventDefault();if(!a.dataset.swiped)a.parentElement.classList.remove("open");return;}
+  const b=e.target.closest("[data-act]");if(b)return rowAct(b.closest(".li").dataset.rkey,b.dataset.act);
+  const c=e.target.closest(".li-copy");if(c)copy(c.dataset.share,"Link copied");});
+L.body.addEventListener("focusin",e=>{const a=e.target.closest(".li-main");if(a)previewRow(a);if(e.target.closest(".li-acts"))e.target.closest(".li").classList.add("open");});
+L.body.addEventListener("focusout",e=>{const li=e.target.closest(".li");if(li&&!li.contains(e.relatedTarget))li.classList.remove("open");});
+/* Desktop keys: J and K move, D marks done, S re-plans, Enter opens. */
+document.addEventListener("keydown",e=>{if(D.mode!=="lists"||$("#home").hidden||e.metaKey||e.ctrlKey||e.altKey||!RP.el.hidden||/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName))return;
+  const rows=[...L.body.querySelectorAll(".li-main")],i=rows.indexOf(document.activeElement),k=e.key.toLowerCase();
+  if(k==="j"||k==="k"){if(!rows.length)return;e.preventDefault();rows[i<0?0:Math.max(0,Math.min(rows.length-1,i+(k==="j"?1:-1)))].focus();}
+  else if((k==="d"||k==="s")&&i>=0){const li=rows[i].closest(".li");if(li.dataset.rkey&&li.querySelector(".li-acts")){e.preventDefault();rowAct(li.dataset.rkey,k==="d"?"done":"replan",i);}}});
+loadLists().then(()=>{if(D.mode==="home")setMode("home");});
+
 /* ---------- routing ---------- */
-function showHome(){$("#view").hidden=true;$("#home").hidden=false;C.form.hidden=false;document.body.classList.add("has-cap");setMode(D.mode);document.title="remmynd";renderMaker();window.__rmLast={type:"home"};window.dispatchEvent(new Event("rm:home"));}
+function showHome(){$("#view").hidden=true;$("#home").hidden=false;C.form.hidden=false;document.body.classList.add("has-cap");setMode(D.mode);document.title="remmynd";renderMaker();}
+function showLists(tab){L.tab=tab;D.base="lists";if(D.mode!=="draft")D.mode="lists";showHome();document.title=(tab==="links"?"My links":"Coming up")+" · remmynd";renderLists();}
 function showView(r,key,priv){S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;S.rec=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.textContent="Make your own";n.href="/";delete n.dataset.act;
   renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
 /* /r/<payload> is a shared link, /#<payload> a private one (and every 1.x link), /#<name> a named page. */
@@ -314,7 +370,8 @@ let routed="";
 function route(){if(location.href===routed)return;routed=location.href;const p=location.pathname;
   if(p.startsWith("/r/")){const r=dec(p.slice(3).replace(/\/+$/,""));return r?showView(r,null,false):showHome();}
   if(p==="/new"||p==="/new/")return fromNew();
-  const h=decodeURIComponent(location.hash.slice(1));if(PRESETS[h])return showView(PRESETS[h](),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);showHome();}
+  const h=decodeURIComponent(location.hash.slice(1));if(h==="coming-up"||h==="links")return showLists(h==="links"?"links":"coming");
+  if(PRESETS[h])return showView(PRESETS[h](),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
 /* /new?t=…&at=… lands here only when the time has no zone. Read it in this device's zone with the library itself, then show the /r/ link. */
 function fromNew(){const q=new URLSearchParams(location.search);
   const ev=R.fromQuery(q,{timeZone:TZ});if(ev){history.replaceState(null,"",R.toPath(ev));return route();}
