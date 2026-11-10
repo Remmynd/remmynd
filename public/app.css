@@ -188,6 +188,33 @@ button{font:inherit;color:inherit}
 
 /* ---------- link output ---------- */
 .out{display:grid;gap:8px;margin-top:16px}
+/* ---------- the moment ring (ring.js, spec section 8) ---------- */
+.ring{display:block;flex:none;overflow:visible}
+.ring .r-night{stroke:var(--night-arc)}
+.ring .r-ring{stroke:var(--ink);stroke-dasharray:324 36;transition:stroke-dasharray .32s var(--spring),stroke .2s}
+.ring .r-hand{stroke:var(--ink)}
+.ring .r-pivot{fill:var(--ink)}
+.ring .r-dot{fill:var(--moment)}
+.ring .r-out{fill:var(--card);opacity:0;transition:opacity .2s}
+.ring .r-disc,.ring .r-check,.ring .r-halo{display:none}
+.ring-held .r-ring,.ring-soon .r-ring,.ring-kept .r-ring{stroke-dasharray:360 0}
+.ring-held .r-out,.ring-soon .r-out,.ring-kept .r-out{opacity:1}
+.ring-soon .r-halo{display:block;fill:var(--moment);opacity:.28;transform-box:fill-box;transform-origin:center;animation:halo 1.8s ease-in-out infinite}
+@keyframes halo{50%{transform:scale(1.3);opacity:.1}}
+.ring-now .r-disc{display:block;fill:var(--moment)}
+.ring-now .r-night,.ring-now .r-ring,.ring-now .r-out{display:none}
+.ring-now .r-hand{stroke:var(--on-moment)}
+.ring-now .r-pivot,.ring-now .r-dot{fill:var(--on-moment)}
+.ring-kept .r-check{display:block;stroke:var(--ink)}
+.ring-kept .r-hand,.ring-kept .r-pivot{display:none}
+.ring-missed .r-ring,.ring-missed .r-hand{stroke:var(--muted)}
+.ring-missed .r-pivot{fill:var(--muted)}
+.ring-missed .r-dot{fill:var(--card);stroke:var(--muted);stroke-width:3}
+.ring-mini .r-night,.ring-mini .r-hand,.ring-mini .r-pivot,.ring-mini .r-out{display:none}
+.ring-mini .r-ring{stroke-width:10}
+.ring-mini .r-dot{transform-box:fill-box;transform-origin:center;transform:scale(1.5)}
+.still .ring .r-ring,.still .ring .r-out{transition:none}
+
 /* ---------- maker: one line in, a link out (mock-ups 01 to 03) ---------- */
 .hero .label{margin-bottom:14px}
 .try{display:grid;gap:10px}
@@ -201,8 +228,8 @@ button{font:inherit;color:inherit}
 .row i,.mini i{font:400 12px var(--mono);font-style:normal;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chev{width:20px;height:20px;color:var(--muted);flex:none}
 .draft,.ready{display:grid;gap:12px;padding-top:8px}
-/* The live preview is the top of the ticket only (mock-up 02): no countdown or button until the link exists. */
-.draft .ticket .t-count,.draft .ticket .t-perf,.draft .ticket .t-bottom{display:none}
+/* The preview pane shows the top of the ticket only (mock-ups 02 and desktop): no button until the link exists. */
+.pane .ticket .t-perf,.pane .ticket .t-meta,.pane .ticket .t-bottom{display:none}
 .hint{font:400 12px var(--mono);color:var(--muted);margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .fchip{position:relative;display:inline-flex;align-items:center;gap:8px;max-width:100%;min-height:var(--tap);padding:0 14px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-chip);font:400 14px var(--font);color:var(--ink);cursor:pointer}
@@ -236,6 +263,29 @@ button{font:inherit;color:inherit}
 .cap-go svg{width:22px;height:22px}
 body.has-cap .app{padding-bottom:150px}
 body.has-cap .toast{bottom:calc(112px + env(safe-area-inset-bottom,0px))}
+/* The ticket pane: under the line on phones while typing; on the right, always, from 960 px (desktop mock-up). */
+.pane{display:none;gap:12px;align-content:start}
+#home[data-mode="draft"] .pane{display:grid}
+#home:not([data-mode="draft"]) #draft-hint{display:none}
+::view-transition-group(ticket){animation-duration:.32s;animation-timing-function:var(--spring)}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.18s}
+@media (max-width:959px){
+  .maker{display:contents}
+  #home:not([hidden]){display:flex;flex-direction:column}
+  #hero{order:1}#coming-up{order:2}#try{order:3}.pane{order:4}#draft{order:5}#ready{order:6}#badge{order:7}.facts{order:8}
+  #t-preview,.mini{view-transition-name:ticket}
+}
+@media (min-width:960px){
+  .app{max-width:1120px}
+  #view{max-width:560px;margin:0 auto}
+  #home:not([hidden]){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,460px);gap:56px;align-items:start}
+  .pane{display:grid;position:sticky;top:24px}
+  #t-preview{view-transition-name:ticket}
+  .capture{position:static;transform:none;width:auto;margin:4px 0 24px}
+  .capture::before{display:none}
+  body.has-cap .app{padding-bottom:48px}
+  body.has-cap .toast{bottom:calc(22px + env(safe-area-inset-bottom,0px))}
+}
 /* Private link: a row with a title, one line of help and a switch (mock-up 03). */
 .opt-row{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding:6px 8px 6px 16px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row)}
 .opt-text{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -256,18 +306,23 @@ body.has-cap .toast{bottom:calc(112px + env(safe-area-inset-bottom,0px))}
 .ticket{background:var(--card);border-radius:var(--r-ticket);box-shadow:var(--shadow-card);overflow:hidden;animation:rise .5s cubic-bezier(.2,.7,.2,1)}
 @keyframes rise{from{transform:translateY(8px)}to{transform:none}}
 .t-top{padding:24px 24px 20px;display:grid;gap:14px}
-.t-host{display:flex;align-items:center;gap:8px;font:var(--label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.t-title{margin:0;font-size:28px;line-height:1.08;font-weight:600;letter-spacing:-.025em;text-wrap:balance;overflow-wrap:anywhere}
+.t-title{margin:4px 0 0;font-size:32px;line-height:1.08;font-weight:600;letter-spacing:-.025em;text-wrap:balance;overflow-wrap:anywhere}
 .t-title.ph{color:var(--muted)}
-.t-date{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.t-time{font:600 clamp(46px,14vw,56px)/.95 var(--mono);letter-spacing:-.05em;font-variant-numeric:tabular-nums;margin-top:4px}
+.t-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.t-from{font-size:13px;color:var(--muted)}
+.t-when{display:flex;align-items:center;gap:20px}
+.t-when .ring{width:min(128px,30vw);height:auto}
+.t-clock{display:grid;gap:6px;min-width:0}
+.t-date{font:500 16px var(--font);color:var(--ink)}
+.t-soon{justify-self:start;font:600 12px var(--mono);letter-spacing:.04em;background:var(--moment-tint);color:var(--on-moment-tint);border-radius:999px;padding:4px 10px}
+.t-meta{display:flex;justify-content:space-between;gap:16px;padding:4px 24px 6px}
+.t-meta div{display:grid;gap:4px;min-width:0}
+.t-meta .label{font-size:10px}
+.t-meta b{font:400 13px var(--mono)}
+.t-len{margin-left:auto;text-align:right}
+.t-time{font:600 clamp(40px,12vw,56px)/.95 var(--mono);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
 .t-time small{font-size:.32em;letter-spacing:0;margin-left:6px;color:var(--ink);font-weight:600}
-.t-zone{font:400 12px var(--mono);color:var(--muted);margin-top:8px}
-.t-count{display:flex;gap:6px;flex-wrap:wrap}
-.t-count div{background:var(--well);border-radius:12px;padding:7px 10px;min-width:56px;display:grid;line-height:1.2}
-.t-count b{font:600 17px var(--mono);font-variant-numeric:tabular-nums}
-.t-count i{font-style:normal;font-size:11px;color:var(--muted)}
-.live{display:inline-flex;align-items:center;gap:8px;font:600 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;background:var(--moment-tint);color:var(--on-moment-tint);padding:8px 12px;border-radius:var(--r-chip)}
+.t-zone{font:400 12px var(--mono);color:var(--muted)}
 .t-where{display:flex;gap:8px;align-items:center;justify-self:start;max-width:100%;min-height:36px;padding:6px 12px;background:var(--well);border-radius:12px;font:400 13px var(--mono);min-width:0}
 .t-where svg{width:16px;height:16px;flex:none;color:var(--ink)}
 .t-where a,.t-where span{overflow-wrap:anywhere;min-width:0}

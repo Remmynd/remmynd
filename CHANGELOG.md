@@ -8,6 +8,9 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- The moment ring (`ring.js`): a 24-hour dial of your own day, noon at the top, with the night shaded and the reminder's time as the dot. It shows whether a reminder is open, held, starting within the hour (with a countdown), happening now or missed, and says so to screen readers.
+- New ticket: the ring beside the time, the host, title, notes and place, then the host's time and the length below the perforation. Remind me (or any calendar option) holds the reminder on this device: the ring closes, a quiet two-note chime plays and the phone buzzes. Sound can be switched off in the footer.
+- Two panes from 960 px: the maker on the left, the ticket on the right. The line becomes the ticket with a view transition where the browser supports it.
 - One-line capture: write a reminder in one line ("Demo day Fri 5pm zoom.us/j/123") or paste an invitation. The ticket preview updates as you type, What, When and Where chips edit each part (When opens the device's own picker), and Enter makes the link, copies it and keeps it in this device's list of links.
 - New home: "Reminders that make sure it happens.", three "Try one" examples worked out from today, and the New reminder bar docked at the bottom.
 - `parse(text, { now, timeZone })` in the library: today, tonight, tomorrow, weekdays, "next Friday", "13 Nov", "13/11", "1st", ISO dates, "5pm", "17:00", noon, midnight, "in 2 hours", "for 30 min", time ranges, web addresses and a trailing "at <place>".
@@ -30,6 +33,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- The days, hours, minutes and seconds countdown on the ticket is replaced by the ring; a countdown appears beside it in the last hour.
 - The app's code moved from `index.html` into `app.js`, an ES module that imports the library. The old form (what, when, where, notes, host, length, time zone) is replaced by the one-line capture; links carry the device's time zone.
 - The service worker no longer stores the large install icons up front; phones fetch them when the app is installed. The first visit drops from about 145 KB to 114 KB.
 - `createLink()` and `npx remmynd` make shared `/r/` links by default; `decode()` reads both forms.
