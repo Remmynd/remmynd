@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>remmynd website, home</title>
+<!-- remmynd 2.0 design reference. A static mock-up: copy structure, sizes and values from it.
+     Do not ship this file. Colours here are the light theme; see ../tokens.css for both themes.
+     The fonts are Geist and Geist Mono; until they are self-hosted this page falls back to system fonts. -->
+<style>
+body{margin:0;background:#E9EBEE}
+a{color:#0E0F11;text-decoration:none}a:hover{color:#3A3D42}
+</style>
+</head>
+<body>
+<div style="box-sizing: border-box; background: #F5F6F7; color: #0E0F11; font-family: 'Geist', system-ui, sans-serif; display: flex; flex-direction: column">
+
+<header style="padding: 20px 32px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 28px">
+<a href="web-home.html" style="display: flex; align-items: center; gap: 8px">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="#0E0F11" stroke-width="2" stroke-linecap="round"></path><path d="M12 12L15.214 8.17" stroke="#0E0F11" stroke-width="2" stroke-linecap="round"></path><circle cx="12" cy="12" r="1.24" fill="#0E0F11"></circle><circle cx="17.785" cy="5.106" r="2.1" fill="#F2A000"></circle></svg>
+<span style="font-size: 19px; font-weight: 600; letter-spacing: -0.01em">remmynd</span>
+</a>
+<nav style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 28px; font-size: 15px; font-weight: 500">
+<a href="web-why.html">Why</a>
+<a href="#hosts">For hosts</a>
+<a href="#">Docs</a>
+<a href="web-roadmap.html">Roadmap</a>
+<a href="#">GitHub</a>
+<a href="#" style="height: 44px; padding: 0 18px; display: flex; align-items: center; background: #0E0F11; color: #F5F6F7; border-radius: 22px; font-weight: 600">Install</a>
+</nav>
+</header>
+
+<section style="width: 100%; max-width: 1200px; min-height: 720px; margin: 0 auto; box-sizing: border-box; padding: 56px 32px 72px; display: flex; flex-wrap: wrap; align-items: center; gap: 48px">
+<div style="flex: 1 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 22px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.08em; color: #666C75">FREE · OPEN SOURCE · NO SIGN-UP</div>
+<h1 style="margin: 0; font-size: clamp(40px, 6vw, 80px); line-height: 0.98; font-weight: 600; letter-spacing: -0.04em">Reminders that make sure it happens.</h1>
+<p style="margin: 0; max-width: 520px; font-size: 19px; line-height: 1.5; color: #666C75">Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.</p>
+<div style="max-width: 560px; padding: 10px 10px 10px 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #E3E5E8; border-radius: 30px; box-shadow: 0 16px 40px rgba(14,15,17,0.08)">
+<label for="cap" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">New reminder</label>
+<input id="cap" type="text" placeholder="Demo day Fri 5pm zoom.us/j/123" style="flex: 1 1 200px; min-width: 0; height: 52px; padding: 0; border: 0; outline: 0; background: transparent; font-family: inherit; font-size: 18px; color: #0E0F11">
+<a href="desktop-app.html" style="height: 52px; padding: 0 22px; display: flex; align-items: center; background: #F2A000; color: #0E0F11; border-radius: 22px; font-size: 16px; font-weight: 600">Make the link</a>
+</div>
+<div style="font-size: 14px; color: #666C75">Works on any phone or computer. Installs in one tap.</div>
+</div>
+
+<div style="flex: 1 1 380px; min-width: 0; display: flex; justify-content: center">
+<div style="width: 100%; max-width: 400px; box-sizing: border-box; padding: 26px; transform: rotate(2deg); background: #FFFFFF; border-radius: 34px; box-shadow: 0 1px 0 rgba(14,15,17,0.04), 0 36px 72px rgba(14,15,17,0.14)">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">REMINDER</span>
+<span style="font-size: 13px; color: #666C75">from Northwind</span>
+</div>
+<div style="margin-top: 18px; display: flex; align-items: center; gap: 20px">
+<svg width="124" height="124" viewBox="0 0 120 120" fill="none" role="img" aria-label="Day dial showing 11:30 in the morning" style="flex-shrink: 0"><path d="M76.5 88.58A33 33 0 0 1 27 60" stroke="#0E0F11" stroke-opacity="0.1" stroke-width="8" stroke-linecap="round"></path><path d="M68.02 16.73A44 44 0 1 1 41.06 20.29" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><path d="M60 60L56.08 30.26" stroke="#0E0F11" stroke-width="5" stroke-linecap="round"></path><circle cx="60" cy="60" r="4" fill="#0E0F11"></circle><circle cx="54.26" cy="16.38" r="8" fill="#F2A000"></circle></svg>
+<div style="display: flex; flex-direction: column; gap: 6px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 52px; line-height: 0.95; font-weight: 600; letter-spacing: -0.05em">11:30<span style="font-size: 17px; letter-spacing: 0; margin-left: 4px">AM</span></div>
+<div style="font-size: 16px; font-weight: 500">Fri 13 Nov</div>
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">your time · London</div>
+</div>
+</div>
+<div style="margin-top: 22px; font-size: 32px; line-height: 1.08; font-weight: 600; letter-spacing: -0.025em">Demo day</div>
+<div style="margin-top: 8px; font-size: 15px; line-height: 1.45; color: #666C75">A live look at what we built this month. 30 minutes.</div>
+<div style="margin: 22px -26px 0; position: relative; border-top: 2px dashed #E3E5E8">
+<span style="position: absolute; left: -12px; top: -13px; width: 24px; height: 24px; border-radius: 12px; background: #F5F6F7"></span>
+<span style="position: absolute; right: -12px; top: -13px; width: 24px; height: 24px; border-radius: 12px; background: #F5F6F7"></span>
+</div>
+<a href="04-ticket-open.html" style="margin-top: 20px; height: 60px; display: flex; align-items: center; justify-content: center; gap: 10px; background: #F2A000; color: #0E0F11; border-radius: 20px; font-size: 18px; font-weight: 600">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="#0E0F11" stroke-width="2.25" stroke-linecap="round"></path><path d="M12 12L15.214 8.17" stroke="#0E0F11" stroke-width="2.25" stroke-linecap="round"></path><circle cx="17.785" cy="5.106" r="2.1" fill="#0E0F11"></circle></svg>
+Remind me
+</a>
+</div>
+</div>
+</section>
+
+<section style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 72px 32px; display: flex; flex-direction: column; gap: 40px">
+<h2 style="margin: 0; max-width: 820px; font-size: clamp(30px, 3.6vw, 46px); line-height: 1.05; font-weight: 600; letter-spacing: -0.03em">One line in. Layers of reminders. Followed through.</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 20px">
+
+<div style="flex: 1 1 300px; min-width: 0; min-height: 380px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 16px; background: #FFFFFF; border-radius: 28px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">01 CAPTURE</div>
+<div style="height: 132px; box-sizing: border-box; padding: 16px; display: flex; flex-direction: column; justify-content: center; gap: 12px; background: #F5F6F7; border-radius: 20px">
+<div style="height: 48px; padding: 0 6px 0 16px; display: flex; align-items: center; gap: 8px; background: #FFFFFF; border: 1.5px solid #0E0F11; border-radius: 24px">
+<span style="flex-grow: 1; font-size: 15px">Rent due 1st 9am</span>
+<span style="width: 36px; height: 36px; border-radius: 18px; background: #F2A000; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" stroke="#0E0F11" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px">
+<span style="height: 28px; padding: 0 10px; display: flex; align-items: center; background: #FFFFFF; border-radius: 9px; font-size: 12px; font-weight: 600">Rent due</span>
+<span style="height: 28px; padding: 0 10px; display: flex; align-items: center; background: #FFF4D9; border-radius: 9px; font-size: 12px; font-weight: 600">Tue 1 Dec, 9:00 AM</span>
+</div>
+</div>
+<h3 style="margin: 0; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">Capture in five seconds</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #666C75">Type it the way you'd say it. remmynd finds the what, the when and the where, and hands you a link.</p>
+</div>
+
+<div style="flex: 1 1 300px; min-width: 0; min-height: 380px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 16px; background: #FFFFFF; border-radius: 28px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">02 REMIND</div>
+<div style="height: 132px; box-sizing: border-box; padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; gap: 8px; background: #F5F6F7; border-radius: 20px">
+<div style="height: 30px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#0E0F11"></circle><path d="M7.5 12.5l3 3 6-6.5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>Calendar</div>
+<div style="height: 30px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#0E0F11"></circle><path d="M7.5 12.5l3 3 6-6.5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>Notification, an hour before and at the start</div>
+<div style="height: 30px; display: flex; align-items: center; gap: 10px; font-size: 14px; color: #666C75"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#666C75" stroke-width="1.75" stroke-dasharray="3 3"></circle></svg>Email, coming in December</div>
+</div>
+<h3 style="margin: 0; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">Remind in layers</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #666C75">One tap sets a calendar entry and a notification. In studies of clinic visits, several reminders beat a single one.</p>
+</div>
+
+<div style="flex: 1 1 300px; min-width: 0; min-height: 380px; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 16px; background: #FFFFFF; border-radius: 28px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">03 FOLLOW THROUGH</div>
+<div style="height: 132px; box-sizing: border-box; padding: 16px; display: flex; flex-direction: column; justify-content: center; gap: 10px; background: #F5F6F7; border-radius: 20px">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<span style="height: 44px; display: flex; align-items: center; justify-content: center; background: #FFFFFF; border: 1px solid #E3E5E8; border-radius: 14px; font-size: 14px; font-weight: 600">Not yet</span>
+<span style="height: 44px; display: flex; align-items: center; justify-content: center; background: #0E0F11; color: #F5F6F7; border-radius: 14px; font-size: 14px; font-weight: 600">Done</span>
+</div>
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; color: #666C75">Nudge 1 of 3 · next in 10 min</div>
+</div>
+<h3 style="margin: 0; font-size: 24px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02em">Follow through</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.5; color: #666C75">At the moment, one tap opens the link. Afterwards, one question: done or not yet. Ask for up to three nudges if you want them.</p>
+</div>
+
+</div>
+</section>
+
+<section style="background: #0E0F11; color: #F5F6F7">
+<div style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 72px 32px; display: flex; flex-direction: column; gap: 32px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.08em; color: #A9AEB6">WHY IT WORKS</div>
+<div style="display: flex; flex-wrap: wrap; gap: 32px">
+<div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 60px; line-height: 1; font-weight: 600; letter-spacing: -0.05em; color: #FFB52E">50–80%</div>
+<div style="font-size: 15px; line-height: 1.5; color: #C9CED6">of everyday memory slips are forgetting to do something you meant to do. <span style="color: #A9AEB6">Zuber and colleagues, 2021</span></div>
+</div>
+<div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 60px; line-height: 1; font-weight: 600; letter-spacing: -0.04em">About half</div>
+<div style="font-size: 15px; line-height: 1.5; color: #C9CED6">of intentions actually turn into action. Wanting to is not doing. <span style="color: #A9AEB6">Sheeran and Webb, 2016</span></div>
+</div>
+<div style="flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 60px; line-height: 1; font-weight: 600; letter-spacing: -0.05em">54→67%</div>
+<div style="font-size: 15px; line-height: 1.5; color: #C9CED6">clinic attendance with text reminders, across 21 studies. <span style="color: #A9AEB6">Robotham and colleagues, 2016</span></div>
+</div>
+</div>
+<a href="web-why.html" style="align-self: flex-start; height: 44px; display: flex; align-items: center; color: #F5F6F7; font-size: 16px; font-weight: 600; text-decoration: underline; text-underline-offset: 4px">Read the research behind remmynd</a>
+</div>
+</section>
+
+<section id="hosts" style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 80px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 48px">
+<div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.08em; color: #666C75">FOR HOSTS</div>
+<h2 style="margin: 0; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.05; font-weight: 600; letter-spacing: -0.03em">Put Remind me on anything.</h2>
+<p style="margin: 0; max-width: 480px; font-size: 17px; line-height: 1.5; color: #666C75">A launch, a webinar, a product drop, a meetup. Your audience saves it in one tap and you never ask for an email address.</p>
+<div style="display: flex; flex-direction: column; gap: 10px; font-size: 16px; font-weight: 500">
+<div style="display: flex; align-items: center; gap: 10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#0E0F11" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"></path></svg>A badge for your site, post or email</div>
+<div style="display: flex; align-items: center; gap: 10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#0E0F11" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"></path></svg>A QR code for slides and posters</div>
+<div style="display: flex; align-items: center; gap: 10px"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="#0E0F11" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"></path></svg>A preview card that shows your event in chats</div>
+</div>
+<a href="#" style="align-self: flex-start; height: 52px; padding: 0 22px; display: flex; align-items: center; background: #0E0F11; color: #F5F6F7; border-radius: 20px; font-size: 16px; font-weight: 600">See the host kit</a>
+</div>
+<div style="flex: 1 1 420px; min-width: 0; box-sizing: border-box; padding: 28px; display: flex; flex-direction: column; gap: 18px; background: #FFFFFF; border-radius: 28px">
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<span style="height: 44px; padding: 0 16px 0 12px; display: flex; align-items: center; gap: 8px; background: #FFFFFF; border: 1px solid #C9CED6; border-radius: 22px; font-size: 15px; font-weight: 600"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="#0E0F11" stroke-width="2" stroke-linecap="round"></path><path d="M12 12L15.214 8.17" stroke="#0E0F11" stroke-width="2" stroke-linecap="round"></path><circle cx="17.785" cy="5.106" r="2.1" fill="#F2A000"></circle></svg>Remind me</span>
+<span style="height: 44px; padding: 0 16px 0 12px; display: flex; align-items: center; gap: 8px; background: #0E0F11; color: #F5F6F7; border-radius: 22px; font-size: 15px; font-weight: 600"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="#F5F6F7" stroke-width="2" stroke-linecap="round"></path><path d="M12 12L15.214 8.17" stroke="#F5F6F7" stroke-width="2" stroke-linecap="round"></path><circle cx="17.785" cy="5.106" r="2.1" fill="#FFB52E"></circle></svg>Remind me</span>
+</div>
+<pre style="margin: 0; padding: 18px; overflow-x: auto; background: #0E0F11; color: #E3E5E8; border-radius: 16px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; line-height: 1.6">&lt;a href="https://remmynd.space/r/your-link"&gt;
+  &lt;img src="https://remmynd.space/badge.svg"
+       alt="Remind me"&gt;
+&lt;/a&gt;</pre>
+<div style="font-size: 13px; line-height: 1.45; color: #666C75">Copy, paste, done. Every badge links to your reminder.</div>
+</div>
+</section>
+
+<section style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 0 32px 80px">
+<div style="box-sizing: border-box; padding: 48px; display: flex; flex-wrap: wrap; align-items: center; gap: 40px; background: #FFFFFF; border-radius: 36px">
+<div style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.08em; color: #666C75">BUILT FOR 2027</div>
+<h2 style="margin: 0; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.05; font-weight: 600; letter-spacing: -0.03em">Links any AI can write.</h2>
+<p style="margin: 0; max-width: 480px; font-size: 17px; line-height: 1.5; color: #666C75">A remmynd link needs no account and no API key. Any assistant that can write a web address can make a reminder. Smart paste and a connector follow in December.</p>
+</div>
+<pre style="flex: 1 1 380px; min-width: 0; margin: 0; box-sizing: border-box; padding: 22px; overflow-x: auto; background: #F5F6F7; border-radius: 20px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 14px; line-height: 1.7; color: #0E0F11">remmynd.space/new
+  ?t=Demo day
+  &amp;at=2026-11-13T17:00
+  &amp;tz=Asia/Kolkata
+  &amp;l=zoom.us/j/123</pre>
+</div>
+</section>
+
+<section style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 0 32px 80px; display: flex; flex-direction: column; gap: 32px">
+<h2 style="margin: 0; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.05; font-weight: 600; letter-spacing: -0.03em">Free for people. Open by default.</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 16px">
+<div style="flex: 1 1 220px; min-width: 0; box-sizing: border-box; padding: 24px; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF; border-radius: 24px"><div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 30px; font-weight: 600; letter-spacing: -0.04em">[STARS]</div><div style="font-size: 14px; color: #666C75">GitHub stars, shown live</div></div>
+<div style="flex: 1 1 220px; min-width: 0; box-sizing: border-box; padding: 24px; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF; border-radius: 24px"><div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 30px; font-weight: 600; letter-spacing: -0.04em">[DOWNLOADS]</div><div style="font-size: 14px; color: #666C75">npm downloads a week, shown live</div></div>
+<div style="flex: 1 1 220px; min-width: 0; box-sizing: border-box; padding: 24px; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF; border-radius: 24px"><div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 30px; font-weight: 600; letter-spacing: -0.04em">[TESTS]</div><div style="font-size: 14px; color: #666C75">tests passing on every change</div></div>
+<div style="flex: 1 1 220px; min-width: 0; box-sizing: border-box; padding: 24px; display: flex; flex-direction: column; gap: 8px; background: #FFFFFF; border-radius: 24px"><div style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 30px; font-weight: 600; letter-spacing: -0.04em">&lt; 60 KB</div><div style="font-size: 14px; color: #666C75">of code. No framework, no tracking.</div></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<a href="#" style="height: 52px; padding: 0 22px; display: flex; align-items: center; background: #0E0F11; color: #F5F6F7; border-radius: 20px; font-size: 16px; font-weight: 600">Star on GitHub</a>
+<span style="height: 52px; padding: 0 20px; display: flex; align-items: center; background: #FFFFFF; border: 1px solid #E3E5E8; border-radius: 20px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 14px">npm i remmynd</span>
+</div>
+</section>
+
+<footer style="border-top: 1px solid #E3E5E8">
+<div style="width: 100%; max-width: 1200px; margin: 0 auto; box-sizing: border-box; padding: 48px 32px 40px; display: flex; flex-wrap: wrap; gap: 40px">
+<div style="flex: 2 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; align-items: center; gap: 8px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="#0E0F11" stroke-width="2" stroke-linecap="round"></path><path d="M12 12L15.214 8.17" stroke="#0E0F11" stroke-width="2" stroke-linecap="round"></path><circle cx="12" cy="12" r="1.24" fill="#0E0F11"></circle><circle cx="17.785" cy="5.106" r="2.1" fill="#F2A000"></circle></svg><span style="font-size: 17px; font-weight: 600">remmynd</span></div>
+<div style="font-size: 14px; line-height: 1.5; color: #666C75">A free tool by <a href="https://zoof04.com" style="font-weight: 600; text-decoration: underline; text-underline-offset: 3px">zoof04</a>. MIT licence.</div>
+</div>
+<div style="flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">PRODUCT</span><a href="web-why.html">Why</a><a href="#hosts">For hosts</a><a href="#">Install</a><a href="web-roadmap.html">Roadmap</a><a href="web-roadmap.html">Changelog</a></div>
+<div style="flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">DEVELOPERS</span><a href="#">Docs</a><a href="#">GitHub</a><a href="#">npm</a><a href="#">Self-host</a></div>
+<div style="flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 10px; font-size: 14px"><span style="font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; letter-spacing: 0.08em; color: #666C75">COMPANY</span><a href="#">About</a><a href="#">Press</a><a href="#">Privacy</a></div>
+</div>
+</footer>
+
+</div>
+</body>
+</html>
