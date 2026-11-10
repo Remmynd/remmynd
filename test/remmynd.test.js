@@ -487,9 +487,64 @@ test("worker: /new redirects exact times to the /r/ link", async () => {
   assert.equal((await worker.fetch(new Request("https://remmynd.space/new?t=x", { method: "POST" }), env)).status, 405);
 });
 
+test("qr: codes drawn on the device follow the standard", async () => {
+  const { qrMatrix, qrSVG } = await import("../public/qr.js");
+  const size = text => qrMatrix(text).length;
+  // The smallest version that fits, at level M: 14 bytes fit version 1, 15 need version 2.
+  assert.equal(size("12345678901234"), 21);
+  assert.equal(size("123456789012345"), 25);
+  const link = R.createLink({ title: "Demo day", start: "2026-11-13 17:00", timeZone: "Asia/Kolkata", location: "https://zoom.us/j/123" });
+  for (const text of ["https://remmynd.space/", link, link + "?x=" + "a".repeat(300)]) {
+    const m = qrMatrix(text), n = m.length, v = (n - 17) / 4;
+    assert.ok(Number.isInteger(v) && v >= 1 && v <= 40, "a real version");
+    // Finder patterns in three corners: a dark ring, a light ring, a dark 3x3 centre.
+    for (const [cx, cy] of [[3, 3], [n - 4, 3], [3, n - 4]]) for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+      const d = Math.max(Math.abs(dx), Math.abs(dy));
+      assert.equal(m[cy + dy][cx + dx], d !== 2, "finder at " + cx + "," + cy);
+    }
+    // Timing patterns between the finders, and the dark module.
+    for (let i = 8; i < n - 8; i++) { assert.equal(m[6][i], i % 2 === 0); assert.equal(m[i][6], i % 2 === 0); }
+    assert.equal(m[n - 8][8], true);
+    // Format information: both copies agree, the BCH check holds, and it says level M.
+    const a = [], b = [];
+    for (let i = 0; i <= 5; i++) a.push(m[i][8]);
+    a.push(m[7][8], m[8][8], m[8][7]);
+    for (let i = 9; i < 15; i++) a.push(m[8][14 - i]);
+    for (let i = 0; i < 8; i++) b.push(m[8][n - 1 - i]);
+    for (let i = 8; i < 15; i++) b.push(m[n - 15 + i][8]);
+    assert.deepEqual(a, b, "both copies of the format information match");
+    const bits = a.reduce((x, on, i) => x | (on ? 1 << i : 0), 0) ^ 0x5412;
+    let rem = bits >>> 10;
+    for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    assert.equal((bits >>> 10 << 10) | rem, bits, "format BCH");
+    assert.equal(bits >>> 13, 0, "error correction level M");
+    if (v >= 7) {
+      let ver = 0;
+      for (let i = 0; i < 18; i++) if (m[Math.floor(i / 3)][n - 11 + i % 3]) ver |= 1 << i;
+      let r = ver >>> 12;
+      for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1F25);
+      assert.equal(ver >>> 12, v, "version information");
+      assert.equal(ver, (v << 12) | r, "version BCH");
+    }
+  }
+  assert.deepEqual(qrMatrix(link), qrMatrix(link), "the same link always draws the same code");
+  assert.match(qrSVG(link, { label: 'Demo "day"' }), /^<svg class="qr" viewBox="0 0 \d+ \d+" role="img" aria-label="Demo &#34;day&#34;"/);
+  assert.throws(() => qrMatrix("x".repeat(2400)), /Too long/);
+  // Loaded only when asked for, and small: the spec allows 6 KB compressed for a QR routine.
+  assert.ok(gzipSync(readFileSync(join(root, "public/qr.js"))).length < 6000, "qr.js under 6 KB compressed");
+  const app = readFileSync(join(root, "public/app.js"), "utf8");
+  assert.match(app, /await import\("\/qr\.js"\)/);
+  assert.doesNotMatch(app, /^import .*qr\.js/m, "qr.js is not part of the first visit");
+});
+
 test("published badge files match the library", () => {
   assert.equal(readFileSync(join(root, "public/badge.svg"), "utf8"), R.badgeSVG());
   assert.equal(readFileSync(join(root, "public/badge-dark.svg"), "utf8"), R.badgeSVG({ theme: "dark" }));
+  // The badge carries the moment ring in the 2.0 colours: amber on light, lime on dark.
+  assert.match(R.badgeSVG(), /A8\.8 8\.8 0 1 1 [^"]+" stroke="#0E0F11"[^>]*\/><circle [^>]*fill="#F2A000"/);
+  assert.match(R.badgeSVG({ theme: "dark" }), /fill="#17191D"[\s\S]*fill="#C8F53B"/);
+  assert.equal(R.describeWhen(new Date("2026-11-13T11:30:00Z"), "Asia/Kolkata"), "Fri 13 Nov, 5:00 PM IST");
+  assert.equal(R.describeWhen(new Date("2026-11-13T11:30:00Z")), "Fri 13 Nov, 11:30 AM UTC");
   assert.match(R.badgeMarkdown("https://remmynd.space/#abc"), /^\[!\[Remind me\]/);
 });
 
@@ -1210,7 +1265,8 @@ test("follow through: the re-plan sheet's choices", () => {
   // On a Monday, "Monday" means next week's.
   assert.equal(show(new Date(at(2026, 11, 16, 10))).find(o => o[0] === "monday")[1], at(2026, 11, 23, 9));
   const html = readFileSync(join(root, "public/index.html"), "utf8");
-  for (const w of ["Not yet? Pick when.", "We'll bring it back then, one tap from the link.", "Pick a time", "Drop this reminder"]) assert.ok(html.includes(w), "index.html says: " + w);
+  for (const w of ["Not yet? Pick when.", "We'll bring it back then, one tap from the link.", "Pick a time", "Drop this reminder",
+    "How it looks in chats", "Scan to send it to your phone", "No account. The reminder travels in the link.", "Download QR code"]) assert.ok(html.includes(w), "index.html says: " + w);
   for (const w of ["Open the link", "Directions", "Not yet", "Done", "We ask once whether you made it. Then we stop.", "Starting now", " · fresh start"]) assert.ok(app.includes(w), "app.js says: " + w);
 });
 

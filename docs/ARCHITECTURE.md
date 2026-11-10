@@ -4,7 +4,7 @@ remmynd has three parts that share one link format:
 
 | Part | Where | What it does |
 |---|---|---|
-| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the markup, `app.js` the app (an ES module that imports `remmynd.js`, an exact copy of the library, to read typed lines and make links, and `ring.js`, the moment ring), `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `db.js` the on-device storage, `push.js` turns on notifications and fills the stack's Notification row, `sw.js` works offline and shows alerts. No build step. |
+| **Website** | `public/` | Makes links, shows reminders, opens the visitor's calendar. `index.html` is the markup, `app.js` the app (an ES module that imports `remmynd.js`, an exact copy of the library, to read typed lines and make links, and `ring.js`, the moment ring; `qr.js` draws QR codes and loads only when one is asked for), `app.css` its styles on the 2.0 design tokens, `fonts/` the self-hosted Geist fonts, `db.js` the on-device storage, `push.js` turns on notifications and fills the stack's Notification row, `sw.js` works offline and shows alerts. No build step. |
 | **Worker** | `worker/` | Serves the site on Cloudflare, adds link-preview tags to shared `/r/` links (`preview.js`), turns `/new` addresses into links, redirects `www`, builds `.ics` files for iPhone in-app browsers, and wakes devices for phone alerts. It reads links with the library itself. |
 | **Library and CLI** | `lib/`, `bin/` | The `remmynd` npm package and `npx remmynd`. Zero dependencies. |
 
@@ -195,7 +195,7 @@ Details, setup and rollback: [RELEASING.md](RELEASING.md).
 ## Repository layout
 
 ```text
-public/          the website: index.html, app.js, app.css, remmynd.js, ring.js, db.js, fonts/, push.js, sw.js, icons, badges, manifest, _headers
+public/          the website: index.html, app.js, app.css, remmynd.js, ring.js, qr.js, db.js, fonts/, push.js, sw.js, icons, badges, manifest, _headers
 worker/          Cloudflare Worker: routing, /r/ previews and /new (preview.js), the /ics route and push (push.js, schema.sql)
 lib/             the npm library (remmynd.js) and its TypeScript types
 bin/             the npx remmynd command

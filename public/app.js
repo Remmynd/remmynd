@@ -105,7 +105,7 @@ function hold(cal){const c=S.ctx;if(S.held||!c)return;S.held=true;c.el.dataset.h
   /* Swap Remind me for the stack after the tap, so the link it was on still opens the calendar. */
   setTimeout(renderBottom,60);}
 const VIA=()=>'<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I.mark+'remmynd</a>';
-const ALTS='<div class="alts" id="alts" hidden><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button></div>';
+const ALTS='<div class="alts" id="alts" hidden><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button><button type="button" id="a-qr">QR code</button></div>';
 function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+esc(fShort(c.start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(c.start,TZ),TZ))+'</b> instead.</span><label class="switch"><input type="checkbox" id="sleep"'+(c.morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
   '<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+(PUSH_OK?"Calendar and a notification on this "+DEVICE+", in one tap.":"Adds it to your calendar, with alerts.")+'</div>'+
   '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
@@ -146,6 +146,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#a-o365",a=>{a.href=c.o365;a.addEventListener("click",sent("outlook"));});
   on("#a-share",x=>x.addEventListener("click",()=>shareIt({title:c.r.t,text:c.r.t+" · "+fDate(c.start,TZ)+", "+fShort(c.start,TZ),url:c.share},"Pick Reminders or Notes to save it")));
   on("#a-copy",x=>x.addEventListener("click",()=>copy(c.r.t+"\n"+fDate(c.start,TZ)+", "+fShort(c.start,TZ)+" ("+fZone(c.start,TZ)+")"+(c.r.l?"\n"+c.r.l:"")+"\n"+c.share,"Copied")));
+  on("#a-qr",x=>x.addEventListener("click",()=>openQR(c.share,c.r.t)));
   on("#more",m=>m.addEventListener("click",()=>{const al=b.querySelector("#alts");al.hidden=!al.hidden;m.setAttribute("aria-expanded",String(!al.hidden));}));
   on("#sleep",sw=>sw.addEventListener("change",()=>{S.morning=sw.checked;renderTicket(c.el,c.r,c.o);}));
   on("#s-cal",a=>{const k=S.rec&&S.rec.cal||PREF;if(k==="apple")c.setApple(a);else{a.href=k==="google"?c.g:c.ol;a.target="_blank";a.rel="noopener";}
@@ -218,6 +219,17 @@ RP.drop.addEventListener("click",dropIt);RP.x.addEventListener("click",closeRepl
 RP.el.addEventListener("click",e=>{if(e.target===RP.el)closeReplan();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!RP.el.hidden)closeReplan();});
 
+/* ---------- desk to phone: a QR code for any link, drawn on this device by qr.js, loaded only when asked for ---------- */
+const QR={el:$("#qr-sheet"),box:$("#qr-box"),save:$("#qr-save"),x:$("#qr-x"),link:"",title:"",mod:null};
+async function openQR(link,title){QR.link=link;QR.title=title;QR.box.innerHTML='<p class="hint">Drawing the code…</p>';QR.el.hidden=false;QR.x.focus();
+  try{QR.mod=QR.mod||await import("/qr.js");QR.box.innerHTML=QR.mod.qrSVG(link,{label:"QR code for "+title});}
+  catch(e){QR.box.innerHTML='<p class="hint">Couldn\'t draw the code here. Copy the link instead.</p>';}}
+function closeQR(){QR.el.hidden=true;}
+QR.save.addEventListener("click",async()=>{if(!QR.mod)return;try{const blob=await QR.mod.qrPNG(QR.link),u=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=u;a.download=((QR.title||"").replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase().slice(0,40)||"reminder")+"-qr.png";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);toast("QR code saved");}catch(e){toast("Couldn't save the code");}});
+QR.x.addEventListener("click",closeQR);QR.el.addEventListener("click",e=>{if(e.target===QR.el)closeQR();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!QR.el.hidden)closeQR();});
+
 /* ---------- utilities ---------- */
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2400);}
 function copy(text,msg){const ok=()=>toast(msg||"Copied");const fb=()=>{const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy")?ok():toast("Select the text and copy it");}catch(e){toast("Select the text and copy it");}ta.remove();};
@@ -227,7 +239,7 @@ async function shareIt(data,msg){if(navigator.share){try{await navigator.share(d
 /* ---------- maker: one line in, a link out ---------- */
 const C={form:$("#cap-form"),input:$("#cap"),label:$("#cap-l"),hero:$("#hero"),try:$("#try"),draft:$("#draft"),ready:$("#ready"),prev:$("#t-preview"),hint:$("#draft-hint"),
   what:$("#c-what"),when:$("#c-when"),whenIn:$("#c-when-in"),where:$("#c-where"),note:$("#c-note"),edit:$("#edit"),editIn:$("#edit-in"),editL:$("#edit-l"),editOk:$("#edit-ok")};
-const F={link:$("#f-link"),copy:$("#f-copy"),share:$("#f-share"),priv:$("#f-private"),copied:$("#copied"),card:$("#ready-card")};
+const F={link:$("#f-link"),copy:$("#f-copy"),share:$("#f-share"),qr:$("#f-qr"),priv:$("#f-private"),copied:$("#copied"),card:$("#ready-card"),chat:$("#chat-card")};
 /* D.line is the typed line; D.set holds parts fixed with a chip, which win over the line; D.made is the last link made. */
 const D={line:"",set:{},made:null,mode:"home",base:"home",editing:null};
 const short=u=>String(u||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
@@ -283,12 +295,17 @@ function keepLink(prev){const m=D.made;if(!m||!window.remmyndDB)return;const DB=
   (prev?DB.del("links",prev):Promise.resolve()).then(()=>DB.put("links",{share:m.link,title:m.ev.title,start:m.ev.start.getTime(),createdAt:Date.now(),private:F.priv.checked})).catch(()=>{});}
 function showReady(){const m=D.made;F.link.value=m.link;
   F.card.href=m.link;F.card.innerHTML=ringFor(m.ev.start,"open",28)+'<span><b>'+esc(m.ev.title)+'</b><i>'+esc(whenText(m.ev.start))+(m.ev.location?' · '+esc(short(m.ev.location)):'')+'</i></span>';
+  /* How it looks in chats: what a chat app shows for this link. A private link shows nothing about the reminder. */
+  const host=new URL(BASE).host;
+  F.chat.innerHTML='<div class="chat-img" aria-hidden="true">'+ringFor(m.ev.start,"open",28)+'<span>remmynd</span></div><div class="chat-text">'+(F.priv.checked?
+    '<b>remmynd</b><span>Reminders, as a link. Free, no sign-up, no tracking.</span>':'<b>'+esc(m.ev.title)+'</b><span>'+esc(R.describeWhen(m.ev.start,TZ))+' · Tap to get reminded</span>')+'<i>'+esc(host)+'</i></div>';
   F.copied.hidden=false;clearTimeout(F.copied._t);F.copied._t=setTimeout(()=>{F.copied.hidden=true;},2600);setMode("ready");renderMaker();}
 F.priv.addEventListener("change",()=>{const m=D.made;if(!m)return;const prev=m.link;m.link=R.createLink(m.ev,{base:BASE,private:F.priv.checked});
   showReady();copy(m.link,F.priv.checked?"Private link copied":"Link copied");keepLink(prev);});
 F.copy.addEventListener("click",()=>F.link.value&&copy(F.link.value,"Link copied. Share it anywhere."));
 F.share.addEventListener("click",()=>{const m=D.made;if(!m)return;shareIt({title:m.ev.title,text:"Get a reminder: "+m.ev.title,url:m.link},"Shared");});
 F.link.addEventListener("focus",()=>F.link.select());
+F.qr.addEventListener("click",()=>{const m=D.made;if(m)openQR(m.link,m.ev.title);});
 /* Keep the bar above the on-screen keyboard where the browser doesn't move fixed elements itself. */
 if(window.visualViewport){const vv=window.visualViewport,kb=()=>document.documentElement.style.setProperty("--kb",Math.max(0,Math.round(innerHeight-vv.height-vv.offsetTop))+"px");vv.addEventListener("resize",kb);vv.addEventListener("scroll",kb);}
 let SNIP={fmt:"html",theme:"light"};
@@ -298,9 +315,7 @@ const EX=["Demo day Fri 5pm","Rent due 1st","Call Mum Sun 7:30pm"].map(line=>{co
   $("#try-list").innerHTML=list.map(x=>'<a class="row" href="'+esc(x.link)+'">'+ringFor(x.p.start,"open",28)+'<span><b>'+esc(x.p.title)+'</b><i>'+esc(whenText(x.p.start))+'</i></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>').join("");})();
 
 /* ---------- badge ---------- */
-function badgeSVG(theme){const dk=theme==="dark",bg=dk?"#0e0f11":"#ffffff",st=dk?"#2a2c31":"#e3e5e8",fg=dk?"#f2f3f5":"#0e0f11",mu=dk?"#9aa0a8":"#666c75",dot=dk?"#ffb52e":"#f2a000";
-  return'<svg xmlns="http://www.w3.org/2000/svg" width="172" height="44" viewBox="0 0 172 44" role="img" aria-label="Remind me, with remmynd"><rect x=".5" y=".5" width="171" height="43" rx="21.5" fill="'+bg+'" stroke="'+st+'"/><g transform="translate(13 10)" fill="none"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="'+fg+'" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="'+fg+'" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="'+fg+'"/><circle cx="17.785" cy="5.106" r="2.1" fill="'+dot+'"/></g><text x="47" y="18.5" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="8.5" font-weight="600" letter-spacing=".9" fill="'+mu+'">REMMYND</text><text x="47" y="33" font-family="ui-sans-serif,-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="15" font-weight="600" letter-spacing="-.2" fill="'+fg+'">Remind me</text></svg>';}
-$("#badges").innerHTML='<a href="/#example" aria-label="Light badge example">'+badgeSVG("light")+'</a><a href="/#example" aria-label="Dark badge example">'+badgeSVG("dark")+'</a>';
+$("#badges").innerHTML='<a href="/#example" aria-label="Light badge example">'+R.badgeSVG()+'</a><a href="/#example" aria-label="Dark badge example">'+R.badgeSVG({theme:"dark"})+'</a>';
 function snippet(){const L=F.link.value||"https://remmynd.space/r/your-link",img="https://remmynd.space/badge"+(SNIP.theme==="dark"?"-dark":"")+".svg";
   $("#snip").textContent=SNIP.fmt==="md"?"[![Remind me]("+img+")]("+L+")":'<a href="'+L+'" target="_blank" rel="noopener">\n  <img src="'+img+'" alt="Remind me" width="172" height="44">\n</a>';}
 document.querySelectorAll("[data-fmt],[data-theme-b]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.fmt?"fmt":"theme";SNIP[k]=b.dataset.fmt||b.dataset.themeB;

@@ -100,7 +100,12 @@
           <button class="btn" id="f-share" type="button" aria-label="Share link">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 3v13M7 8l5-5 5 5"/></svg>Share
           </button>
+          <button class="btn" id="f-qr" type="button" aria-label="Show a QR code for this link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg>QR
+          </button>
         </div>
+        <div class="label">How it looks in chats</div>
+        <div class="chat" id="chat-card"></div>
         <label class="opt-row">
           <span class="opt-text"><b id="priv-l">Private link</b><span id="priv-d">Keeps the title and time out of link previews.</span></span>
           <span class="switch"><input type="checkbox" id="f-private" role="switch" aria-labelledby="priv-l" aria-describedby="priv-d"><span></span></span>
@@ -165,6 +170,15 @@
     <div class="rp-grid" id="rp-grid"></div>
     <label class="btn rp-pick">Pick a time<input type="datetime-local" id="rp-pick" aria-label="Pick a time"></label>
     <button type="button" class="more rp-drop" id="rp-drop">Drop this reminder</button>
+  </div>
+</div>
+<div class="sheet" id="qr-sheet" hidden role="dialog" aria-modal="true" aria-labelledby="qr-t">
+  <div class="sheet-card qr-card">
+    <button type="button" class="sheet-x" id="qr-x" aria-label="Close">×</button>
+    <h2 id="qr-t">Scan to send it to your phone</h2>
+    <p class="rp-sub">No account. The reminder travels in the link.</p>
+    <div class="qr-box" id="qr-box"></div>
+    <button type="button" class="btn ink" id="qr-save">Download QR code</button>
   </div>
 </div>
 <div class="arrow" id="arrow" hidden aria-hidden="true"><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v17M5 13l7 7 7-7"/></svg></div>

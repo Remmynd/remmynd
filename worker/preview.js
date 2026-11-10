@@ -6,7 +6,7 @@
 // GET /new?t=…&at=… A reminder written as query parameters. When the time is exact (tz given, or
 //                   at carries Z or an offset) it redirects to the /r/ link. Otherwise it serves the
 //                   shell and the page reads the time in the visitor's zone.
-import { decode, fromQuery, toPath } from "../lib/remmynd.js";
+import { decode, fromQuery, toPath, describeWhen } from "../lib/remmynd.js";
 
 const MAX_PAYLOAD = 2000;
 const NO_STORE = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" };
@@ -20,30 +20,10 @@ export function readShared(pathname) {
   return decode(p);
 }
 
-// A short zone name: IST, EST, AEDT, CET. Falls back to GMT+9 where no common name exists.
-function zoneName(date, zone) {
-  let fallback = "";
-  for (const locale of ["en-US", "en-GB", "en-IN", "en-AU"]) {
-    const part = new Intl.DateTimeFormat(locale, { timeZone: zone, timeZoneName: "short" }).formatToParts(date).find(p => p.type === "timeZoneName");
-    const name = part ? part.value : "";
-    if (name && !/^(GMT|UTC)[+-]/.test(name)) return name;
-    fallback = fallback || name;
-  }
-  return fallback;
-}
-
-/** "Fri 13 Nov, 5:00 PM IST" in the host's zone, or in UTC when the link has none. */
-export function whenText(start, zone) {
-  const z = zone || "UTC";
-  const day = new Intl.DateTimeFormat("en-GB", { timeZone: z, weekday: "short", day: "numeric", month: "short" }).format(start);
-  const time = new Intl.DateTimeFormat("en-US", { timeZone: z, hour: "numeric", minute: "2-digit" }).format(start);
-  return (day + ", " + time + " " + zoneName(start, z)).replace(/[  ]/g, " ");
-}
-
 /** The preview tags for a reminder, every value escaped. */
 export function previewTags(reminder, url) {
   const title = escapeHTML(reminder.title);
-  const desc = escapeHTML(whenText(reminder.start, reminder.timeZone) + " · Tap to get reminded");
+  const desc = escapeHTML(describeWhen(reminder.start, reminder.timeZone) + " · Tap to get reminded");
   return [
     `<title>${title} · remmynd</title>`,
     `<meta name="description" content="${desc}">`,
