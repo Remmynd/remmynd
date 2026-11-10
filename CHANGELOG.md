@@ -8,6 +8,9 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- QR code for any link: "Scan to send it to your phone", on the link-ready screen and under More ways on every ticket, with a PNG download. Drawn on the device by `qr.js` (written for remmynd, about 3.5 KB compressed), loaded only when asked for.
+- How it looks in chats: the link-ready screen shows the preview card a chat app will show, and the Private link switch shows what it hides.
+- `describeWhen()` in the library: a reminder's time as link previews print it ("Fri 13 Nov, 5:00 PM IST"), shared by the Worker and the page.
 - Lists: Coming up (reminders held on this device) and My links (links made on it), at `/#coming-up` and `/#links`, grouped Today, This week, Later and Kept. Swipe a row left for Re-plan and Done; on a computer J and K move, D marks done, S re-plans and Enter opens, with the ticket shown beside the list. Empty lists say what to do next.
 - Follow through: from the start, a held reminder shows Open the link (or Directions for a place), Not yet and Done. "We ask once whether you made it. Then we stop."
 - Not yet opens "Not yet? Pick when.": in 10 minutes, tonight at 8:00 PM (until 7:00 PM), tomorrow at 9:00 AM, Monday at 9:00 AM, pick a time, or drop it. It comes back once at that time, one tap from the link.
@@ -39,6 +42,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- The Remind me badge carries the moment ring, in the 2.0 colours (amber on light, lime on dark). Same addresses: `badge.svg` and `badge-dark.svg`.
 - The Coming up card on the home page is replaced by the Coming up list, which reads the reminders this device holds.
 - Notify me is no longer a separate switch: Remind me turns notifications on, and the stack's Notification row shows whether they are on, blocked, or need remmynd on the Home Screen (iPhone), with Turn on and off.
 - The days, hours, minutes and seconds countdown on the ticket is replaced by the ring; a countdown appears beside it in the last hour.

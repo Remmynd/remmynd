@@ -48,6 +48,7 @@ export function toPath(event: ReminderInput, options?: PathOptions): string;
 export function decode(linkOrFragment: string): Reminder | null;
 export function fromQuery(query: string | URLSearchParams | Record<string, string>, options?: { timeZone?: string }): (ReminderInput & { start: Date; timeZone: string }) | null;
 export function parse(text: string, options?: { now?: Date; timeZone?: string }): Parsed;
+export function describeWhen(start: Date | number, timeZone?: string): string;
 export function parseStart(value: Date | number | string, timeZone?: string): Date;
 export function zonedTime(year: number, month: number, day: number, hour: number, minute: number, timeZone: string): Date;
 export function systemTimeZone(): string;
@@ -61,7 +62,7 @@ export function badgeMarkdown(link: string, options?: ThemeOptions): string;
 
 declare const remmynd: {
   VERSION: typeof VERSION; DEFAULT_BASE: typeof DEFAULT_BASE; createLink: typeof createLink; toPath: typeof toPath; encode: typeof encode;
-  decode: typeof decode; fromQuery: typeof fromQuery; parse: typeof parse; parseStart: typeof parseStart; zonedTime: typeof zonedTime; systemTimeZone: typeof systemTimeZone;
+  decode: typeof decode; fromQuery: typeof fromQuery; parse: typeof parse; describeWhen: typeof describeWhen; parseStart: typeof parseStart; zonedTime: typeof zonedTime; systemTimeZone: typeof systemTimeZone;
   description: typeof description; toICS: typeof toICS; googleCalendarUrl: typeof googleCalendarUrl; outlookUrl: typeof outlookUrl;
   badgeSVG: typeof badgeSVG; badgeHTML: typeof badgeHTML; badgeMarkdown: typeof badgeMarkdown;
 };
