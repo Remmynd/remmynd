@@ -202,6 +202,11 @@ button{font:inherit;color:inherit}
 
 /* ---------- link output ---------- */
 .out{display:grid;gap:8px;margin-top:16px}
+/* Private link: a row with a title, one line of help and a switch (mock-up 03). */
+.opt-row{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:6px;padding:6px 8px 6px 16px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row)}
+.opt-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.opt-text>b{font-size:15px;font-weight:600;color:var(--ink)}
+.opt-text>span{font-size:12px;line-height:1.35;color:var(--muted)}
 #f-link{font:400 13px var(--mono);color:var(--ink);background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-chip);padding:0 14px;height:48px;width:100%;min-width:0;text-overflow:ellipsis}
 #f-link::placeholder{color:var(--muted)}
 .btnrow{display:grid;grid-template-columns:1fr auto;gap:8px}

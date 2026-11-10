@@ -22,15 +22,72 @@ test("time zones: wall clock to UTC, including DST edges", () => {
 
 test("links round-trip", () => {
   const link = R.createLink(sample);
-  assert.match(link, /^https:\/\/remmynd\.space\/#[A-Za-z0-9_-]+$/);
+  assert.match(link, /^https:\/\/remmynd\.space\/r\/[A-Za-z0-9_-]+$/);
   const back = R.decode(link);
   assert.equal(back.title, sample.title);
   assert.equal(back.start.toISOString(), "2026-12-05T12:30:00.000Z");
   assert.equal(back.durationMinutes, 90);
   assert.equal(back.location, sample.location);
   assert.equal(back.host, "zoof04");
+  assert.equal(back.timeZone, "Asia/Kolkata");
   assert.equal(R.decode("https://remmynd.space/#not-a-reminder"), null);
-  assert.equal(R.createLink({ title: "x", start: 0 }, { base: "https://example.com/r" }).startsWith("https://example.com/r/#"), true);
+  assert.equal(R.decode("https://remmynd.space/r/not-a-reminder"), null);
+});
+
+test("old links still decode", () => {
+  // A 1.x link, exactly as published in the README.
+  const old = R.decode("https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ");
+  assert.equal(old.title, "Demo day");
+  assert.equal(old.start.toISOString(), "2026-12-05T12:30:00.000Z");
+  assert.equal(old.timeZone, "");
+  // Every 1.x key, plus a key from some future version, which readers must ignore. Same payload in every form.
+  const full = Buffer.from(JSON.stringify({ t: "Launch", s: "htqsu", d: 90, l: "Mumbai", n: "Bring a laptop", h: "zoof04", q: 1 })).toString("base64url");
+  for (const link of ["https://remmynd.space/#" + full, full, "https://remmynd.space/r/" + full, "remmynd.space/r/" + full + "/"]) {
+    const r = R.decode(link);
+    assert.ok(r, link);
+    assert.deepEqual([r.title, r.durationMinutes, r.location, r.notes, r.host], ["Launch", 90, "Mumbai", "Bring a laptop", "zoof04"], link);
+  }
+  // A zone the device doesn't know is dropped, not trusted.
+  assert.equal(R.decode(Buffer.from(JSON.stringify({ t: "x", s: "htqsu", z: "Mars/Olympus" })).toString("base64url")).timeZone, "");
+});
+
+test("shared and private links", () => {
+  const shared = R.createLink(sample), priv = R.createLink(sample, { private: true });
+  assert.match(shared, /^https:\/\/remmynd\.space\/r\/[A-Za-z0-9_-]+$/);
+  assert.match(priv, /^https:\/\/remmynd\.space\/#[A-Za-z0-9_-]+$/);
+  assert.equal(shared.split("/r/")[1], priv.split("#")[1], "the same payload in both forms");
+  assert.equal(R.toPath(sample), "/r/" + R.encode(sample));
+  assert.equal(R.toPath(sample, { private: true }), "/#" + R.encode(sample));
+  assert.equal(R.createLink(R.decode(shared)), shared, "decode then createLink gives the same link, zone included");
+  assert.ok(R.createLink({ title: "x", start: 0 }, { base: "https://example.com/r", private: true }).startsWith("https://example.com/r/#"));
+  assert.ok(R.createLink({ title: "x", start: 0 }, { base: "https://example.com/" }).startsWith("https://example.com/r/"));
+  // z is the zone a local time was written in. An exact time on its own carries none.
+  assert.equal(R.decode(R.createLink({ title: "x", start: "2026-12-05T18:00Z" })).timeZone, "");
+  assert.equal(R.decode(R.createLink({ title: "x", start: "2026-12-05T18:00Z", timeZone: "Europe/London" })).timeZone, "Europe/London");
+  assert.throws(() => R.createLink({ title: "x", start: 0, timeZone: "Mars/Olympus" }), /Unknown time zone/);
+  // Calendar notes keep a private link private.
+  assert.match(R.toICS(sample, { private: true }).replace(/\r\n /g, ""), /Reminder link: https:\/\/remmynd\.space\/#/);
+  assert.match(R.toICS(sample).replace(/\r\n /g, ""), /Reminder link: https:\/\/remmynd\.space\/r\//);
+  assert.match(decodeURIComponent(R.googleCalendarUrl(sample, { private: true })), /remmynd\.space\/#/);
+  assert.match(decodeURIComponent(R.outlookUrl(sample, { private: true })), /remmynd\.space\/#/);
+});
+
+test("fromQuery reads hand-written links", () => {
+  const q = R.fromQuery("https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&d=90&l=https://lu.ma/demo&n=Bring+a+laptop&h=zoof04");
+  assert.deepEqual({ ...q, start: q.start.toISOString() }, { title: "Demo day", start: "2026-12-05T12:30:00.000Z", durationMinutes: 90, location: "https://lu.ma/demo", notes: "Bring a laptop", host: "zoof04", timeZone: "Asia/Kolkata" });
+  assert.equal(R.decode(R.createLink(q)).title, "Demo day");
+  const off = R.fromQuery({ t: "x", at: "2026-12-05T18:00+05:30" });
+  assert.equal(off.start.toISOString(), "2026-12-05T12:30:00.000Z");
+  assert.equal(off.timeZone, "", "an offset alone doesn't name a zone");
+  assert.equal(R.fromQuery("t=x&at=2026-12-05T18:00Z").start.toISOString(), "2026-12-05T18:00:00.000Z");
+  const device = R.fromQuery("t=x&at=2026-12-05T18:00", { timeZone: "America/New_York" });
+  assert.equal(device.start.toISOString(), "2026-12-05T23:00:00.000Z");
+  assert.equal(device.timeZone, "America/New_York");
+  assert.equal(R.fromQuery(new URLSearchParams("t=x&at=2026-12-05T18:00&tz=UTC"), { timeZone: "America/New_York" }).start.toISOString(), "2026-12-05T18:00:00.000Z", "tz wins over the device zone");
+  assert.equal(R.fromQuery("t=x&at=2026-12-05T18:00&tz=UTC&d=9999").durationMinutes, 60, "a length out of range falls back to an hour");
+  for (const bad of ["at=2026-12-05T18:00&tz=UTC", "t=x&tz=UTC", "t=x&at=tomorrow&tz=UTC", "t=x&at=2026-12-05&tz=UTC", "t=x&at=2026-12-05T18:00&tz=Mars/Base"]) {
+    assert.equal(R.fromQuery(bad), null, bad);
+  }
 });
 
 test("validation", () => {
@@ -61,7 +118,7 @@ test("website and library produce the same links", () => {
   const pick = name => html.split("\n").find(l => l.startsWith("const " + name + "="));
   const siteEnc = new Function(pick("enc") + "; return enc;")();
   const siteDec = new Function(pick("dec") + "; return dec;")();
-  const frag = R.createLink(sample).split("#")[1];
+  const frag = R.encode(sample);
   const fromSite = siteDec(frag);
   assert.equal(fromSite.t, sample.title);
   assert.equal(parseInt(fromSite.s, 36) * 60000, Date.parse("2026-12-05T12:30:00Z"));
@@ -70,6 +127,15 @@ test("website and library produce the same links", () => {
   assert.equal(lib.title, "Café launch");
   assert.equal(lib.location, "Mumbai");
   assert.equal(lib.start.toISOString(), "2026-12-24T10:00:00.000Z");
+
+  // Shared and private links, with the host's zone last, match the library byte for byte.
+  const siteLink = new Function("BASE", pick("enc") + ";" + pick("linkFor") + "; return linkFor;")("https://remmynd.space/");
+  const start = new Date("2026-12-24T10:00:00Z");
+  const r = { t: "Café launch", s: Math.round(start.getTime() / 60000).toString(36), l: "Mumbai", z: "Asia/Kolkata" };
+  const ev = { title: "Café launch", start, location: "Mumbai", timeZone: "Asia/Kolkata" };
+  assert.equal(siteLink(r, null, false), R.createLink(ev));
+  assert.equal(siteLink(r, null, true), R.createLink(ev, { private: true }));
+  assert.match(html, /if\(hh\)r\.h=hh;r\.z=F\.tz\.value\|\|TZ;return r;/, "the maker adds z last, as the library does");
 });
 
 test("website script parses", () => {
@@ -102,7 +168,7 @@ test("styles: app.css carries the 2.0 tokens and self-hosted fonts", () => {
   const html = readFileSync(join(root, "public/index.html"), "utf8");
   assert.ok(!/<style[\s>]/.test(html), "no inline style block left in index.html");
   assert.ok(!/\sstyle="/.test(html), "no inline style attributes left in index.html");
-  assert.match(html, /<link rel="stylesheet" href="app\.css">/);
+  assert.match(html, /<link rel="stylesheet" href="\/app\.css">/);
   for (const f of readdirSync(join(root, "public")).filter(f => /\.(html|css|js|webmanifest)$/.test(f))) {
     assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8"), /fonts\.(googleapis|gstatic)\.com/, f + " loads Google Fonts");
   }
@@ -118,7 +184,7 @@ test("theme switch: Auto, Light and Dark, kept in rm:theme, with matching theme-
   assert.match(html, new RegExp('id="tc-light" content="' + light + '" media="\\(prefers-color-scheme: light\\)"'));
   assert.match(html, new RegExp('id="tc-dark" content="' + dark + '" media="\\(prefers-color-scheme: dark\\)"'));
   assert.deepEqual([...html.matchAll(/data-theme-set="(\w+)"[^>]*>(\w+)</g)].map(m => m[1] + ":" + m[2]), ["auto:Auto", "light:Light", "dark:Dark"]);
-  assert.match(html, /<head>[\s\S]*localStorage\.getItem\("rm:theme"\)[\s\S]*<link rel="stylesheet" href="app\.css">/, "saved theme is applied before styles load");
+  assert.match(html, /<head>[\s\S]*localStorage\.getItem\("rm:theme"\)[\s\S]*<link rel="stylesheet" href="\/app\.css">/, "saved theme is applied before styles load");
 
   // Run the page's theme code against a tiny fake document.
   const src = html.slice(html.indexOf("const PAPER="), html.indexOf("/* ---------- install (PWA)"));
@@ -174,6 +240,123 @@ test("worker: /ics file, www redirect, named pages, static passthrough", async (
   assert.equal(await (await worker.fetch(new Request("https://remmynd.space/badge.svg"), env)).text(), "static");
 });
 
+// Just enough of Cloudflare's HTMLRewriter for the preview route: remove elements matched by
+// tag or tag[attr="value"], and append HTML at the end of <head>.
+class TestRewriter {
+  constructor() { this.rules = []; }
+  on(selector, handler) { this.rules.push([selector, handler]); return this; }
+  transform(res) {
+    const rules = this.rules;
+    const body = new ReadableStream({ async start(c) {
+      let html = await res.text();
+      for (const [selector, h] of rules) {
+        const [, tag, attr, val] = /^([a-z]+)(?:\[([a-z:-]+)="([^"]*)"\])?$/.exec(selector);
+        if (tag === "head") {
+          let extra = "";
+          h.element({ append: (s, o) => { assert.ok(o && o.html, "preview tags are appended as HTML"); extra += s; } });
+          html = html.replace("</head>", extra + "</head>");
+          continue;
+        }
+        const re = tag === "title" ? /<title\b[^>]*>[\s\S]*?<\/title>/g : new RegExp("<" + tag + "\\b[^>]*>", "g");
+        html = html.replace(re, el => {
+          if (attr && !el.includes(attr + '="' + val + '"')) return el;
+          let gone = false;
+          h.element({ remove: () => { gone = true; } });
+          return gone ? "" : el;
+        });
+      }
+      c.enqueue(new TextEncoder().encode(html));
+      c.close();
+    } });
+    return new Response(body, res);
+  }
+}
+
+function shellEnv() {
+  const shell = readFileSync(join(root, "public/index.html"), "utf8");
+  return { ASSETS: { fetch: req => new URL(req.url).pathname === "/"
+    ? new Response(shell, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=600", etag: '"shell"' } })
+    : new Response("static") } };
+}
+
+test("worker: /r/ links get escaped preview tags and are never cached", async () => {
+  const worker = (await import("../worker/index.js")).default;
+  const env = shellEnv();
+  const saved = globalThis.HTMLRewriter;
+  globalThis.HTMLRewriter = TestRewriter;
+  try {
+    const get = async path => { const res = await worker.fetch(new Request("https://remmynd.space" + path), env); return { res, html: await res.text() }; };
+    const count = (html, re) => (html.match(re) || []).length;
+    const path = R.toPath({ title: "Demo day", start: "2026-11-13 17:00", timeZone: "Asia/Kolkata" });
+    const { res, html } = await get(path);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.equal(res.headers.get("x-robots-tag"), "noindex");
+    assert.equal(res.headers.get("etag"), null);
+    assert.ok(html.includes("<title>Demo day · remmynd</title>"));
+    assert.ok(html.includes('<meta property="og:title" content="Demo day">'));
+    assert.ok(html.includes('<meta property="og:description" content="Fri 13 Nov, 5:00 PM IST · Tap to get reminded">'));
+    assert.ok(html.includes('<meta name="twitter:title" content="Demo day">'));
+    assert.ok(html.includes('<meta name="twitter:description" content="Fri 13 Nov, 5:00 PM IST · Tap to get reminded">'));
+    assert.ok(html.includes('<meta property="og:url" content="https://remmynd.space' + path + '">'));
+    assert.ok(html.includes('<meta property="og:image" content="https://remmynd.space/og.png">'), "the image stays the static og.png");
+    assert.equal(count(html, /property="og:title"/g), 1);
+    assert.equal(count(html, /<title>/g), 1);
+    assert.equal(count(html, /rel="canonical"/g), 0);
+
+    // A hostile title stays text.
+    const evil = '"><script>alert(1)</script><meta x="';
+    const e = await get(R.toPath({ title: evil, start: "2026-11-13 17:00", timeZone: "Asia/Kolkata" }));
+    assert.ok(!e.html.includes("<script>alert(1)"), "no script injected");
+    assert.ok(e.html.includes('<meta property="og:title" content="&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;meta x=&quot;">'));
+    assert.ok(e.html.includes("<title>&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;&lt;meta x=&quot; · remmynd</title>"));
+
+    // No zone in the link: the time is printed in UTC.
+    const u = await get(R.toPath({ title: "Launch", start: "2026-11-13T11:30Z" }));
+    assert.ok(u.html.includes('<meta property="og:description" content="Fri 13 Nov, 11:30 AM UTC · Tap to get reminded">'));
+
+    // Bad payloads get the plain shell, still never cached.
+    const noTitle = Buffer.from(JSON.stringify({ t: "", s: "htqsu" })).toString("base64url");
+    for (const bad of ["/r/", "/r/zzz", "/r/" + "a".repeat(2001), "/r/abc%3Cdef", "/r/" + noTitle]) {
+      const b = await get(bad);
+      assert.equal(b.res.status, 200, bad);
+      assert.equal(b.res.headers.get("cache-control"), "no-store", bad);
+      assert.ok(b.html.includes('<meta property="og:title" content="remmynd">'), bad + " gets the plain shell");
+    }
+    assert.equal((await worker.fetch(new Request("https://remmynd.space" + path, { method: "POST" }), env)).status, 405);
+  } finally { globalThis.HTMLRewriter = saved; }
+});
+
+test("worker: /new redirects exact times to the /r/ link", async () => {
+  const worker = (await import("../worker/index.js")).default;
+  const env = shellEnv();
+  const go = q => worker.fetch(new Request("https://remmynd.space/new?" + q), env);
+
+  let res = await go("t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&d=90&l=https://lu.ma/demo");
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  const to = res.headers.get("location");
+  assert.match(to, /^https:\/\/remmynd\.space\/r\/[A-Za-z0-9_-]+$/);
+  const r = R.decode(to);
+  assert.deepEqual([r.title, r.start.toISOString(), r.durationMinutes, r.location, r.timeZone], ["Demo day", "2026-12-05T12:30:00.000Z", 90, "https://lu.ma/demo", "Asia/Kolkata"]);
+  assert.equal(to, R.createLink(R.fromQuery("t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&d=90&l=https://lu.ma/demo")), "the Worker and the library make the same link");
+
+  res = await go("t=Demo&at=2026-12-05T18:00Z");
+  assert.equal(res.status, 302);
+  assert.equal(R.decode(res.headers.get("location")).start.toISOString(), "2026-12-05T18:00:00.000Z");
+  res = await go("t=Demo&at=2026-12-05T18:00%2B05:30");
+  assert.equal(R.decode(res.headers.get("location")).start.toISOString(), "2026-12-05T12:30:00.000Z");
+
+  // No zone, or something missing: the shell, which reads the time in the visitor's zone or opens the maker.
+  for (const q of ["t=Demo&at=2026-12-05T18:00", "at=2026-12-05T18:00&tz=UTC", "t=Demo&at=soon&tz=UTC", "t=Demo&at=2026-12-05T18:00&tz=Mars/Base"]) {
+    res = await go(q);
+    assert.equal(res.status, 200, q);
+    assert.equal(res.headers.get("cache-control"), "no-store", q);
+    assert.match(await res.text(), /<title>remmynd<\/title>/, q);
+  }
+  assert.equal((await worker.fetch(new Request("https://remmynd.space/new?t=x", { method: "POST" }), env)).status, 405);
+});
+
 test("published badge files match the library", () => {
   assert.equal(readFileSync(join(root, "public/badge.svg"), "utf8"), R.badgeSVG());
   assert.equal(readFileSync(join(root, "public/badge-dark.svg"), "utf8"), R.badgeSVG({ theme: "dark" }));
@@ -184,7 +367,11 @@ test("CLI prints a working link", () => {
   const out = execFileSync(process.execPath, [join(root, "bin/remmynd.js"), "Demo", "day", "--at", "2026-12-05 18:00", "--tz", "Asia/Kolkata", "--json", "--badge", "md"], { encoding: "utf8" });
   const j = JSON.parse(out);
   assert.equal(R.decode(j.link).title, "Demo day");
+  assert.match(j.link, /^https:\/\/remmynd\.space\/r\//);
   assert.match(j.badge, /badge\.svg/);
+  const priv = execFileSync(process.execPath, [join(root, "bin/remmynd.js"), "Demo", "--at", "2026-12-05 18:00", "--tz", "UTC", "--private"], { encoding: "utf8" }).trim();
+  assert.match(priv, /^https:\/\/remmynd\.space\/#/);
+  assert.equal(R.decode(priv).title, "Demo");
 });
 
 test("package version matches the library", () => {
@@ -223,11 +410,12 @@ const cssLoads = css => [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/url\(
   .map(m => ({ ref: m[2] ?? m[4], by: "css", file: true }));
 
 // What a script fetches when the address is written as a plain string. "file" marks what a
-// visit downloads (imports, the service worker, src); the rest are on-demand requests.
+// visit downloads (static imports, the service worker, src); the rest, dynamic import() included,
+// are fetched only when needed.
 function jsLoads(js) {
   const kinds = [
-    [/\b(fetch|sendBeacon|EventSource|WebSocket)\s*\(\s*(["'`])([^"'`]*)\2/g, false],
-    [/\b(importScripts|Worker|SharedWorker|import|register)\s*\(\s*(["'`])([^"'`]*)\2/g, true],
+    [/\b(fetch|sendBeacon|EventSource|WebSocket|import)\s*\(\s*(["'`])([^"'`]*)\2/g, false],
+    [/\b(importScripts|Worker|SharedWorker|register)\s*\(\s*(["'`])([^"'`]*)\2/g, true],
     [/\b(import|export)\b[^"'`;()]*?\bfrom\s*(["'`])([^"'`]*)\2/g, true],
     [/\b(import)\s*(["'`])([^"'`]*)\2/g, true],
     [/\.(src)\s*=\s*(["'`])([^"'`]*)\2/g, true],
@@ -562,6 +750,39 @@ test("service worker: an empty push shows what's due, from on-device data only",
   await push();
   assert.equal(shown.length, 1);
   assert.equal(shown[0].title, "remmynd", "a push with nothing due still shows something (iPhone requires it)");
+});
+
+test("service worker: /r/ pages are never cached, and offline pages get the shell", async () => {
+  const vm = await import("node:vm");
+  const src = readFileSync(join(root, "public/sw.js"), "utf8");
+  const stored = new Map();
+  let online = true;
+  const cache = { put: async (k, v) => { stored.set(typeof k === "string" ? k : k.url, v); }, addAll: async () => {} };
+  const caches = { open: async () => cache, match: async k => stored.get(typeof k === "string" ? k : k.url) || undefined, keys: async () => [] };
+  const fetch = async req => { if (!online) throw new TypeError("offline"); return new Response("page " + new URL(req.url).pathname); };
+  const listeners = {};
+  const ctx = {
+    URL, Response, fetch, caches, console, setTimeout, indexedDB: {}, crypto, btoa, atob,
+    location: { origin: "https://remmynd.space" }, Notification: { prototype: { actions: null }, maxActions: 2 },
+    self: { addEventListener: (t, f) => { listeners[t] = f; }, navigator: {}, clients: {}, registration: {} }
+  };
+  vm.createContext(ctx);
+  vm.runInContext(src, ctx);
+  const open = async path => {
+    let p;
+    listeners.fetch({ request: { url: "https://remmynd.space" + path, method: "GET", mode: "navigate" }, respondWith: x => { p = x; } });
+    const res = await p;
+    await new Promise(r => setTimeout(r, 0));
+    return res;
+  };
+  await open("/r/eyJ0IjoiRGVtbyJ9");
+  assert.equal(stored.size, 0, "a /r/ page, with its preview tags, is not stored");
+  await open("/new?t=Demo&at=2026-12-05T18:00");
+  assert.equal(stored.size, 0, "nor is a /new page");
+  await open("/");
+  assert.ok(stored.has("./index.html"), "the plain shell is stored");
+  online = false;
+  assert.equal(await (await open("/r/eyJ0IjoiRGVtbyJ9")).text(), "page /", "offline, a /r/ link opens the cached shell");
 });
 
 test("sleep-safe: the 9 AM alert reads as already started", async () => {

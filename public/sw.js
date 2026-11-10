@@ -2,7 +2,7 @@
 // 1. Caches the app so it opens offline.
 // 2. Shows reminder notifications. Pushes arrive EMPTY; the reminder details come from this
 //    device's own storage (IndexedDB), so the server never knows what you're reminded about.
-const CACHE = "remmynd-v7";
+const CACHE = "remmynd-v8";
 const SHELL = ["./", "./index.html", "./app.css", "./push.js", "./fonts/geist-5.3-latin.woff2", "./fonts/geist-mono-5.3-latin.woff2", "./manifest.webmanifest", "./icon.svg", "./favicon.ico", "./apple-touch-icon.png", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png", "./badge-mono-96.png", "./badge.svg", "./badge-dark.svg"];
 
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -12,8 +12,11 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET" || url.origin !== location.origin) return;
   if (url.pathname.startsWith("/push/") || url.pathname === "/ics") return;
   if (e.request.mode === "navigate") {
-    // Pages: network first so updates show at once, cache when offline.
-    e.respondWith(fetch(e.request).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put("./index.html", copy)); return res; }).catch(() => caches.match("./index.html")));
+    // Pages: network first so updates show at once. Only the plain shell (/) is cached: a /r/ page
+    // carries that reminder's preview tags and is never stored. Offline, every page gets the shell,
+    // and the page reads the reminder from its own address.
+    const shell = url.pathname === "/" || url.pathname === "/index.html";
+    e.respondWith(fetch(e.request).then(res => { if (shell && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put("./index.html", copy)); } return res; }).catch(() => caches.match("./index.html")));
     return;
   }
   if (/\.(css|js)$/.test(url.pathname)) {

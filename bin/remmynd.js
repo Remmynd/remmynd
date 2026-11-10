@@ -7,7 +7,7 @@ const HELP = `remmynd ${VERSION} — reminders, as a link
 
 Usage
   remmynd "<what>" --at "<YYYY-MM-DD HH:mm>" [options]
-  remmynd read <link>
+  remmynd read <link>   (shared /r/ or private /# links)
 
 Options
   --at, -a       When, e.g. "2026-12-05 18:00" (local to --tz) or an ISO time with Z
@@ -16,6 +16,7 @@ Options
   --notes, -n    One line of notes
   --host         Who is hosting
   --length, -l   Minutes (default 60)
+  --private, -p  Make a private link (/#…): no preview, never reaches a server
   --ics [file]   Also write an .ics file ("-" prints it)
   --badge <fmt>  Print a Remind me badge snippet: html or md
   --dark         Use the dark badge
@@ -40,7 +41,7 @@ try {
       at: { type: "string", short: "a" }, tz: { type: "string", short: "z" }, where: { type: "string", short: "w" },
       notes: { type: "string", short: "n" }, host: { type: "string" }, length: { type: "string", short: "l" },
       ics: { type: "string" }, badge: { type: "string" }, dark: { type: "boolean" }, google: { type: "boolean" },
-      json: { type: "boolean" }, base: { type: "string" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" }
+      json: { type: "boolean" }, base: { type: "string" }, private: { type: "boolean", short: "p" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" }
     }
   });
 } catch (e) { fail(e.message + "\nRun remmynd --help"); }
@@ -61,7 +62,7 @@ const event = {
   title: pos.join(" "), start: o.at, timeZone: o.tz, location: o.where, notes: o.notes, host: o.host,
   durationMinutes: o.length ? Number(o.length) : undefined
 };
-const opts = o.base ? { base: o.base } : {};
+const opts = { ...(o.base ? { base: o.base } : {}), private: !!o.private };
 const theme = o.dark ? "dark" : "light";
 
 try {

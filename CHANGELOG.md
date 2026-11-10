@@ -8,6 +8,11 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- Shared links: `remmynd.space/r/…` lets chat apps show the title and time in a preview card. The Worker reads the link only to fill those tags. Nothing is stored or logged, and the page is never cached.
+- Private link switch: "Keeps the title and time out of link previews." It makes the `/#…` form, which never reaches a server. Every 1.x link keeps working.
+- `remmynd.space/new?t=…&at=…&tz=…`: write a reminder into the address from a script, a spreadsheet or an AI assistant. An exact time redirects to the shared link; a time without a zone is read in the visitor's own zone.
+- Host time: links carry the host's time zone (`z`), and the ticket shows the host's own clock when it differs from yours.
+- Library: `toPath()`, `fromQuery()`, a `private` option on `createLink()` and the calendar helpers, and `timeZone` on decoded reminders. CLI: `--private`.
 - Guard tests: nothing in `public/` loads from another host, app code stays under 60 KB compressed and the first visit under 150 KB, `public/remmynd.js` stays an exact copy of the library, and Workers observability stays off.
 - `public/remmynd.js`: the library, served for the 2.0 app to import.
 - Theme switch in the footer: Auto follows the system, or pick Light or Dark. The choice stays on the device (`rm:theme`) and the browser bar colour follows it.
@@ -21,6 +26,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- `createLink()` and `npx remmynd` make shared `/r/` links by default; `decode()` reads both forms.
+- The page loads its files from root paths so it works at `/r/…`, and the service worker caches only the plain page, never a `/r/` page.
 - `wrangler.toml` turns Workers observability off explicitly, so Cloudflare keeps no request logs.
 - New look on the 2.0 design tokens: "Daylight" (paper, ink, amber) and "Night shift" (near-black, electric lime). Styles moved from `index.html` to `public/app.css`, and Remind me uses the moment colour.
 - Geist and Geist Mono are served from remmynd.space (`public/fonts/`, SIL Open Font Licence). The page no longer loads Google Fonts, so it makes no requests to other hosts for type.
