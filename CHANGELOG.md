@@ -28,6 +28,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Fixed
 
+- Account sheet: the Remove buttons for passkeys no longer stretch across the row and cover the passkey's name, long names end with an ellipsis, and the parts of the sheet are evenly spaced.
+- Toasts use one line where it fits, instead of wrapping into a narrow pill.
 - The Soon label no longer stretches across a row and hides its title.
 
 ## [2.0.1] - 2026-11-11

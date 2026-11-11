@@ -496,7 +496,7 @@ pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--card);border:1px solid
 .menu-links a:last-child{border-bottom:0}
 .menu-card .theme{justify-content:space-between}
 
-.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);background:var(--ink);color:var(--paper);padding:11px 16px;border-radius:999px;font-size:14px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center;z-index:20}
+.toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);width:max-content;background:var(--ink);color:var(--paper);padding:11px 16px;border-radius:999px;font-size:14px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center;z-index:20}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .toast.act{pointer-events:auto;display:flex;align-items:center;gap:14px;padding:6px 6px 6px 16px}
 .toast-undo{min-height:var(--tap);padding:0 14px;border:0;border-radius:999px;background:var(--moment);color:var(--on-moment);font:600 14px var(--font);cursor:pointer}
