@@ -14,6 +14,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Security
 
+- Pipelines: GitHub Actions are pinned to exact commits (Dependabot keeps them current), checkout no longer leaves the token in the workspace, and CI also runs for the merge queue. The live check now fails if a page loads anything from another host or loses its security headers, which catches settings changed in the Cloudflare dashboard.
 - A strict Content-Security-Policy: scripts, styles, fonts and requests from remmynd.space only, with the one inline theme line allowed by its hash. Browsers now refuse anything injected from another host.
 - Strict-Transport-Security, `/.well-known/security.txt`, and Dependabot for the GitHub Actions.
 

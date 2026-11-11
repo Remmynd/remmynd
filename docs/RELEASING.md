@@ -90,7 +90,7 @@ Deploys run in Cloudflare Workers Builds, which is connected to this repository.
 | Root directory | `/` |
 | Builds for non-production branches | Off (pull requests are checked by GitHub Actions CI) |
 
-No API tokens are stored in GitHub. The **Live check** workflow (`.github/workflows/live-check.yml`) checks the live routes every six hours and can be run by hand from **Actions → Live check → Run workflow**.
+No API tokens are stored in GitHub. The **Live check** workflow (`.github/workflows/live-check.yml`) checks the live routes, that pages load nothing from other hosts, and that the security headers are sent, every six hours and can be run by hand from **Actions → Live check → Run workflow**.
 
 ### Phone alerts
 

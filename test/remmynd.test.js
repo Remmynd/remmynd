@@ -1636,3 +1636,21 @@ test("brand images are the 2.0 set, at the sizes their files name", () => {
   assert.match(man.description, /^Reminders that make sure it happens\./);
   for (const s of man.screenshots) assert.deepEqual(size("public/" + s.src).join("x"), s.sizes, s.src);
 });
+
+test("pipelines: workflows pin their actions, keep tokens to themselves and declare permissions", () => {
+  const dir = join(root, ".github/workflows");
+  for (const f of readdirSync(dir).filter(f => /\.ya?ml$/.test(f))) {
+    const y = readFileSync(join(dir, f), "utf8");
+    assert.match(y, /^permissions:\n/m, f + " declares its permissions at the top");
+    for (const [, ref, comment] of y.matchAll(/uses:\s*(\S+)(.*)$/gm)) {
+      assert.match(ref, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, f + ": " + ref + " is pinned to a full commit, not a tag");
+      assert.match(comment, /^\s+# v\d+(\.\d+)*$/, f + ": " + ref + " names its version in a comment, for Dependabot and readers");
+    }
+    for (const m of y.matchAll(/- uses: actions\/checkout@\S+.*\n((?:\s{8,}.*\n)*)/g)) assert.match(m[1], /persist-credentials: false/, f + ": checkout leaves no token in .git/config");
+  }
+  const ci = readFileSync(join(dir, "ci.yml"), "utf8");
+  assert.match(ci, /^on:\n  push:\n    branches: \[main\]\n  pull_request:\n  merge_group:\n/m, "CI runs on pushes to main, pull requests and the merge queue");
+  const live = readFileSync(join(dir, "live-check.yml"), "utf8");
+  assert.match(live, /loads from another host/, "the live check fails if a page loads from another host");
+  assert.match(live, /content-security-policy: default-src 'self'/, "the live check looks for the security policy header");
+});

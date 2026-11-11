@@ -35,4 +35,23 @@ jobs:
           check https://remmynd.space/stats 200
           check https://remmynd.space/r/eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ 200
           check "https://remmynd.space/new?t=Demo&at=2026-12-04T17:00Z" 302
+          check https://remmynd.space/.well-known/security.txt 200
+          exit $fail
+
+      - name: Pages load nothing from other hosts, and send the security headers
+        # Cloudflare dashboard settings (Web Analytics, for example) can add scripts to pages at the
+        # edge, outside this repository, so the tests can't see them. This step looks at what visitors get.
+        run: |
+          set -e
+          fail=0
+          for p in / /why /hosts "/r/eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ"; do
+            url="https://remmynd.space$p"
+            html=$(curl -s -A "Mozilla/5.0 (live check)" "$url")
+            foreign=$(printf '%s' "$html" | grep -oiE '<(script|link|img|iframe)[^>]+(src|href)="(https?:)?//[^"]+"' | grep -viE '(src|href)="(https?:)?//remmynd\.space' | grep -viE '<link[^>]+rel="(canonical|alternate)"' || true)
+            if [ -n "$foreign" ]; then echo "FAIL $url loads from another host:"; echo "$foreign"; fail=1; else echo "ok   $url loads only from remmynd.space"; fi
+          done
+          headers=$(curl -sI https://remmynd.space/)
+          for h in "content-security-policy: default-src 'self'" "strict-transport-security: max-age=" "x-frame-options: deny" "x-content-type-options: nosniff"; do
+            if printf '%s' "$headers" | tr 'A-Z' 'a-z' | grep -qF "$h"; then echo "ok   header $h"; else echo "FAIL header missing: $h"; fail=1; fi
+          done
           exit $fail
