@@ -1266,8 +1266,9 @@ test("lists: Coming up and My links, grouped Today, This week, Later, Kept", () 
   assert.deepEqual([relText(at(11, 10, 42), at(11, 11), now), relText(at(11, 13), at(11, 14), now), relText(at(11, 9, 30), at(11, 10, 30), now), relText(at(11, 8), at(11, 9), now)],
     ["in 42 min", "in 3 h", "now", "ended"]);
   assert.match(html, /<a href="\/#coming-up" id="tab-coming">Coming up<\/a><a href="\/#links" id="tab-links">My links<\/a>/);
-  for (const w of ["Swipe a row left to re-plan it or mark it done.", "J and K move, D marks done, S re-plans, Enter opens.", 'data-act="replan">Re-plan', 'data-act="done">Done',
-    "Nothing coming up yet.", "No links yet. Write one in the bar below and press Enter.", 'GROUPS={today:"Today",week:"This week",later:"Later",kept:"Kept"']) assert.ok(app.includes(w), "app.js has " + w);
+  for (const w of ['"Swipe a row left, or tap ⋯, for "', '"Re-plan, Done and Delete."', '"Copy, Edit and Delete."', '"J and K move, "', '"Delete removes, Enter opens."',
+    '[["replan","Re-plan"],["done","Done"],["delete","Delete"]]', '[["copy","Copy"],["edit","Edit"],["delete","Delete"]]',
+    "Nothing coming up yet. Write one in the bar below, then tap Remind me.", "No reminders made yet. Write one in the bar below and press Enter.", 'GROUPS={today:"Today",week:"This week",later:"Later",kept:"Kept"']) assert.ok(app.includes(w), "app.js has " + w);
   assert.match(app, /if\(k==="j"\|\|k==="k"\)/, "J and K move");
   assert.match(app, /rowAct\(li\.dataset\.rkey,k==="d"\?"done":"replan",i\)/, "D marks done, S re-plans");
   assert.doesNotMatch(app, /Kept \d+ of \d+/, "the monthly count waits until everything else is built");
@@ -1676,4 +1677,46 @@ test("security: crafted input can't make the library or the page slow", () => {
   assert.equal(R.createLink({ title: "x", start: "2026-12-05T18:00Z" }, { base: "https://example.org//#y" }).split("/r/")[0], "https://example.org");
   // The page looks up named examples among its own keys only, so #constructor is just an unknown link.
   assert.match(readFileSync(join(root, "public/app.js"), "utf8"), /const PRESETS=new Map\(Object\.entries\(\{[\s\S]*?const preset=PRESETS\.get\(h\);if\(typeof preset==="function"\)return showView\(preset\(\),h,false\);/);
+});
+
+/* ---------- UX: remind after making, delete with undo, edit, night-time ---------- */
+
+test("ux: Remind me right after making, delete with Undo, edit, and a sleep-safe offer", () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8"), push = readFileSync(join(root, "public/push.js"), "utf8");
+  // The ready screen leads with Remind me, then Share it; Edit goes back to the line.
+  assert.match(html, /<div class="ready-do">\s*<button type="button" class="remind" id="f-remind">Remind me<\/button>[\s\S]*?id="f-edit">Edit this reminder<\/button>\s*<\/div>\s*<div class="label">Share it<\/div>/);
+  // One tap: open the new reminder and press its own Remind me inside the same tap.
+  assert.match(app, /F\.remind\.addEventListener\("click",\(\)=>\{const m=D\.made;if\(!m\)return;const u=new URL\(m\.link\);S\.back=true;history\.pushState\(null,"",u\.pathname\+u\.hash\);route\(\);const b=\$\("#remind"\);if\(b\)b\.click\(\);\}\);/);
+  // Delete waits 5 seconds behind Undo; leaving the page finishes it; a held reminder's alerts are cancelled with it.
+  assert.match(app, /function later\(key,run,undo,msg\)\{PEND\.set\(key,\{run,t:setTimeout\(\(\)=>\{PEND\.delete\(key\);run\(\);\},5000\)\}\);/);
+  assert.match(app, /addEventListener\("pagehide",\(\)=>\{for\(const\[k,p\]of PEND\)/);
+  assert.match(app, /const forgetRec=k=>\{if\(window\.remmyndDB\)window\.remmyndDB\.del\("reminders",k\)[^}]*\}\;?[^}]*window\.__rmPush\.cancel\(k\)/);
+  assert.match(app, /L\.recs=L\.recs\.filter\(x=>!PEND\.has\("r:"\+x\.rkey\)\);L\.links=L\.links\.filter\(x=>!PEND\.has\("l:"\+x\.share\)\)/, "a pending delete stays out of the lists");
+  assert.match(app, /id="s-remove">Remove this reminder<\/button>/, "a held reminder can be removed before it starts");
+  assert.match(app, /"Removed\. Delete it from your calendar too\."/);
+  assert.match(app, /e\.key==="Delete"\|\|e\.key==="Backspace"/, "the Delete key removes the row in focus");
+  assert.match(app, /class="li-more" aria-label="Actions for '\+esc\(t\)\+'" aria-expanded="false"/, "every row has a visible actions button");
+  // Edit: the made reminder's parts back in the line; making it again replaces the old link.
+  assert.match(app, /D\.replace=link;/);
+  assert.match(app, /keepLink\(D\.replace\|\|undefined\);D\.replace=null;/);
+  // Night-time: offered only for a reminder at least 12 hours away, and off unless chosen.
+  assert.match(app, /night=\(p\.h>=23\|\|p\.h<7\)&&start-Date\.now\(\)>=432e5;/);
+  assert.match(app, /if\(o\.interactive&&S\.morning===null\)S\.morning=false;/);
+  assert.doesNotMatch(app, /S\.morning=night/);
+  // The chime plays once when a held reminder starts while the page is open.
+  assert.match(app, /if\(S\.held&&was&&was!=="due"&&ph==="due"&&document\.visibilityState==="visible"\)\{chime\(\);/);
+  // A test alert from the Notification row.
+  assert.match(push, /id="n-test">Test<\/button>/);
+  assert.match(push, /reg\.showNotification\(d\.r\.t, \{ body: "Test alert\. This is how remmynd will remind you\."/);
+  // The badge maker lives on For hosts now, not in the app.
+  assert.ok(!html.includes('id="badge"') && html.includes('href="/hosts#badge"'));
+  assert.doesNotMatch(app, /snippet\(|SNIP/);
+});
+
+test("app: every element the app looks up by id is on the page", () => {
+  // Removing markup without removing the code that uses it breaks the page at run time (setMode once did).
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  const made = new Set([...app.matchAll(/id="([\w-]+)"/g)].map(m => m[1])); // ids the app writes into the page itself
+  const missing = [...new Set([...app.matchAll(/\$\("#([\w-]+)"\)/g)].map(m => m[1]))].filter(id => !html.includes('id="' + id + '"') && !made.has(id));
+  assert.deepEqual(missing, [], "app.js looks up ids that index.html doesn't have");
 });

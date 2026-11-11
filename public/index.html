@@ -94,6 +94,12 @@
     <!-- After Enter: the link, already copied -->
     <section class="ready" id="ready" hidden>
       <a class="mini" id="ready-card" href="/"></a>
+      <div class="ready-do">
+        <button type="button" class="remind" id="f-remind">Remind me</button>
+        <p class="t-sub">Calendar and a notification on this device, in one tap.</p>
+        <button type="button" class="linkish" id="f-edit">Edit this reminder</button>
+      </div>
+      <div class="label">Share it</div>
       <div class="out">
         <div class="linkbox"><input id="f-link" readonly aria-label="Your reminder link"><span class="copied" id="copied" hidden>Copied</span></div>
         <div class="btnrow">
@@ -112,25 +118,13 @@
           <span class="switch"><input type="checkbox" id="f-private" role="switch" aria-labelledby="priv-l" aria-describedby="priv-d"><span></span></span>
         </label>
       </div>
-      <a class="row-link" href="#badge">Get the Remind me badge<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
-    </section>
-
-    <section class="section" id="badge">
-      <h2>A Remind me button for your site</h2>
-      <p>Paste it on a launch page, a README or a newsletter. It works anywhere a link works.</p>
-      <div class="badges" id="badges"></div>
-      <div class="snip-bar">
-        <div class="seg" role="group" aria-label="Format"><button type="button" data-fmt="html" aria-pressed="true">HTML</button><button type="button" data-fmt="md" aria-pressed="false">Markdown</button></div>
-        <div class="seg" role="group" aria-label="Badge colour"><button type="button" data-theme-b="light" aria-pressed="true">Light</button><button type="button" data-theme-b="dark" aria-pressed="false">Dark</button></div>
-      </div>
-      <pre id="snip"></pre>
-      <div class="mt-8"><button class="btn small" type="button" id="snip-copy">Copy code</button></div>
+      <a class="row-link" href="/hosts#badge">Get the Remind me badge<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
     </section>
 
     <section class="facts">
-      <div><h3>No sign-up</h3><p>Not for you, not for the people you share it with.</p></div>
-      <div><h3>Private by design</h3><p>Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.</p></div>
-      <div><h3>Free and open source</h3><p>MIT licensed. Host your own copy if you like.</p></div>
+      <div><h2>No sign-up</h2><p>Not for you, not for the people you share it with.</p></div>
+      <div><h2>Private by design</h2><p>Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.</p></div>
+      <div><h2>Free and open source</h2><p>MIT licensed. Host your own copy if you like.</p></div>
     </section>
    </div>
 
