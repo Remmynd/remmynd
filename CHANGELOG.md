@@ -6,6 +6,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-11
+
 ### Added
 
 - Optional sign-in, to keep reminders on every device and get them by email: a passkey (Face ID, Touch ID or the screen lock), or a 6-digit code by email. No password. Open it from the menu, or from the Email row of a held reminder.
@@ -158,7 +160,8 @@ remmynd 2.0: reminders that make sure it happens. Write a reminder in one line, 
 - Brand kit in `brand/`: logo, mark, wordmark, avatars, social banners and a brand guide.
 - Favicon set, maskable app icon and link-preview image.
 
-[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/Remmynd/remmynd/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/Remmynd/remmynd/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/Remmynd/remmynd/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/Remmynd/remmynd/releases/tag/v1.0.0

@@ -1,6 +1,6 @@
 {
   "name": "remmynd",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Reminders that make sure it happens. Turn any event into a link: anyone who taps it is reminded by calendar and phone alert. Zero dependencies.",
   "keywords": [
     "reminder",
