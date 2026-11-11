@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Privacy · remmynd</title>
-<meta name="description" content="Free, no sign-up, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.">
+<meta name="description" content="Free, no account needed, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.">
 <meta name="author" content="Zoof04 Inc.">
 <link rel="canonical" href="https://remmynd.space/privacy">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://remmynd.space/privacy">
 <meta property="og:title" content="Privacy · remmynd">
-<meta property="og:description" content="Free, no sign-up, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.">
+<meta property="og:description" content="Free, no account needed, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.">
 <meta property="og:image" content="https://remmynd.space/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -46,15 +46,16 @@
 <main id="main">
 <section class="sec narrow opening flow">
   <p class="kicker">Privacy</p>
-  <h1>Free, no sign-up, no tracking.</h1>
-  <p class="lede">Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.</p>
+  <h1>Free, no account needed, no tracking.</h1>
+  <p class="lede">Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent. If you sign in, we keep your email address and your reminders so they sync across your devices and can be emailed to you. Private links stay on your device. Delete it all any time.</p>
 </section>
 
 <section class="sec narrow tight">
   <div class="prose">
     <h2 id="never">What we never do</h2>
     <ul>
-      <li>No accounts, no cookies, no analytics, no ads, no tracking.</li>
+      <li>No account needed, no analytics, no ads, no tracking.</li>
+      <li>No cookies, except one that keeps you signed in if you choose to sign in.</li>
       <li>The website loads nothing from other hosts. Fonts and code come from remmynd.space.</li>
       <li>Request logs are off for the remmynd Worker, so it keeps no record of visits.</li>
     </ul>
@@ -71,6 +72,17 @@
       <li>At that time it sends an empty push. Your device looks up what's due and shows it. The row is deleted as soon as it's sent.</li>
       <li>Done, re-planning or dropping a reminder cancels the alerts it has left.</li>
     </ul>
+
+    <h2 id="signin">If you sign in</h2>
+    <p>Signing in is optional. It keeps your reminders on all your devices and sends them by email. When you sign in, we keep:</p>
+    <ul>
+      <li>Your email address, to send your sign-in codes and your reminder emails.</li>
+      <li>Your passkeys' public keys, if you add one. The private key never leaves your device.</li>
+      <li>One cookie that keeps you signed in for up to six months.</li>
+      <li>The reminders you hold and the links you make, so they sync. Private links are never synced; they stay on the device.</li>
+      <li>When each reminder email is due, deleted once it's sent.</li>
+    </ul>
+    <p>Reminder and sign-in emails are delivered by <a href="https://resend.com/legal/privacy-policy">Resend</a>, which receives your address and the email to send it. Every reminder email has a link to stop them. In your account you can turn emails off, sign out, or delete your account, which deletes everything above at once.</p>
 
     <h2 id="device">On your device</h2>
     <p>Coming up and My links read the browser's storage on this device: the reminders you hold, their alerts, and the links you made. The theme and sound choices are kept there too. Clearing this site's data in your browser removes all of it and stops the alerts.</p>
@@ -100,7 +112,7 @@
     <nav aria-labelledby="f-company"><span class="label" id="f-company">Company</span><a href="https://zoof04.com">About</a><a href="/press">Press</a><a href="/privacy">Privacy</a></nav>
   </div>
   <div class="foot-row">
-    <span>© 2026 Zoof04 Inc. Free, no sign-up, no tracking.</span>
+    <span>© 2026 Zoof04 Inc. Free, no account needed, no tracking.</span>
     <div class="theme" role="group" aria-labelledby="theme-f"><span class="label" id="theme-f">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
   </div>
 </footer>

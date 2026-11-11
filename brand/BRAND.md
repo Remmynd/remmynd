@@ -53,7 +53,7 @@ Both are served from remmynd.space itself (`public/fonts/`, SIL Open Font Licenc
 
 ## Voice
 
-Plain, short, calm. Say what happens: "Remind me", "Held. You're set.", "Not yet? Pick when." The headline is "Reminders that make sure it happens." Lead with the facts: free, no sign-up, no tracking.
+Plain, short, calm. Say what happens: "Remind me", "Held. You're set.", "Not yet? Pick when." The headline is "Reminders that make sure it happens." Lead with the facts: free, no account needed, no tracking.
 
 ## Accounts and sizes
 

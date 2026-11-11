@@ -134,6 +134,21 @@ IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the pa
 
 Every ring is an image with a label that says the time and the state in words, for example "Day dial showing 5:00 in the afternoon, reminder set".
 
+## Optional sign-in, sync and email
+
+No account is needed. Signing in is for people who want their reminders on every device and by email. The browser part (`public/account.js`, `account.css`) loads only when someone opens sign-in, or on a device that is signed in; the server part is `worker/account.js`, with passkeys checked by `worker/webauthn.js`.
+
+| Piece | How it works |
+|---|---|
+| Sign in | A passkey (Face ID, Touch ID, screen lock), or a 6-digit code by email (it works inside the iPhone Home Screen app, where a link would open Safari). Codes expire in 10 minutes, allow 5 tries, and are limited to one a minute and five an hour per address |
+| Passkeys | WebAuthn with "none" attestation. The browser hands over the public key (SPKI); sign-in checks the challenge, origin, relying party, user presence, signature (ES256, Ed25519 or RS256, with WebCrypto) and the counter. No libraries |
+| Session | One HttpOnly, Secure, SameSite=Lax cookie (`rm_s`), 180 days; the server stores only its SHA-256. Every change is a JSON POST from this origin |
+| Sync | Reminders and links travel as JSON items; the newest change wins, deletions are kept as tombstones for 90 days. Private links (`/#…`) are never sent |
+| Email | Held reminders get an email 1 hour before and at the start (or once at a re-planned time), sent by the every-minute cron through Resend (`RESEND_API_KEY`, a Worker secret; `MAIL_FROM` defaults to `remmynd <reminders@remmynd.space>`). Every email has a one-click stop link |
+| Delete | Deleting the account deletes the user, passkeys, sessions, items and pending emails at once |
+
+Tables (`worker/schema.sql`, created on first use): `users`, `passkeys`, `sessions`, `codes`, `challenges`, `items`, `mails`, `sends`. For local testing, `DEV_SHOW_CODE=1` in `.dev.vars` returns the code in the response when no email key is set.
+
 ## Accessibility
 
 The tests hold the app and the website to WCAG AA: every text and background pair from the design tokens meets 4.5:1 (3:1 for large text) in both themes, controls are at least 44 px (`--tap`), every sheet is a named modal dialog that keeps Tab inside it and gives focus back when it closes, every image has alt text, headings never skip a level, and all motion stops under `prefers-reduced-motion`. Every ring says its time and state to screen readers.

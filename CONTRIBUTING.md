@@ -5,7 +5,7 @@ Thanks for helping. remmynd is small on purpose, so the bar for adding things is
 ## Ground rules
 
 - **No tracking.** No analytics, cookies, fingerprinting or third-party scripts on the site.
-- **No personal data on the server.** Reminders live in the link and on the device. The only server data is anonymous push pings (id, push address, time), deleted once sent. No accounts.
+- **No personal data on the server unless someone signs in.** Reminders live in the link and on the device; anonymous push pings (id, push address, time) are deleted once sent. Signing in is optional and keeps only what sync and email need (`worker/account.js`); private links never leave the device.
 - **No runtime dependencies** in the npm package.
 - **Keep the app small.** The app's HTML, CSS and JavaScript stay under 60 KB compressed; a test measures it.
 - **Links never break.** The link format (`t`, `s`, `d`, `l`, `n`, `h`) is a public contract. New keys must be optional, and old links must keep working.

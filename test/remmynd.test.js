@@ -819,11 +819,11 @@ test("words: the maker uses the spec's wording", () => {
   const html = readFileSync(join(root, "public/index.html"), "utf8");
   const app = readFileSync(join(root, "public/app.js"), "utf8");
   for (const w of ["Reminders that make sure it happens.",
-    "Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.",
+    "Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account needed.",
     ">New reminder<", 'placeholder="Demo day Fri 5pm zoom.us/j/123"', "Private link", "Keeps the title and time out of link previews.",
     "A free tool by <a href=\"https://zoof04.com\">Zoof04 Inc.</a> MIT licence."]) assert.ok(html.includes(w), "index.html says: " + w);
   for (const w of ["Enter makes the link", "Not a link yet. Press Enter to make it.", "Held. You\\'re set.", "Your reminder stack", "Nudge me until I\\'m in",
-    "Up to 3 nudges, 10 minutes apart.", "Coming in December", "More ways to be reminded", ". Confirm there.", "Calendar and a notification on this "]) assert.ok(app.includes(w), "app.js says: " + w);
+    "Up to 3 nudges, 10 minutes apart.", "Sign in to get it by email too", "More ways to be reminded", ". Confirm there.", "Calendar and a notification on this "]) assert.ok(app.includes(w), "app.js says: " + w);
   assert.match(app, /CAL_NAME=\{apple:"Apple Calendar",google:"Google Calendar",outlook:"Outlook"\}/, "Sent to Apple Calendar. Confirm there. (and Google or Outlook)");
   assert.doesNotMatch(app, /Added to (Apple|Google)/, "never claim it was added");
   assert.doesNotMatch(html + app, /microphone|Speak it/i, "no microphone in 2.0");
@@ -835,7 +835,15 @@ test("privacy and free wording match the approved text", () => {
     assert.ok(readFileSync(join(root, f), "utf8").includes(approved), f + " uses the approved privacy sentence");
   }
   const principles = readFileSync(join(root, "docs/PRINCIPLES.md"), "utf8");
-  assert.ok(principles.includes("## 2. Free, no sign-up, no tracking"), "principle 2 title");
+  assert.ok(principles.includes("## 2. Free, no account needed, no tracking"), "principle 2 title");
+  // Optional sign-in, in the owner's approved words, everywhere privacy is described.
+  const signin = "If you sign in, we keep your email address and your reminders so they sync across your devices and can be emailed to you. Private links stay on your device. Delete it all any time.";
+  for (const f of ["README.md", "docs/PRINCIPLES.md", "public/privacy/index.html"]) assert.ok(readFileSync(join(root, f), "utf8").includes(signin), f + " explains what signing in keeps");
+  assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes("delivered by <a href=\"https://resend.com/legal/privacy-policy\">Resend</a>"), "the privacy page names who delivers the emails");
+  for (const f of repoFiles()) {
+    if (/\.(png|ico|woff2)$/.test(f) || f.startsWith(join(root, "test")) || f.includes(join("docs", "v2")) || f.endsWith("CHANGELOG.md")) continue;
+    assert.doesNotMatch(readFileSync(f, "utf8"), /no sign-up|No account on either side/i, f + " still promises no sign-up");
+  }
   assert.ok(principles.includes('"Reminders that make sure it happens."'), "principle 5 states the aim");
   // Retired promises. The 2.0 spec in docs/v2 quotes them only to retire them.
   const retired = /nothing stored|no "?pro"? tier|is a phase/i;
@@ -1719,4 +1727,243 @@ test("app: every element the app looks up by id is on the page", () => {
   const made = new Set([...app.matchAll(/id="([\w-]+)"/g)].map(m => m[1])); // ids the app writes into the page itself
   const missing = [...new Set([...app.matchAll(/\$\("#([\w-]+)"\)/g)].map(m => m[1]))].filter(id => !html.includes('id="' + id + '"') && !made.has(id));
   assert.deepEqual(missing, [], "app.js looks up ids that index.html doesn't have");
+});
+
+/* ---------- optional sign-in: passkeys, email codes, sync and email reminders ---------- */
+
+// A test passkey: a real key pair and the bytes an authenticator would sign.
+async function testPasskey(alg = "ES256") {
+  const { webcrypto } = await import("node:crypto");
+  const W = await import("../worker/webauthn.js");
+  const pair = alg === "ES256" ? await webcrypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])
+    : await webcrypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  const spki = W.b64url(await webcrypto.subtle.exportKey("spki", pair.publicKey));
+  const id = W.randomId(20);
+  const cd = (type, challenge, origin) => W.b64url(new TextEncoder().encode(JSON.stringify({ type, challenge, origin, crossOrigin: false })));
+  // DER-encode a raw ECDSA signature, the way authenticators send it.
+  const der = raw => { const int = b => { let i = 0; while (i < b.length - 1 && b[i] === 0) i++; b = b.slice(i); if (b[0] & 0x80) b = Uint8Array.from([0, ...b]); return [0x02, b.length, ...b]; };
+    const body = [...int(raw.slice(0, 32)), ...int(raw.slice(32))]; return Uint8Array.from([0x30, body.length, ...body]); };
+  async function assertion(challenge, { origin = "https://remmynd.space", rpId = "remmynd.space", counter = 1, flags = 0x05 } = {}) {
+    const rpHash = new Uint8Array(await webcrypto.subtle.digest("SHA-256", new TextEncoder().encode(rpId)));
+    const auth = Uint8Array.from([...rpHash, flags, (counter >>> 24) & 255, (counter >>> 16) & 255, (counter >>> 8) & 255, counter & 255]);
+    const clientDataJSON = cd("webauthn.get", challenge, origin);
+    const cdHash = new Uint8Array(await webcrypto.subtle.digest("SHA-256", W.fromB64url(clientDataJSON)));
+    const signed = Uint8Array.from([...auth, ...cdHash]);
+    let sig = new Uint8Array(await webcrypto.subtle.sign(alg === "ES256" ? { name: "ECDSA", hash: "SHA-256" } : { name: "Ed25519" }, pair.privateKey, signed));
+    if (alg === "ES256") sig = der(sig);
+    return { id, clientDataJSON, authenticatorData: W.b64url(auth), signature: W.b64url(sig) };
+  }
+  const registration = (challenge, origin = "https://remmynd.space") => ({ id, clientDataJSON: cd("webauthn.create", challenge, origin), publicKey: spki, alg: alg === "ES256" ? -7 : -8 });
+  return { id, spki, alg: alg === "ES256" ? -7 : -8, assertion, registration };
+}
+
+test("passkeys: registration and sign-in are checked with real signatures", async () => {
+  const W = await import("../worker/webauthn.js");
+  for (const alg of ["ES256", "EdDSA"]) {
+    const k = await testPasskey(alg), origin = "https://remmynd.space";
+    const reg = await W.verifyRegistration(k.registration("c1"), { challenge: "c1", origin });
+    assert.deepEqual(reg, { id: k.id, publicKey: k.spki, alg: k.alg });
+    await assert.rejects(W.verifyRegistration(k.registration("c1", "https://evil.example"), { challenge: "c1", origin }), /origin/);
+    await assert.rejects(W.verifyRegistration(k.registration("other"), { challenge: "c1", origin }), /challenge/);
+    const ok = { challenge: "c2", origin, rpId: "remmynd.space", publicKey: k.spki, alg: k.alg };
+    assert.equal(await W.verifyAssertion(await k.assertion("c2", { counter: 7 }), ok), 7, alg + " signs in");
+    await assert.rejects(W.verifyAssertion(await k.assertion("c2"), { ...ok, challenge: "c3" }), /challenge/);
+    await assert.rejects(W.verifyAssertion(await k.assertion("c2", { origin: "https://remmynd.space.evil.example" }), ok), /origin/);
+    await assert.rejects(W.verifyAssertion(await k.assertion("c2", { rpId: "evil.example" }), ok), /relying party/);
+    await assert.rejects(W.verifyAssertion(await k.assertion("c2", { flags: 0x04 }), ok), /present/);
+    await assert.rejects(W.verifyAssertion(await k.assertion("c2", { counter: 3 }), { ...ok, signCount: 5 }), /counter/);
+    const other = await testPasskey(alg);
+    await assert.rejects(W.verifyAssertion(await other.assertion("c2"), ok), /signature/, "another key's signature fails");
+  }
+});
+
+// The account store, in memory, with the same methods and rules as the D1 one.
+function memoryStore() {
+  const t = { users: new Map(), passkeys: new Map(), sessions: new Map(), codes: new Map(), challenges: new Map(), items: new Map(), mails: new Map(), sends: new Map() };
+  const ik = (u, k, key) => u + "|" + k + "|" + key;
+  return { t,
+    ready: async () => {},
+    userByEmail: async e => [...t.users.values()].find(u => u.email === e) || null,
+    userById: async id => t.users.get(id) || null,
+    createUser: async u => { t.users.set(u.id, { ...u, email_alerts: 1 }); },
+    setEmailAlerts: async (id, on) => { const u = t.users.get(id); if (u) u.email_alerts = on ? 1 : 0; },
+    stopEmails: async (id, token) => { const u = t.users.get(id); if (u && u.stop_token === token) u.email_alerts = 0; },
+    deleteUser: async id => { for (const k of ["passkeys", "sessions", "mails"]) for (const [x, v] of t[k]) if (v.user_id === id) t[k].delete(x); for (const [x, v] of t.items) if (v.user_id === id) t.items.delete(x); t.users.delete(id); },
+    passkeysOf: async id => [...t.passkeys.values()].filter(p => p.user_id === id).map(p => ({ id: p.id, name: p.name, created: p.created, last_used: p.last_used })),
+    passkey: async id => t.passkeys.get(id) || null,
+    addPasskey: async p => { t.passkeys.set(p.id, { id: p.id, user_id: p.userId, public_key: p.publicKey, alg: p.alg, sign_count: 0, name: p.name, created: p.created, last_used: null }); },
+    usePasskey: async (id, count, now) => { const p = t.passkeys.get(id); p.sign_count = count; p.last_used = now; },
+    deletePasskey: async (userId, id) => { const p = t.passkeys.get(id); if (p && p.user_id === userId) t.passkeys.delete(id); },
+    createSession: async s => { t.sessions.set(s.hash, { token_hash: s.hash, user_id: s.userId, created: s.created, expires: s.expires }); },
+    session: async h => t.sessions.get(h) || null,
+    extendSession: async (h, expires) => { const s = t.sessions.get(h); if (s) s.expires = expires; },
+    deleteSession: async h => { t.sessions.delete(h); },
+    code: async e => t.codes.get(e) || null,
+    putCode: async c => { t.codes.set(c.email, { ...c, tries: 0 }); },
+    tryCode: async e => { const c = t.codes.get(e); if (c) c.tries++; },
+    deleteCode: async e => { t.codes.delete(e); },
+    countSend: async hour => { t.sends.set(hour, (t.sends.get(hour) || 0) + 1); return t.sends.get(hour); },
+    putChallenge: async c => { t.challenges.set(c.id, { id: c.id, challenge: c.challenge, user_id: c.userId || null, kind: c.kind, expires: c.expires }); },
+    takeChallenge: async id => { const c = t.challenges.get(id) || null; t.challenges.delete(id); return c; },
+    items: async (u, since) => [...t.items.values()].filter(x => x.user_id === u && x.updated > since).sort((a, b) => a.updated - b.updated),
+    itemUpdated: async (u, k, key) => t.items.get(ik(u, k, key))?.updated || 0,
+    countItems: async u => [...t.items.values()].filter(x => x.user_id === u && !x.deleted).length,
+    putItems: async (u, list) => { for (const x of list) { const old = t.items.get(ik(u, x.kind, x.key)); if (!old || x.updated >= old.updated) t.items.set(ik(u, x.kind, x.key), { user_id: u, kind: x.kind, key: x.key, data: x.data, updated: x.updated, deleted: x.deleted ? 1 : 0 }); } },
+    reminders: async u => [...t.items.values()].filter(x => x.user_id === u && x.kind === "reminder" && !x.deleted).map(x => ({ key: x.key, data: x.data })),
+    setMails: async (u, key, list) => { for (const [id, m] of t.mails) if (m.user_id === u && m.key === key) t.mails.delete(id); for (const m of list) t.mails.set(m.id, { ...m, user_id: u, key }); },
+    clearMails: async u => { for (const [id, m] of t.mails) if (m.user_id === u) t.mails.delete(id); },
+    dueMails: async now => [...t.mails.values()].filter(m => m.at <= now).sort((a, b) => a.at - b.at).map(m => { const u = t.users.get(m.user_id), i = t.items.get(ik(m.user_id, "reminder", m.key));
+      return { id: m.id, kind: m.kind, at: m.at, data: i && !i.deleted ? i.data : null, email: u.email, email_alerts: u.email_alerts, user_id: u.id, stop_token: u.stop_token }; }),
+    deleteMail: async id => { t.mails.delete(id); },
+    cleanup: async () => {},
+  };
+}
+
+test("account: sign in with an emailed code, a passkey, sync, email reminders and delete", async () => {
+  const A = await import("../worker/account.js");
+  const store = memoryStore(), sent = [];
+  let now = Date.parse("2026-11-20T08:00:00Z");
+  const mailer = async msg => { sent.push(msg); return 200; };
+  const base = "https://remmynd.space";
+  let jar = "", devEnv = {};
+  const call = async (path, body, { origin = base, method = body === undefined ? "GET" : "POST", host = base, ctype = "application/json", mail = mailer, cookie = jar } = {}) => {
+    const headers = { "content-type": ctype };
+    if (origin) headers.origin = origin;
+    if (cookie) headers.cookie = cookie;
+    const req = new Request(host + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await A.handleAccount(req, devEnv, new URL(req.url), null, { store, mailer: mail, now });
+    const sc = res.headers.get("set-cookie");
+    return { status: res.status, body: await res.json().catch(() => null), cookie: sc };
+  };
+
+  // Changes need POST, JSON and this site's origin.
+  assert.equal((await call("/api/auth/email/start", { email: "a@b.co" }, { origin: "https://evil.example" })).status, 403);
+  assert.equal((await call("/api/auth/email/start", { email: "a@b.co" }, { origin: null })).status, 403);
+  assert.equal((await call("/api/auth/email/start", { email: "a@b.co" }, { ctype: "text/plain" })).status, 415);
+  assert.equal((await call("/api/auth/signout", undefined, { method: "GET" })).status, 405);
+  assert.equal((await call("/api/sync", { since: 0, items: [] })).status, 401, "sync needs a signed-in account");
+  assert.deepEqual((await call("/api/me")).body, { signedIn: false });
+
+  // Email code: sent through the mailer; no mailer on the live site is an error; on localhost the code comes back for testing.
+  assert.equal((await call("/api/auth/email/start", { email: "Person@Example.com" }, { mail: null })).status, 503);
+  assert.equal((await call("/api/auth/email/start", { email: "dev@example.com" }, { host: "http://localhost:8787", origin: "http://localhost:8787", mail: null })).status, 503, "localhost alone never shows the code");
+  devEnv = { DEV_SHOW_CODE: "1" };
+  assert.match((await call("/api/auth/email/start", { email: "dev@example.com" }, { mail: null })).body.devCode, /^\d{6}$/, "DEV_SHOW_CODE=1 with no email key shows the code, for local tests");
+  assert.equal((await call("/api/auth/email/start", { email: "dev2@example.com" })).body.devCode, undefined, "never when email is set up");
+  devEnv = {};
+  sent.length = 0;
+  assert.equal((await call("/api/auth/email/start", { email: "not an email" })).status, 400);
+  assert.equal((await call("/api/auth/email/start", { email: "Person@Example.com" })).status, 200);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].to, "person@example.com");
+  const code = /Your remmynd code: (\d{6})/.exec(sent[0].subject)[1];
+  assert.ok(sent[0].text.includes(code.slice(0, 3) + " " + code.slice(3)));
+  assert.equal((await call("/api/auth/email/start", { email: "person@example.com" })).status, 429, "one code a minute");
+  const wrong = code === "000000" ? "111111" : "000000";
+  assert.equal((await call("/api/auth/email/verify", { email: "person@example.com", code: wrong })).status, 400);
+  const signin = await call("/api/auth/email/verify", { email: "person@example.com", code });
+  assert.equal(signin.status, 200);
+  assert.equal(signin.body.isNew, true);
+  assert.match(signin.cookie, /^rm_s=[A-Za-z0-9_-]{40,}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=15552000; Secure$/);
+  assert.equal((await call("/api/auth/email/verify", { email: "person@example.com", code })).status, 400, "a code works once");
+  jar = signin.cookie.split(";")[0];
+  assert.deepEqual((await call("/api/me")).body, { signedIn: true, email: "person@example.com", emailAlerts: true, passkeys: [] });
+
+  // Add a passkey, then sign in with it.
+  const k = await testPasskey("ES256");
+  const ro = await call("/api/passkeys/options", {});
+  assert.equal(ro.body.publicKey.rp.id, "remmynd.space");
+  assert.equal(ro.body.publicKey.authenticatorSelection.residentKey, "required");
+  const added = await call("/api/passkeys/add", { challengeId: ro.body.challengeId, ...k.registration(ro.body.publicKey.challenge), name: "iPhone" });
+  assert.equal(added.status, 200);
+  assert.deepEqual(added.body.passkeys.map(p => p.name), ["iPhone"]);
+  assert.equal((await call("/api/passkeys/add", { challengeId: ro.body.challengeId, ...k.registration(ro.body.publicKey.challenge) })).status, 400, "a challenge works once");
+  const lo = await call("/api/auth/passkey/options", {}, { cookie: "" });
+  const pk = await call("/api/auth/passkey/verify", { challengeId: lo.body.challengeId, ...(await k.assertion(lo.body.publicKey.challenge, { counter: 1 })) }, { cookie: "" });
+  assert.equal(pk.status, 200);
+  assert.match(pk.cookie, /^rm_s=/);
+  const lo2 = await call("/api/auth/passkey/options", {}, { cookie: "" });
+  const forged = await testPasskey("ES256");
+  assert.equal((await call("/api/auth/passkey/verify", { challengeId: lo2.body.challengeId, ...(await forged.assertion(lo2.body.publicKey.challenge)), id: k.id }, { cookie: "" })).status, 400, "another key can't use this passkey's id");
+
+  // Sync: newest wins, private links never stored, and held reminders get emails.
+  const start = now + 3 * 3600e3, share = base + "/r/abc";
+  const rec = { rkey: "k1", title: "Demo day", start, dur: 60, place: "Room 4", share, state: "held", tz: "Asia/Kolkata" };
+  let s1 = await call("/api/sync", { since: 0, items: [
+    { kind: "reminder", key: "k1", data: rec, updated: now },
+    { kind: "link", key: base + "/#private", data: { share: base + "/#private", title: "Secret" }, updated: now },
+    { kind: "link", key: share, data: { share, title: "Demo day" }, updated: now },
+  ] });
+  assert.equal(s1.status, 200);
+  assert.deepEqual(s1.body.items.map(i => i.kind + ":" + i.key).sort(), ["link:" + share, "reminder:k1"], "the private link isn't stored");
+  assert.ok(![...store.t.items.values()].some(i => /#private|Secret/.test(i.key + i.data)));
+  assert.deepEqual([...store.t.mails.values()].map(m => m.kind + "@" + (m.at - start) / 60e3).sort(), ["before@-60", "start@0"]);
+  await call("/api/sync", { since: 0, items: [{ kind: "reminder", key: "k1", data: { ...rec, title: "Old" }, updated: now - 1000 }] });
+  assert.equal(JSON.parse(store.t.items.get(store.t.items.keys().next().value).data).title, "Demo day", "an older change doesn't win");
+  const since = s1.body.now;
+
+  // Emails: sent when due, with a stop link and only links to this site; a failure is retried.
+  now = start - 3600e3;
+  let fail = true;
+  await A.sendDueMails({}, now, { store, origin: base, mailer: async m => { if (fail) return 500; sent.push(m); return 200; } });
+  assert.equal(store.t.mails.size, 2, "a failed send stays for the next minute");
+  fail = false;
+  const r1 = await A.sendDueMails({}, now, { store, origin: base, mailer: async m => { sent.push(m); return 200; } });
+  assert.equal(r1.sent, 1);
+  const mail = sent.at(-1);
+  assert.equal(mail.subject, "In 1 hour: Demo day");
+  assert.equal(mail.to, "person@example.com");
+  assert.match(mail.headers["List-Unsubscribe"], /^<https:\/\/remmynd\.space\/api\/mail\/stop\?u=[\w-]+&t=[\w-]+>$/);
+  assert.equal(mail.headers["List-Unsubscribe-Post"], "List-Unsubscribe=One-Click");
+  assert.ok(mail.html.includes('href="' + share + '"') && mail.text.includes("Open it: " + share));
+  const evil = A.reminderMail({ ...rec, share: "https://evil.example/x", title: "<b>x</b>" }, "start", base + "/stop", base);
+  assert.ok(!evil.html.includes("evil.example") && !evil.text.includes("evil.example") && evil.html.includes("&lt;b&gt;x&lt;/b&gt;"), "links elsewhere are dropped and titles escaped");
+
+  // Done or deleted: the rest of the emails are cancelled. (A tie goes to the change that arrives last.)
+  now += 1000;
+  await call("/api/sync", { since, items: [{ kind: "reminder", key: "k1", data: { ...rec, state: "kept" }, updated: now }] });
+  assert.equal(store.t.mails.size, 0);
+  now += 1000;
+  await call("/api/sync", { since, items: [{ kind: "reminder", key: "k1", data: rec, updated: now }] });
+  assert.equal(store.t.mails.size, 1, "held again: the start email is back");
+  now += 1000;
+  const del = await call("/api/sync", { since, items: [{ kind: "reminder", key: "k1", deleted: true, updated: now }] });
+  assert.ok(del.body.items.some(i => i.key === "k1" && i.deleted));
+  assert.equal(store.t.mails.size, 0);
+
+  // Email reminders off and on; the stop link turns them off without signing in.
+  now += 1000;
+  await call("/api/sync", { since, items: [{ kind: "reminder", key: "k2", data: { ...rec, rkey: "k2", start: now + 7200e3 }, updated: now }] });
+  assert.equal(store.t.mails.size, 2);
+  assert.equal((await call("/api/account/settings", { emailAlerts: false })).body.emailAlerts, false);
+  assert.equal(store.t.mails.size, 0);
+  assert.equal((await call("/api/account/settings", { emailAlerts: true })).body.emailAlerts, true);
+  assert.equal(store.t.mails.size, 2, "turning emails back on schedules them again");
+  const user = [...store.t.users.values()][0];
+  const stop = await A.handleAccount(new Request(base + "/api/mail/stop?u=" + user.id + "&t=" + user.stop_token), {}, new URL(base + "/api/mail/stop?u=" + user.id + "&t=" + user.stop_token), null, { store, now });
+  assert.match(await stop.text(), /Email reminders are off/);
+  assert.equal(user.email_alerts, 0);
+
+  // Sign out ends this session; deleting the account deletes everything.
+  const out = await call("/api/auth/signout", {});
+  assert.match(out.cookie, /^rm_s=; .*Max-Age=0/);
+  assert.equal((await call("/api/sync", { since: 0, items: [] })).status, 401);
+  jar = pk.cookie.split(";")[0];
+  assert.equal((await call("/api/account/delete", {})).status, 200);
+  for (const k of ["users", "passkeys", "sessions", "items", "mails"]) assert.equal(store.t[k].size, 0, k + " are deleted with the account");
+});
+
+test("account: the app loads sign-in only when needed and keeps private links on the device", () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), acct = readFileSync(join(root, "public/account.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  assert.match(app, /import\("\/account\.js"\)\.then\(m=>m\.open\(\)\)/, "the sign-in sheet loads when asked for");
+  assert.match(app, /if\(localStorage\.getItem\("rm:acct"\)==="1"\)import\("\/account\.js"\)\.then\(m=>m\.boot\(\)\)/, "and on signed-in devices, to sync");
+  assert.ok(html.includes('<button type="button" class="btn" id="acct-btn">Sign in to sync and get email</button>'));
+  assert.ok(app.includes("Private links stay on this device, so they aren't emailed"));
+  assert.match(acct, /const isPrivate = share => String\(share \|\| ""\)\.includes\("\/#"\);/);
+  assert.match(acct, /for \(const r of recs\) if \(!isPrivate\(r\.share\)\)/);
+  assert.match(acct, /for \(const l of links\) if \(!isPrivate\(l\.share\)\)/);
+  assert.match(acct, /PublicKeyCredential/);
+  assert.doesNotMatch(readFileSync(join(root, "public/account.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "account.css uses token names, not raw colours");
+  // The first visit doesn't download any of it.
+  assert.ok(!firstVisit({ cache: true }).some(f => /^account\./.test(f)));
 });

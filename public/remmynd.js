@@ -13,7 +13,7 @@
 
 export const VERSION = "2.0.1";
 export const DEFAULT_BASE = "https://remmynd.space/";
-const CREDIT = "Made with remmynd.space · free reminder links, no sign-up";
+const CREDIT = "Made with remmynd.space · free reminder links, no account needed";
 const te = new TextEncoder();
 
 /* ---------- base64url ---------- */

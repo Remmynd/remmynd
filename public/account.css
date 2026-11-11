@@ -1,0 +1,30 @@
+/* remmynd account sheet: sign in, passkeys, email reminders. Loaded by account.js only when the sheet
+   opens, after app.css, so it uses the same tokens. Token names only, no raw colours (a test checks). */
+.ac-card{display:grid;gap:14px}
+.ac-card h2{margin:0 44px 0 0;font-size:22px;letter-spacing:-.02em}
+.ac-card .rp-sub{margin:-6px 0 0}
+.ac-email{font:500 14px var(--mono);word-break:break-all}
+.ac-wide{width:100%}
+.ac-card .btn svg{width:18px;height:18px}
+.ac-form{display:grid;gap:10px}
+.ac-field{display:grid;gap:6px}
+.ac-field span{font:var(--label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.ac-field input,.ac-code{width:100%;min-height:52px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r-chip);background:var(--card);color:var(--ink);font:500 17px var(--font)}
+.ac-code{text-align:center;font:600 28px var(--mono);letter-spacing:.3em}
+.ac-field input:focus,.ac-code:focus{outline:2px solid var(--ink);outline-offset:1px}
+.ac-or{display:flex;align-items:center;gap:12px;color:var(--muted);font:500 12px var(--mono);text-transform:uppercase;letter-spacing:.08em}
+.ac-or::before,.ac-or::after{content:"";flex:1;border-top:1px solid var(--hairline)}
+.ac-fine{margin:0;font-size:13px;line-height:1.45;color:var(--muted)}
+.ac-fine a{color:var(--ink-2)}
+.ac-offer{display:grid;gap:6px;padding:16px;border-radius:var(--r-row);background:var(--well)}
+.ac-offer b{font-size:16px}
+.ac-offer span{font-size:14px;color:var(--ink-2);margin-bottom:6px}
+.ac-keys{display:grid;gap:8px}
+.ac-key{display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 6px 6px 14px;border:1px solid var(--hairline);border-radius:var(--r-row)}
+.ac-key svg{width:20px;height:20px;flex:none;color:var(--ink-2)}
+.ac-key span{flex:1;min-width:0;display:grid}
+.ac-key i{font:400 12px var(--mono);font-style:normal;color:var(--muted)}
+.ac-none{margin:0;font-size:14px;color:var(--muted)}
+.ac-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ac-danger{background:var(--moment-tint);border-color:transparent;color:var(--on-moment-tint)}
+.ac-card .linkish{justify-self:center}

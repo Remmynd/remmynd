@@ -24,7 +24,7 @@ export function icsResponse(request) {
   const title = clip(r.t, 160), loc = clip(r.l, 200), notes = clip(r.n, 300);
   const share = isHttp(r.u) && /^https:\/\/([a-z0-9-]+\.)*(remmynd\.space|workers\.dev|pages\.dev)\//.test(r.u) ? clip(r.u, 3000) : "https://remmynd.space/";
   const head = [notes, isHttp(loc) ? "Join: " + loc : ""].filter(Boolean);
-  const desc = (head.length ? head.join("\n") + "\n\n" : "") + "Reminder link: " + share + "\nMade with remmynd.space · free reminder links, no sign-up";
+  const desc = (head.length ? head.join("\n") + "\n\n" : "") + "Reminder link: " + share + "\nMade with remmynd.space · free reminder links, no account needed";
   const uid = "rm-" + clip(r.k, 12) + "-" + hash(clip(r.o, 160) || title) + "@remmynd.space";
   const L = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//zoof04//remmynd//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "BEGIN:VEVENT",
     "UID:" + uid, "DTSTAMP:" + stamp(new Date()), "DTSTART:" + stamp(start), "DTEND:" + stamp(end), "SUMMARY:" + esc(title), "DESCRIPTION:" + esc(desc)];
