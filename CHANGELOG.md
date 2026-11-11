@@ -6,6 +6,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-11-11
+
+remmynd 2.0.1: security and polish. The library reads links, `/new` addresses and pasted invitations without slowing down on crafted input, credit is Zoof04 Inc. everywhere, and the site sends a strict security policy. Links and the library's functions are unchanged.
+
 ### Changed
 
 - Credit is Zoof04 Inc. everywhere: the footer of every page ("A free tool by Zoof04 Inc. MIT licence." and "© 2026 Zoof04 Inc."), LICENSE, package.json, README, the brand guide and the press page. The remmynd name, logo and moment ring belong to Zoof04 Inc. and are not covered by the MIT licence.
@@ -118,6 +122,7 @@ remmynd 2.0: reminders that make sure it happens. Write a reminder in one line, 
 - Brand kit in `brand/`: logo, mark, wordmark, avatars, social banners and a brand guide.
 - Favicon set, maskable app icon and link-preview image.
 
-[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.0.1...HEAD
+[2.0.1]: https://github.com/Remmynd/remmynd/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/Remmynd/remmynd/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/Remmynd/remmynd/releases/tag/v1.0.0
