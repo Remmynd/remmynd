@@ -273,7 +273,7 @@ test("website and library produce the same links", () => {
 
 test("website script parses", () => {
   const html = readFileSync(join(root, "public/index.html"), "utf8");
-  const scripts = [...html.matchAll(/<script\s*>([\s\S]*?)<\/script\s*>/gi)].map(m => m[1]);
+  const scripts = [...html.matchAll(/<script\s*>([\s\S]*?)<\/script\b[^>]*>/gi)].map(m => m[1]);
   assert.equal(scripts.length, 1, "only the theme line stays inline; the app is app.js");
   for (const js of scripts) assert.doesNotThrow(() => new Function(js), "inline script has a syntax error");
   assert.match(html, /<script src="\/db\.js" defer><\/script>\n<script type="module" src="\/app\.js"><\/script>\n<script src="\/push\.js" defer><\/script>/, "db.js, then app.js, then push.js");
@@ -629,8 +629,8 @@ function jsLoads(js) {
 // Replaces until nothing changes, so a comment or block hidden inside another can't survive one pass.
 const untilStable = (s, re, to) => { let prev; do { prev = s; s = s.replace(re, to); } while (s !== prev); return s; };
 const stripComments = s => untilStable(s, /<!--[\s\S]*?-->/g, "");
-// An end tag may carry spaces before its ">" ("</script >") and any letter case.
-const SCRIPT_BLOCK = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+// An end tag may carry anything before its ">" ("</script >", "</script foo>") and any letter case.
+const SCRIPT_BLOCK = /<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi;
 
 // Inline script bodies of an HTML page (not JSON data blocks), or a whole script file.
 function scriptsIn(file, text) {
@@ -643,8 +643,8 @@ function scriptsIn(file, text) {
 // What a page or SVG fetches by itself. Markup written inside a script is not markup.
 function markupLoads(file, html) {
   const out = scriptsIn(file, html).flatMap(jsLoads);
-  html = untilStable(stripComments(html), /(<script\b[^>]*>)[\s\S]*?<\/script\s*>/gi, "$1");
-  html = untilStable(html, /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi, (_, css) => { out.push(...cssLoads(css)); return ""; });
+  html = untilStable(stripComments(html), /(<script\b[^>]*>)[\s\S]*?<\/script\b[^>]*>/gi, "$1");
+  html = untilStable(html, /<style\b[^>]*>([\s\S]*?)<\/style\b[^>]*>/gi, (_, css) => { out.push(...cssLoads(css)); return ""; });
   for (const [, name, rest] of html.matchAll(/<([a-z][a-z0-9:-]*)\b([^>]*)>/gi)) {
     const tag = name.toLowerCase(), a = attrs(rest), add = (ref, at) => out.push({ ref, by: "<" + tag + " " + at + ">", file: true });
     if (a.style) cssLoads(a.style).forEach(l => add(l.ref, "style"));
@@ -1617,7 +1617,7 @@ test("security: a strict content security policy, HSTS and security.txt", () => 
   const hashes = dir["script-src"].filter(v => v.startsWith("'sha256-")).map(v => v.slice(8, -1));
   for (const f of ["public/index.html", ...[...PAGES, "404"].map(pageFile)]) {
     const html = readFileSync(join(root, f), "utf8");
-    const inline = [...html.matchAll(/<script\s*>([\s\S]*?)<\/script\s*>/gi)].map(m => m[1]);
+    const inline = [...html.matchAll(/<script\s*>([\s\S]*?)<\/script\b[^>]*>/gi)].map(m => m[1]);
     assert.equal(inline.length, 1, f + ": one inline script");
     assert.ok(hashes.includes(createHash("sha256").update(inline[0]).digest("base64")), f + ": the inline script's hash is in script-src");
     assert.doesNotMatch(html, /\son[a-z]+="|\sstyle="|javascript:/i, f + ": no inline handlers, styles or javascript: links");
@@ -1675,5 +1675,5 @@ test("security: crafted input can't make the library or the page slow", () => {
   for (const form of [link, link + "/", link + "?x=1", "r/" + payload, payload, "https://remmynd.space/#" + payload]) assert.equal(R.decode(form)?.title, "Demo", form);
   assert.equal(R.createLink({ title: "x", start: "2026-12-05T18:00Z" }, { base: "https://example.org//#y" }).split("/r/")[0], "https://example.org");
   // The page looks up named examples among its own keys only, so #constructor is just an unknown link.
-  assert.match(readFileSync(join(root, "public/app.js"), "utf8"), /if\(Object\.prototype\.hasOwnProperty\.call\(PRESETS,h\)\)return showView/);
+  assert.match(readFileSync(join(root, "public/app.js"), "utf8"), /const preset=Object\.prototype\.hasOwnProperty\.call\(PRESETS,h\)\?PRESETS\[h\]:null;if\(typeof preset==="function"\)return showView\(preset\(\),h,false\);/);
 });

@@ -388,7 +388,7 @@ function route(){if(location.href===routed)return;routed=location.href;const p=l
   if(p.startsWith("/r/")){const r=dec(p.slice(3).replace(/\/+$/,""));return r?showView(r,null,false):showHome();}
   if(p==="/new"||p==="/new/")return fromNew();
   const h=decodeURIComponent(location.hash.slice(1));if(h==="coming-up"||h==="links")return showLists(h==="links"?"links":"coming");
-  if(Object.prototype.hasOwnProperty.call(PRESETS,h))return showView(PRESETS[h](),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
+  const preset=Object.prototype.hasOwnProperty.call(PRESETS,h)?PRESETS[h]:null;if(typeof preset==="function")return showView(preset(),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
 /* /new?t=…&at=… lands here only when the time has no zone. Read it in this device's zone with the library itself, then show the /r/ link. */
 function fromNew(){const q=new URLSearchParams(location.search);
   const ev=R.fromQuery(q,{timeZone:TZ});if(ev){history.replaceState(null,"",R.toPath(ev));return route();}
