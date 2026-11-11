@@ -441,6 +441,7 @@ let routed="";
 function route(){if(location.href===routed)return;routed=location.href;const p=location.pathname;
   if(p.startsWith("/r/")){const r=dec(p.slice(3).replace(/\/+$/,""));return r?showView(r,null,false):showHome();}
   if(p==="/new"||p==="/new/")return fromNew();
+  if(p==="/share"||p==="/share/")return fromShare();
   const h=decodeURIComponent(location.hash.slice(1));if(h==="coming-up"||h==="links")return showLists(h==="links"?"links":"coming");
   const preset=PRESETS.get(h);if(typeof preset==="function")return showView(preset(),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
 /* /new?t=…&at=… lands here only when the time has no zone. Read it in this device's zone with the library itself, then show the /r/ link. */
@@ -449,6 +450,9 @@ function fromNew(){const q=new URLSearchParams(location.search);
   history.replaceState(null,"","/");routed=location.href;
   const set={};for(const[k,key]of[["t","title"],["l","place"],["n","notes"]]){const v=(q.get(k)||"").trim();if(v)set[key]=key==="place"&&webish(v)&&!/^https?:\/\//i.test(v)?"https://"+v:v;}
   D.set=set;D.mode=Object.keys(set).length?"draft":"home";showHome();toast("Add what's missing to make the link");}
+/* Shared from another app (Android share sheet, manifest share_target): title, text and link become one line in the bar, read like anything typed there. */
+const shareLine=q=>{const u=(q.get("url")||"").trim();let s=[q.get("title"),q.get("text")].map(x=>(x||"").trim()).filter((x,i,a)=>x&&a.indexOf(x)===i).join(" ");if(u&&!s.includes(u))s+=" "+u;return s.replace(/\s+/g," ").trim().slice(0,600);};
+function fromShare(){const t=shareLine(new URLSearchParams(location.search));history.replaceState(null,"","/");routed=location.href;D.base="home";D.mode="home";showHome();if(t){C.input.value=t;C.input.dispatchEvent(new Event("input"));}}
 const goHome=e=>{e.preventDefault();if(location.pathname==="/"&&!location.hash)return showHome();history.pushState(null,"","/");route();};
 $("#home-link").addEventListener("click",goHome);$("#make-own").addEventListener("click",goHome);
 $("#nav-right").addEventListener("click",e=>{const n=e.currentTarget;if(n.dataset.act==="back"){e.preventDefault();return history.back();}if(n.dataset.act==="cancel"){e.preventDefault();return clearDraft();}if(n.getAttribute("href")==="/")goHome(e);});

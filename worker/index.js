@@ -2,7 +2,7 @@
 // anything that isn't one of the routes below is handed to the static files in public/.
 import { icsResponse } from "./ics.js";
 import { handlePush, sendDuePings } from "./push.js";
-import { sharedResponse, newResponse } from "./preview.js";
+import { sharedResponse, newResponse, shareResponse } from "./preview.js";
 import { changelogResponse } from "./changelog.js";
 import { statsResponse } from "./stats.js";
 import { handleAccount, sendDueMails } from "./account.js";
@@ -36,6 +36,9 @@ export default {
 
     // Hand-written links: /new?t=…&at=…&tz=… → the /r/ link.
     if (url.pathname === "/new" || url.pathname === "/new/") return newResponse(request, env, url);
+
+    // Shared to remmynd from another app (Android share sheet): the app, which reads the text itself.
+    if (url.pathname === "/share" || url.pathname === "/share/") return shareResponse(request, env, url);
 
     // The changelog page, rendered from CHANGELOG.md inside the website's own page.
     if (url.pathname === "/changelog") return changelogResponse(request, env, url);

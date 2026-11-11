@@ -44,6 +44,12 @@ async function shell(env, url) {
   return env.ASSETS.fetch(new Request(new URL("/", url)));
 }
 
+/** /share (the Android share sheet): the app itself; the page reads the shared text from its own address. */
+export async function shareResponse(request, env, url) {
+  if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
+  return noStore(await shell(env, url));
+}
+
 function noStore(res) {
   const out = new Response(res.body, res);
   out.headers.delete("ETag");
