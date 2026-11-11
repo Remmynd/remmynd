@@ -184,7 +184,9 @@ flowchart TD
     SR -- no --> NW{Path is /new?}
     NW -- "exact time (tz, Z or offset)" --> RN["302 to the /r/ link"]
     NW -- "no zone or missing parts" --> SN["Plain index.html, no-store;<br/>the page reads the time in the visitor's zone"]
-    NW -- no --> CL{Path is /changelog?}
+    NW -- no --> SHR{Path is /share?}
+    SHR -- "GET / HEAD" --> SHS["Plain index.html, no-store;<br/>the page puts the shared text in the bar"]
+    SHR -- no --> CL{Path is /changelog?}
     CL -- yes --> CR["changelog/index.html with CHANGELOG.md<br/>rendered into it (HTMLRewriter)"]
     CL -- no --> ST{Path is /stats?}
     ST -- yes --> SS["Stars and downloads, asked of GitHub and npm<br/>by the Worker, cached an hour"]
@@ -194,6 +196,8 @@ flowchart TD
     A -- found --> OK[200 + headers from public/_headers]
     A -- not found --> NF[404 page]
 ```
+
+`/share` is where the Android share sheet sends text once remmynd is installed (`share_target` in the manifest). The Worker serves the app, which joins the shared title, text and link into one line in the bar and sets the address back to `/`; nothing is sent anywhere.
 
 Website pages live in folders (`public/why/index.html`) and are served without the slash (`html_handling = "drop-trailing-slash"`): `/why/` redirects to `/why`. `CHANGELOG.md` is bundled into the Worker as text by a `[[rules]]` entry in `wrangler.toml`; `npm test` reads it the same way through `scripts/text-loader.mjs`.
 

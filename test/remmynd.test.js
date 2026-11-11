@@ -1363,6 +1363,37 @@ test("extras: Kept N of M this month, Ctrl or Cmd + K, and the floating countdow
   for (const f of ["palette.css", "float.css"]) assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, f + " uses token names, not raw colours");
 });
 
+test("share target: text shared from another app lands in the bar", async () => {
+  // Installed on Android, remmynd is in the share sheet; what's shared opens /share?title=&text=&url=.
+  const man = JSON.parse(readFileSync(join(root, "public/manifest.webmanifest"), "utf8"));
+  assert.deepEqual(man.share_target, { action: "/share", method: "GET", enctype: "application/x-www-form-urlencoded", params: { title: "title", text: "text", url: "url" } });
+
+  // The Worker answers with the app itself, never stored, and refuses anything but GET and HEAD.
+  const worker = (await import("../worker/index.js")).default;
+  const env = shellEnv();
+  let res = await worker.fetch(new Request("https://remmynd.space/share?text=Dentist+Tue+4pm"), env);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.match(await res.text(), /<html/);
+  assert.equal((await worker.fetch(new Request("https://remmynd.space/share", { method: "POST" }), env)).status, 405);
+
+  // The page makes one line of title, text and link (each once), and reads it like anything typed in the bar.
+  const app = readFileSync(join(root, "public/app.js"), "utf8");
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+  const shareLine = new Function(line("const shareLine=") + "; return shareLine;")();
+  const q = o => new URLSearchParams(o);
+  assert.equal(shareLine(q({ title: "Concert tickets", url: "https://tix.example/e/42" })), "Concert tickets https://tix.example/e/42");
+  assert.equal(shareLine(q({ text: "Standup tomorrow 9:30 https://meet.example/abc", url: "https://meet.example/abc" })), "Standup tomorrow 9:30 https://meet.example/abc", "a link already in the text isn't added twice");
+  assert.equal(shareLine(q({ title: "Dentist Tue 4pm", text: "Dentist Tue 4pm" })), "Dentist Tue 4pm");
+  assert.equal(shareLine(q({ text: "Book club\n  Thursday   7pm" })), "Book club Thursday 7pm", "the bar is one line");
+  assert.equal(shareLine(q({ text: "x".repeat(900) })).length, 600, "no longer than the bar takes");
+  assert.equal(shareLine(q({})), "");
+  assert.match(app, /if\(p==="\/share"\|\|p==="\/share\/"\)return fromShare\(\);/);
+  assert.match(app, /history\.replaceState\(null,"","\/"\)/, "the address goes back to / so a reload doesn't share it again");
+  const p = R.parse(shareLine(q({ title: "Dentist appointment Tue 4pm", url: "https://smile.example/visit" })), { timeZone: "Asia/Kolkata", now: new Date("2026-11-11T10:00:00Z") });
+  assert.deepEqual([p.title, p.start.toISOString(), p.place], ["Dentist appointment", "2026-11-17T10:30:00.000Z", "https://smile.example/visit"]);
+});
+
 test("follow through: the re-plan sheet's choices", () => {
   const app = readFileSync(join(root, "public/app.js"), "utf8");
   const line = p => app.split("\n").find(l => l.startsWith(p));

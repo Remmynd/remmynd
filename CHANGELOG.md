@@ -20,10 +20,12 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - Back on a reminder opened from inside the app. The Delete key removes the row in focus.
 - Search and commands: press Ctrl K (⌘K on a Mac), or open it from the menu, to find any reminder or link, go to Coming up or My links, switch theme or sound, sign in, install, or open a page. Type something that matches nothing and Enter makes it a new reminder.
 - A floating countdown on a computer: on a held reminder, "Float it above my windows" opens a small window that stays on top of your other windows and counts down to the start (Chrome and Edge; the row isn't shown where the browser can't do it). It closes itself when you mark the reminder done, drop it or remove it, and follows a re-planned time.
+- Share into remmynd from any Android app once it's installed: the shared title, text and link land in the bar as one line, with the live preview, ready for Enter.
 - "Kept 6 of 7 this month" beside the Coming up tabs: of the reminders that came due this month, how many you marked done. It only shows once you've kept one.
 
 ### Changed
 
+- The roadmap's Now lane lists everything live, including what shipped after 2.0; email reminders moved there from Next.
 - "Free, no sign-up, no tracking." is now "Free, no account needed, no tracking.", and the privacy page explains exactly what signing in keeps and who delivers the emails.
 - "Remind me at 9 AM instead" is now an offer, off by default, and only for a night-time reminder at least 12 hours away. A reminder set at midnight for two minutes later goes off at the time you set.
 - Row actions appear as a row of buttons under the reminder instead of sliding it aside, so titles stay readable on small screens.
