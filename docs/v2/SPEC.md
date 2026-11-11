@@ -35,7 +35,7 @@ Decisions 2, 3 and 6 change `docs/PRINCIPLES.md`. The exact edits are in section
 - **No tracking, no third parties.** No analytics, cookies or accounts. The site makes zero requests to other hosts: fonts are self-hosted. Links out (calendar pages, zoof04.com, GitHub) are fine.
 - **No logs.** The Worker never logs request addresses. Keep observability off in `wrangler.toml`.
 - **Old links never break.** Every 1.x link (`/#<payload>`, named pages) keeps working. New payload keys are optional.
-- **Small.** App code (HTML, CSS and JS the app loads on first visit) stays under 60 KB compressed. The whole first visit, fonts included, stays under 150 KB. No framework, no bundler.
+- **Small.** App code (HTML, CSS and JS the app loads on first visit) stays under 70 KB compressed (60 KB until 2.1.0). The whole first visit, fonts included, stays under 150 KB. No framework, no bundler.
 - **Fast.** Opens in under 1 second on a mid-range phone on 4G. Every tap responds in under 100 ms.
 - **Accessible.** WCAG 2.2 AA contrast, tap targets of 44 px or more, a text label on every icon button, full keyboard use, sensible screen-reader names, and all motion off under `prefers-reduced-motion`.
 - **Honest buttons.** Never claim what we cannot know. We cannot tell whether someone finished saving in their calendar app, so say "Sent to Apple Calendar. Confirm there.", not "Added".

@@ -36,7 +36,7 @@ Notifications exist, with the person's permission. remmynd asks only after someo
 
 ## 4. Small on purpose
 
-- Under 60 KB of code, no framework. The HTML, CSS and JavaScript the app loads on a first visit stay under 60 KB compressed, and the whole first visit, fonts included, under 150 KB. No bundler.
+- Under 70 KB of code, no framework. The HTML, CSS and JavaScript the app loads on a first visit stay under 70 KB compressed, and the whole first visit, fonts included, under 150 KB. No bundler.
 - Zero runtime dependencies in the npm package.
 - A small Worker, used only where browsers fall short: link previews, calendar files for iPhone in-app browsers, and the timing for phone alerts.
 
