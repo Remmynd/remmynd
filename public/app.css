@@ -363,6 +363,10 @@ button.remind{width:100%;border:0;cursor:pointer}
 .stext b{font-size:15px;font-weight:600}
 .stext span{font-size:12px;line-height:1.35;color:var(--muted)}
 .srow.muted,.srow.muted b{color:var(--muted)}
+.plan{display:grid;gap:10px;margin-top:6px;padding:12px 12px 12px 16px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row);cursor:text}
+.plan input{width:100%;min-height:var(--tap);padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--r-chip);background:var(--paper);color:var(--ink);font:500 15px var(--font)}
+.plan input:focus{outline:2px solid var(--ink);outline-offset:1px}
+.plan-say{display:grid;gap:4px;margin:0 0 12px;padding:12px 16px;border-radius:var(--r-row);background:var(--well);font-size:16px;font-weight:600;line-height:1.35}
 button.srow{width:100%;background:none;border:0;border-top:1px solid var(--hairline);font:inherit;text-align:left;cursor:pointer}
 button.srow:hover{background:var(--well)}
 .s-on{width:22px;height:22px;flex:none}

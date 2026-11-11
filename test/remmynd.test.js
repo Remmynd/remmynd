@@ -1524,6 +1524,41 @@ test("share target: text shared from another app lands in the bar", async () => 
   assert.deepEqual([p.title, p.start.toISOString(), p.place], ["Dentist appointment", "2026-11-17T10:30:00.000Z", "https://smile.example/visit"]);
 });
 
+test("my plan: say when and where, and the alerts and emails repeat it back", async () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), sw = readFileSync(join(root, "public/sw.js"), "utf8");
+  // On a held reminder, a short line kept with the reminder (synced when signed in), never in the link.
+  assert.ok(app.includes('<label class="plan" for="s-plan"><span class="opt-text"><b>My plan</b><span>Say when and where. Your alerts repeat it back.</span></span><input id="s-plan" type="text" maxlength="120"'));
+  assert.ok(app.includes('value="\'+esc(rec.plan||"")+\'"'), "the saved plan is escaped back into the field");
+  assert.match(app, /const v=x\.value\.replace\(\/\\s\+\/g," "\)\.trim\(\)\.slice\(0,120\);if\(v===\(S\.rec\.plan\|\|""\)\)return;S\.rec\.plan=v;keepRec\(\);/);
+  assert.ok(app.includes("Plan saved. Your alerts will repeat it."));
+  const pick = name => app.split("\n").find(l => l.startsWith("const " + name + "="));
+  assert.doesNotMatch(pick("linkFor") + pick("enc"), /plan/, "the plan never goes in a link");
+  // When it's time, the ticket shows it.
+  assert.match(app, /plan\?'<p class="plan-say"><span class="label">Your plan<\/span>'\+esc\(plan\)\+'<\/p>':''/);
+
+  // Phone alerts: the service worker reads the plan from this device when it shows an alert.
+  const block = sw.slice(sw.indexOf("const short ="), sw.indexOf("const PLATFORM_HAS_ACTIONS"));
+  const view = new Function(block + "; return view;")();
+  const start = Date.UTC(2026, 11, 4, 11, 30), a = { title: "Demo day", start, place: "https://zoom.us/j/123" };
+  assert.match(view({ ...a, kind: "before", at: start - 36e5 }, "At my desk, 5 minutes early").body, /zoom\.us\/j\/123\nYour plan: At my desk, 5 minutes early$/);
+  assert.equal(view({ ...a, kind: "start", at: start }, "At my desk").body, "Tap to open zoom.us/j/123\nYour plan: At my desk");
+  assert.equal(view({ ...a, kind: "nudge", at: start + 6e5, n: 2 }, "At my desk").body, "Nudge 2 of 3. Tap to open.\nYour plan: At my desk");
+  assert.equal(view({ ...a, kind: "check", at: start + 36e5 }, "At my desk").body, "Tap Done, or Not yet to pick another time.", "the check asks its question only");
+  assert.equal(view({ ...a, kind: "start", at: start }, "").body, "Tap to open zoom.us/j/123", "no plan, no line");
+  assert.match(sw, /const plans = new Map\(\(await DB\.getAll\("reminders"\)\.catch\(\(\) => \[\]\)\)\.map\(r => \[r\.rkey, typeof r\.plan === "string" \? r\.plan\.slice\(0, 120\) : ""\]\)\);/);
+  assert.match(sw, /const v = view\(a, plans\.get\(a\.rkey\)\);/);
+
+  // Reminder emails, when signed in.
+  const { reminderMail } = await import("../worker/account.js");
+  const d = { title: "Demo day", start, tz: "Asia/Kolkata", place: "Studio 4", share: "https://remmynd.space/r/abc", plan: "  At my desk,\n 5 minutes <early>  " };
+  const m = reminderMail(d, "before", "https://remmynd.space/api/mail/stop?u=1&t=x", "https://remmynd.space");
+  assert.match(m.text, /^In 1 hour: Demo day\nFri 4 Dec, 5:00 PM IST\nStudio 4\nYour plan: At my desk, 5 minutes <early>\n/);
+  assert.ok(m.html.includes("Your plan</span>At my desk, 5 minutes &lt;early&gt;</p>"), "escaped in the HTML email");
+  const none = reminderMail({ ...d, plan: undefined }, "start", "https://remmynd.space/api/mail/stop?u=1&t=x", "https://remmynd.space");
+  assert.doesNotMatch(none.text + none.html, /Your plan/);
+  assert.equal(reminderMail({ ...d, plan: "x".repeat(500) }, "start", "s", "https://remmynd.space").text.match(/Your plan: (x+)/)[1].length, 120);
+});
+
 test("follow through: the re-plan sheet's choices", () => {
   const app = readFileSync(join(root, "public/app.js"), "utf8");
   const line = p => app.split("\n").find(l => l.startsWith(p));

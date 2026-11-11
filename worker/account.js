@@ -127,11 +127,13 @@ export function reminderMail(d, kind, stopUrl, origin) {
   let link = "";
   try { const u = new URL(d.share); if (u.origin === origin) link = u.href; } catch {}
   const place = typeof d.place === "string" && /^https?:\/\//i.test(d.place) ? "" : (d.place || "");
+  const plan = typeof d.plan === "string" ? d.plan.replace(/\s+/g, " ").trim().slice(0, 120) : "";
   return {
     subject: lead + d.title,
-    text: [lead + d.title, when, place, "", link ? "Open it: " + link : "", "", "Stop email reminders: " + stopUrl, "remmynd by Zoof04 Inc."].filter((l, i, a) => l || a[i - 1]).join("\n"),
+    text: [lead + d.title, when, place, plan ? "Your plan: " + plan : "", "", link ? "Open it: " + link : "", "", "Stop email reminders: " + stopUrl, "remmynd by Zoof04 Inc."].filter((l, i, a) => l || a[i - 1]).join("\n"),
     html: page(lead + d.title, '<p style="color:#666C75;margin:0 0 6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase">' + esc(lead.replace(": ", "")) + '</p><h1 style="font-size:24px;margin:0 0 8px">' + esc(d.title) + '</h1><p style="margin:0">' + esc(when) + '</p>' +
-      (place ? '<p style="margin:6px 0 0;color:#4A4F57">' + esc(place) + '</p>' : '') + (link ? button(link, "Open the reminder") : '') +
+      (place ? '<p style="margin:6px 0 0;color:#4A4F57">' + esc(place) + '</p>' : '') +
+      (plan ? '<p style="margin:14px 0 0;padding:12px 14px;border-radius:12px;background:#F5F6F7"><span style="display:block;color:#666C75;font-size:12px;letter-spacing:.06em;text-transform:uppercase">Your plan</span>' + esc(plan) + '</p>' : '') + (link ? button(link, "Open the reminder") : '') +
       '<p style="color:#666C75;font-size:13px"><a href="' + esc(stopUrl) + '" style="color:#666C75">Stop email reminders</a></p>'),
     headers: { "List-Unsubscribe": "<" + stopUrl + ">", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
   };

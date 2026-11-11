@@ -38,7 +38,13 @@ const rid = () => { const b = crypto.getRandomValues(new Uint8Array(16)); return
 /* ---------- notifications ---------- */
 const short = u => (u || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
 const timeStr = ms => new Date(ms).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-function view(a) {
+function view(a, plan) {
+  const v = words(a);
+  // "My plan" (set on the reminder, on this device only): every alert but the check repeats it.
+  if (plan && a.kind !== "check") v.body = (v.body ? v.body + "\n" : "") + "Your plan: " + plan;
+  return v;
+}
+function words(a) {
   const place = a.place ? short(a.place) : "";
   if (a.kind === "before") {
     const mins = Math.max(1, Math.round((a.start - a.at) / 60000));
@@ -62,8 +68,9 @@ async function showDue() {
     // iPhone requires every push to show something; this only happens if this device's storage was cleared.
     await self.registration.showNotification("remmynd", { body: "You have a reminder. Open remmynd to see it.", icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: "remmynd-generic" });
   }
+  const plans = new Map((await DB.getAll("reminders").catch(() => [])).map(r => [r.rkey, typeof r.plan === "string" ? r.plan.slice(0, 120) : ""]));
   for (const a of due) {
-    const v = view(a);
+    const v = view(a, plans.get(a.rkey));
     // Check and re-plan alerts ask the question: Done or Not yet. Nudges open the link. iPhone shows no
     // buttons, so a tap opens the ticket, which offers the same choices.
     const asks = a.kind === "check" || a.kind === "replan";

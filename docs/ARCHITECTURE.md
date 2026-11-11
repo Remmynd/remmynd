@@ -116,7 +116,7 @@ IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the pa
 | Store | Key | Holds |
 |---|---|---|
 | `alerts` | `id` (index `rkey`) | Phone alerts waiting to be shown |
-| `reminders` | `rkey` | Reminders held on this device, shown in Coming up (`/#coming-up`). On the upgrade from version 1 it is built from the existing alerts, one per `rkey` |
+| `reminders` | `rkey` | Reminders held on this device, shown in Coming up (`/#coming-up`). On the upgrade from version 1 it is built from the existing alerts, one per `rkey`. A reminder can carry a `plan` ("My plan", up to 120 characters): the service worker reads it when an alert shows and adds "Your plan: …" to every alert but the check, and the reminder emails repeat it. It is never put in the link |
 | `links` | `share` | Links made on this device, shown in My links (`/#links`): title, start, when it was made, and whether it is private |
 
 ## The moment ring
