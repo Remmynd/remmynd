@@ -44,7 +44,7 @@ function hash(s){let h=5381;for(const c of s)h=(h*33)^c.charCodeAt(0);return(h>>
 function eventOf(r,key,start,title,mins){
   const share=linkFor(r,key,S.priv),end=new Date(start.getTime()+mins*6e4);
   const head=[r.n,isHttp(r.l)?"Join: "+r.l:""].filter(Boolean);
-  const desc=(head.length?head.join("\n")+"\n\n":"")+"Reminder link: "+share+"\nMade with remmynd.space · free reminder links, no sign-up";
+  const desc=(head.length?head.join("\n")+"\n\n":"")+"Reminder link: "+share+"\nMade with remmynd.space · free reminder links, no account needed";
   return{title,start,end,loc:r.l||"",desc,url:isHttp(r.l)?r.l:share,uid:"rm-"+pack(startOf(r))+"-"+hash(r.t)+"@remmynd.space"};
 }
 function ics(ev){const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//zoof04//remmynd//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT","UID:"+ev.uid,"DTSTAMP:"+stamp(new Date()),"DTSTART:"+stamp(ev.start),"DTEND:"+stamp(ev.end),"SUMMARY:"+iesc(ev.title),"DESCRIPTION:"+iesc(ev.desc)];
@@ -113,12 +113,17 @@ function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+es
   '<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+(PUSH_OK?"Calendar and a notification on this "+DEVICE+", in one tap.":"Adds it to your calendar, with alerts.")+'</div>'+
   '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
 /* The stack (mock-up 05): what this one tap set up, plus the nudge switch. */
+/* Email: on for signed-in accounts (account.js), never for private links, which stay on the device. */
+let ACC={signedIn:false};
+function emailRow(c){const priv=String(c.share).includes("/#"),on=ACC.signedIn&&ACC.emailAlerts&&!priv;
+  const sub=priv?"Private links stay on this device, so they aren't emailed":!ACC.signedIn?"Sign in to get it by email too":ACC.emailAlerts?"To "+esc(ACC.email)+", 1 hour before and at the start":"Off. Turn it on in your account";
+  return'<div class="srow'+(on?'':' muted')+'">'+I.mail+'<span class="stext"><b>Email</b><span>'+sub+'</span></span>'+(on?I.on:priv?'':'<button type="button" class="btn small" id="s-email-b">'+(ACC.signedIn?"Account":"Sign in")+'</button>')+'</div>';}
 function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
   const back=rec.replanAt>Date.now()?"Back at "+whenText(new Date(rec.replanAt))+".":"Held. You\'re set.";
   return'<p class="held-line">'+I.on+esc(back)+'</p><div class="label">Your reminder stack</div><div class="stack">'+
     '<a class="srow" id="s-cal">'+I.cal+'<span class="stext"><b>Calendar</b><span>'+(cal?"Sent to "+CAL_NAME[cal]+". Confirm there.":"Not sent yet. Tap to add it.")+'</span></span>'+(cal?I.on:'')+'</a>'+
     '<div id="s-notify"></div>'+
-    '<div class="srow muted">'+I.mail+'<span class="stext"><b>Email</b><span>Coming in December</span></span><span class="s-soon">Soon</span></div></div>'+
+    emailRow(c)+'</div>'+
     '<label class="opt-row"><span class="opt-text"><b id="nudge-l">Nudge me until I\'m in</b><span id="nudge-d">Up to 3 nudges, 10 minutes apart.</span></span><span class="switch"><input type="checkbox" id="s-nudge" role="switch" aria-labelledby="nudge-l" aria-describedby="nudge-d"'+(rec.nudge?" checked":"")+'><span></span></span></label>'+
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
     '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+
@@ -160,6 +165,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#s-nudge",sw=>sw.addEventListener("change",()=>{if(!S.rec)return;S.rec.nudge=c.nd.nudge=sw.checked;keepRec();if(window.__rmPush)window.__rmPush.setNudge(c.nd,sw.checked).catch(()=>{});toast(sw.checked?"Nudges on: up to 3, 10 minutes apart":"Nudges off");}));
   on("#f-open",a=>a.addEventListener("click",()=>{if(!S.rec)return;S.rec.openedAt=Date.now();keepRec();if(window.__rmPush)window.__rmPush.cancel(S.rkey,["nudge"]).catch(()=>{});}));
   on("#f-done",x=>x.addEventListener("click",markDone));
+  on("#s-email-b",x=>x.addEventListener("click",openAccount));
   on("#s-remove",x=>x.addEventListener("click",()=>{const rec=S.rec,k=S.rkey;if(!rec)return;const flip=h=>{S.held=h;S.rec=h?rec:null;if(h)c.el.dataset.held="1";else delete c.el.dataset.held;renderTicket(c.el,c.r,c.o);};
     flip(false);later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.");}));
   on("#f-later",x=>x.addEventListener("click",openReplan));
@@ -316,7 +322,7 @@ function showReady(){const m=D.made;F.link.value=m.link;
   /* How it looks in chats: what a chat app shows for this link. A private link shows nothing about the reminder. */
   const host=new URL(BASE).host;
   F.chat.innerHTML='<div class="chat-img" aria-hidden="true">'+ringFor(m.ev.start,"open",28)+'<span>remmynd</span></div><div class="chat-text">'+(F.priv.checked?
-    '<b>remmynd</b><span>Reminders that make sure it happens. Free, no sign-up, no tracking.</span>':'<b>'+esc(m.ev.title)+'</b><span>'+esc(R.describeWhen(m.ev.start,TZ))+' · Tap to get reminded</span>')+'<i>'+esc(host)+'</i></div>';
+    '<b>remmynd</b><span>Reminders that make sure it happens. Free, no account needed, no tracking.</span>':'<b>'+esc(m.ev.title)+'</b><span>'+esc(R.describeWhen(m.ev.start,TZ))+' · Tap to get reminded</span>')+'<i>'+esc(host)+'</i></div>';
   F.copied.hidden=false;clearTimeout(F.copied._t);F.copied._t=setTimeout(()=>{F.copied.hidden=true;},2600);setMode("ready");renderMaker();}
 F.priv.addEventListener("change",()=>{const m=D.made;if(!m)return;const prev=m.link;m.link=R.createLink(m.ev,{base:BASE,private:F.priv.checked});
   showReady();copy(m.link,F.priv.checked?"Private link copied":"Link copied");keepLink(prev);});
@@ -509,6 +515,12 @@ $("#menu-x").addEventListener("click",closeMenu);
 menu.addEventListener("click",e=>{if(e.target===menu)closeMenu();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeMenu();});
 inst.addEventListener("click",closeMenu);
+/* ---------- account: optional sign-in for sync and email, loaded only when it's needed ---------- */
+const acctBtn=$("#acct-btn");
+function openAccount(){closeMenu();import("/account.js").then(m=>m.open()).catch(()=>toast("Sign-in couldn't load. Check your connection."));}
+acctBtn.addEventListener("click",openAccount);
+addEventListener("rm:account",e=>{ACC=e.detail||{signedIn:false};acctBtn.textContent=ACC.signedIn?"Your account":"Sign in to sync and get email";if(S.held)renderBottom();});
+try{if(localStorage.getItem("rm:acct")==="1")import("/account.js").then(m=>m.boot()).catch(()=>{});}catch(e){}
 /* Sheets: Tab stays inside an open sheet, and focus goes back where it was when the sheet closes. */
 let lastOut=null;document.addEventListener("focusin",e=>{if(!e.target.closest(".sheet"))lastOut=e.target;});
 document.addEventListener("keydown",e=>{if(e.key!=="Tab")return;const s=[...document.querySelectorAll(".sheet")].find(x=>!x.hidden);if(!s)return;
@@ -517,5 +529,5 @@ document.addEventListener("keydown",e=>{if(e.key!=="Tab")return;const s=[...docu
 new MutationObserver(ms=>{for(const m of ms){const s=m.target,el=document.activeElement;if(s.classList.contains("sheet")&&s.hidden&&(s.contains(el)||el===document.body)&&lastOut&&lastOut.isConnected)lastOut.focus({preventScroll:true});}})
   .observe(document.body,{subtree:true,attributes:true,attributeFilter:["hidden"]});
 /* shared with push.js */
-window.__rm={OWN,IOS,STANDALONE,TZ,openSheet,toast,fShort};
+window.__rm={OWN,IOS,STANDALONE,TZ,openSheet,toast,fShort,refresh:()=>{if(D.mode==="lists"&&!$("#home").hidden)renderLists();else loadLists();}};
 if("serviceWorker" in navigator&&OWN&&location.protocol==="https:")navigator.serviceWorker.register("/sw.js").catch(()=>{});

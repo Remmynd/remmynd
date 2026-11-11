@@ -5,6 +5,7 @@ import { handlePush, sendDuePings } from "./push.js";
 import { sharedResponse, newResponse } from "./preview.js";
 import { changelogResponse } from "./changelog.js";
 import { statsResponse } from "./stats.js";
+import { handleAccount, sendDueMails } from "./account.js";
 
 const PRESETS = new Set(["example"]);
 
@@ -23,6 +24,9 @@ export default {
       if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
       return icsResponse(request);
     }
+
+    // Optional sign-in, sync and email reminders.
+    if (url.pathname.startsWith("/api/")) return handleAccount(request, env, url, ctx);
 
     // Push notifications: public key, schedule and cancel anonymous pings.
     if (url.pathname.startsWith("/push/")) return handlePush(request, env, url);
@@ -49,5 +53,6 @@ export default {
   // Cron trigger (every minute): send the pings that are due, then forget them.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(sendDuePings(env));
+    ctx.waitUntil(sendDueMails(env));
   }
 };

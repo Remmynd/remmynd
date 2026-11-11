@@ -31,7 +31,7 @@ Decisions 2, 3 and 6 change `docs/PRINCIPLES.md`. The exact edits are in section
 ## 3. Rules that never bend
 
 - **Credit.** Every commit is authored `zoof04 <smitesh@zoof04.com>`. No other author, co-author, tool name or product name appears in commits, code, comments or docs. The tests "repository credits zoof04 only" and "git history credits zoof04 only" enforce this. Never weaken them.
-- **Privacy wording** (approved, use verbatim): "Free, no sign-up, no tracking." and "Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent." Do not write "nothing stored".
+- **Privacy wording** (approved, use verbatim; on 11 November 2026 the owner added optional sign-in and changed "no sign-up" to "no account needed"): "Free, no sign-up, no tracking." and "Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent." Do not write "nothing stored".
 - **No tracking, no third parties.** No analytics, cookies or accounts. The site makes zero requests to other hosts: fonts are self-hosted. Links out (calendar pages, zoof04.com, GitHub) are fine.
 - **No logs.** The Worker never logs request addresses. Keep observability off in `wrangler.toml`.
 - **Old links never break.** Every 1.x link (`/#<payload>`, named pages) keeps working. New payload keys are optional.

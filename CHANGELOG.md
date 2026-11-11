@@ -8,6 +8,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- Optional sign-in, to keep reminders on every device and get them by email: a passkey (Face ID, Touch ID or the screen lock), or a 6-digit code by email. No password. Open it from the menu, or from the Email row of a held reminder.
+- Sync: reminders and links made or held on one device appear on the others. Private links never leave the device.
+- Email reminders through Resend, 1 hour before and when it starts, with a one-click stop link in every email. Turn them off in your account.
+- Your account: email reminders on or off, passkeys, sign out, and delete the account and everything in it.
 - Remind me right after making a reminder: the ready screen leads with it, so one tap sends your own reminder to your calendar, turns on alerts and holds it. Sharing tools follow under "Share it".
 - Delete, with Undo: every row in Coming up and My links has a ⋯ button (and swipe) for its actions, now including Delete; a held reminder has "Remove this reminder". The delete waits 5 seconds behind Undo, and a removed reminder's alerts are cancelled.
 - Edit a reminder you made (from the ready screen or My links): its parts go back into the line, and making it again replaces the old link.
@@ -17,6 +21,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Changed
 
+- "Free, no sign-up, no tracking." is now "Free, no account needed, no tracking.", and the privacy page explains exactly what signing in keeps and who delivers the emails.
 - "Remind me at 9 AM instead" is now an offer, off by default, and only for a night-time reminder at least 12 hours away. A reminder set at midnight for two minutes later goes off at the time you set.
 - Row actions appear as a row of buttons under the reminder instead of sliding it aside, so titles stay readable on small screens.
 - The badge maker moved from the app's home to For hosts.

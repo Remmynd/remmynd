@@ -8,7 +8,7 @@
 </p>
 
 <p align="center"><strong>Reminders that make sure it happens.</strong><br>
-Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account on either side.</p>
+Write it in one line and share the link. Anyone who taps it is reminded in layers and followed through until it's done. No account needed.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/remmynd"><img src="https://img.shields.io/npm/v/remmynd?color=0e0f11&label=npm" alt="npm version"></a>
@@ -37,7 +37,7 @@ Write it in one line and share the link. Anyone who taps it is reminded in layer
 
 Most "add to calendar" tools want an account, a dashboard and your visitors' data. remmynd wants none of that.
 
-- **No sign-up**, for you or for the people you share with.
+- **No account needed**, for you or for the people you share with. Sign in only if you want your reminders on every device and by email.
 - **One line in.** Write `Demo day Fri 5pm zoom.us/j/123`, or paste an invitation. The ticket fills in as you type, and Enter makes the link.
 - **Reminded in layers.** One tap on Remind me sends the event to the calendar (Apple Calendar on iPhone, iPad and Mac Safari, Google Calendar elsewhere, with Outlook, Office 365 and more one tap away), turns on phone alerts an hour before and at the start where the device allows, and holds the reminder on the device.
 - **Followed through.** At the start the ticket offers Open the link, Not yet and Done. It asks once whether you made it, and nudges up to three times if you want.
@@ -182,11 +182,12 @@ The full picture, including how requests are routed, how the `/ics` fallback wor
 
 ## Privacy
 
-Free, no sign-up, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent.
+Free, no account needed, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent. If you sign in, we keep your email address and your reminders so they sync across your devices and can be emailed to you. Private links stay on your device. Delete it all any time.
 
-- No accounts, no cookies, no analytics, no tracking.
+- No account needed, no analytics, no tracking. No cookies, except one that keeps you signed in if you choose to sign in.
 - The reminder lives in the link. A shared link (`/r/…`) passes through remmynd.space so chat apps can show its title and time; the Worker reads it only to fill those preview tags, and stores and logs nothing. A private link (`/#…`) keeps everything after `#`, which browsers never send to a server.
 - **Notifications** (optional, only when you allow them after Remind me): the event's title, time and link are saved on your device, in the browser's own storage. The server stores only three things per alert: a random id, your browser's anonymous push address, and when to ping it. At that time it sends an empty push; your device looks up what's due and shows it. The row is deleted as soon as it's sent. See [`worker/push.js`](worker/push.js) and [`worker/schema.sql`](worker/schema.sql).
+- **Signing in** (optional) keeps your email address, your passkeys' public keys, a sign-in session, and your reminders and links (never private links) so they sync across devices and can be emailed to you. Reminder emails are sent through [Resend](https://resend.com), which receives the address and the email to deliver it. Delete your account from the app and everything goes with it. See [`worker/account.js`](worker/account.js).
 - `/ics` is used only by iPhone in-app browsers (Instagram, LinkedIn, Chrome on iOS), which ignore calendar files made inside the page. It builds the file from the link in memory and keeps nothing.
 
 ## Self-host

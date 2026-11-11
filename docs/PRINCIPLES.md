@@ -20,13 +20,13 @@ A link made today will open in ten years on any copy of remmynd.
 
 **In practice:** the link format is a public contract. New fields are optional, old links keep working in every release, and the site, the npm package and the Worker are tested to produce identical links.
 
-## 2. Free, no sign-up, no tracking
+## 2. Free, no account needed, no tracking
 
 These three facts lead everything we write about remmynd.
 
 - **Free** for everyone who makes or saves a reminder.
-- **No sign-up**, for the person making the link or the people tapping it.
-- **No tracking.** No accounts, cookies or analytics. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent. The `/ics` route builds a calendar file in memory and forgets it.
+- **No account needed**, for the person making the link or the people tapping it. Signing in is optional: it syncs reminders across devices and emails them, and can be deleted any time.
+- **No tracking.** No analytics, and no cookies except the one that keeps a signed-in person signed in. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent. If you sign in, we keep your email address and your reminders so they sync across your devices and can be emailed to you. Private links stay on your device. Delete it all any time. The `/ics` route builds a calendar file in memory and forgets it.
 
 ## 3. Honest buttons
 
@@ -56,7 +56,7 @@ MIT licensed, built in public, easy to self-host. Anyone can read how a link wor
 
 | Not doing | Why |
 |---|---|
-| Accounts, dashboards, saved lists on a server | Breaks "no sign-up" and puts personal data on a server |
+| Requiring an account, or dashboards | Breaks "no account needed": sign-in stays optional, and private links never leave the device |
 | Analytics or click tracking | Breaks "no tracking" |
 | RSVPs, guest lists, recurring events | Needs accounts or invites abuse; scheduling tools already do this well |
 | Emailing a reminder to an address nobody confirmed | Spam magnet |
@@ -67,7 +67,7 @@ MIT licensed, built in public, easy to self-host. Anyone can read how a link wor
 When a change is proposed, we ask, in order:
 
 1. Does it keep every existing link working?
-2. Does it keep remmynd free for people, sign-up free and tracking free?
+2. Does it keep remmynd free for people, usable without an account, and tracking free?
 3. Is it the smallest change that solves the problem?
 4. Would a first-time visitor understand it without help?
 
