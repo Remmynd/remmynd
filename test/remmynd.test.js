@@ -1703,7 +1703,7 @@ test("sleep-safe: the 9 AM alert reads as already started", async () => {
 
 /* ---------- step 8: the website ---------- */
 
-const PAGES = ["why", "hosts", "docs", "privacy", "install", "roadmap", "press", "changelog"];
+const PAGES = ["why", "hosts", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog"];
 const pageFile = p => p === "404" ? "public/404.html" : "public/" + p + "/index.html";
 const readPage = p => readFileSync(join(root, pageFile(p)), "utf8");
 const squash = s => s.replace(/\s+/g, " ").replace(/> </g, "><").trim();
@@ -1763,6 +1763,30 @@ test("website: every page shares one header, footer and menu", () => {
   assert.doesNotMatch(readFileSync(join(root, "public/site.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "site.css uses token names, not raw colours");
 });
 
+test("website: about, open numbers and the blog", () => {
+  // The footer's company links are remmynd's own pages now, on the site and in the app.
+  for (const html of [readPage("about"), readFileSync(join(root, "public/index.html"), "utf8")])
+    assert.ok(html.includes('<span class="label" id="f-company">Company</span><a href="/about">About</a><a href="/blog">Blog</a><a href="/open">Open numbers</a><a href="/press">Press</a><a href="/privacy">Privacy</a></nav>'));
+  const about = readPage("about");
+  assert.ok(about.includes("remmynd is made by Zoof04 Inc."));
+  assert.ok(about.includes('href="mailto:connect@zoof04.com"') && about.includes("/blob/main/docs/PRINCIPLES.md"));
+  for (const p of ["The link is the product.", "Free, no account needed, no tracking.", "Honest buttons.", "Small on purpose.", "Calm, plain language.", "Open by default."]) assert.ok(about.includes("<b>" + p + "</b>"), "/about lists the principle: " + p);
+  // /open repeats the approved privacy sentences word for word.
+  const open = readPage("open");
+  assert.ok(open.includes("Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent."));
+  // The blog lists every post, newest first, and each post says when it was written.
+  const blog = readPage("blog"), posts = [...blog.matchAll(/<li><a href="(\/blog\/[^"]+)"><time datetime="(\d{4}-\d{2}-\d{2})">/g)];
+  assert.ok(posts.length >= 1);
+  assert.deepEqual(posts.map(m => m[2]), posts.map(m => m[2]).slice().sort().reverse(), "newest first");
+  for (const [, href, date] of posts) {
+    const post = readPage(href.slice(1));
+    assert.ok(post.includes('<time datetime="' + date + '">'), href + " is dated");
+    assert.ok(post.includes('<a class="u" href="/blog">Blog</a>'), href + " links back to the blog");
+  }
+  const sitemap = readFileSync(join(root, "public/sitemap.xml"), "utf8");
+  for (const p of ["/about", "/open", "/blog", ...posts.map(m => m[1])]) assert.ok(sitemap.includes("<loc>https://remmynd.space" + p + "</loc>"), "sitemap lists " + p);
+});
+
 test("website: every figure is real and checkable", async () => {
   // /why: only the section 10 figures, each with its source linked (docs/v2/SPEC.md).
   const why = readPage("why");
@@ -1793,6 +1817,16 @@ test("website: every figure is real and checkable", async () => {
   assert.ok(hosts.includes('<b id="tests">' + tests + "</b>"), "the tests tile on /hosts says " + tests + ", the number of tests in test/");
   assert.match(hosts, /<div data-stat="stars" hidden>[\s\S]*<div data-stat="downloads" hidden>/, "live tiles stay hidden until their number arrives");
   assert.ok(hosts.includes("&lt; 60 KB</b><span>of app code, compressed."), "the size tile matches the budget test above");
+  // /open: every number is one a test or the live data keeps true.
+  const open = readPage("open");
+  assert.ok(open.includes('<b id="open-tests">' + tests + "</b>"), "/open counts the same tests");
+  assert.match(open, /<div data-stat="stars" hidden>[\s\S]*<div data-stat="downloads" hidden>/);
+  assert.ok(open.includes("&lt; 60 KB</b><span>of app code on a first visit, compressed") && open.includes("&lt; 150 KB</b><span>for the whole first visit, fonts included"), "the budgets the size test enforces");
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  assert.ok(!pkg.dependencies || !Object.keys(pkg.dependencies).length, "0 runtime dependencies, as /open says");
+  assert.ok(open.includes("<b>0</b><span>runtime dependencies in the npm package</span>"));
+  const openNums = visible(open.slice(open.indexOf("<main"), open.indexOf("</main>"))).match(/\d+(?:\.\d+)?/g);
+  assert.deepEqual([...new Set(openNums)].sort(), [String(tests), "60", "150", "0"].sort(), "/open shows no number a test doesn't keep true");
   const { qrSVG } = await import("../public/qr.js");
   assert.ok(hosts.includes(qrSVG("https://remmynd.space/example", { label: "QR code that opens an example reminder" })), "the QR code on /hosts is drawn by qr.js for remmynd.space/example");
 

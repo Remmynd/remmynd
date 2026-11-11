@@ -249,7 +249,7 @@ Details, setup and rollback: [RELEASING.md](RELEASING.md).
 ```text
 public/          the app (index.html, app.js, app.css, remmynd.js, ring.js, qr.js, db.js, push.js, sw.js; loaded when used:
                  palette.js/.css, float.js/.css, account.js/.css), the website pages
-                 (why/ hosts/ docs/ install/ roadmap/ privacy/ press/ changelog/, 404.html, site.css, site.js),
+                 (why/ hosts/ docs/ install/ roadmap/ privacy/ press/ about/ open/ blog/ changelog/, 404.html, site.css, site.js),
                  fonts/, icons, badges, manifest, llms.txt, sitemap.xml, _headers
 worker/          Cloudflare Worker: routing, /r/ previews and /new (preview.js), /changelog (changelog.js), /stats (stats.js),
                  the /ics route and push (push.js, schema.sql)

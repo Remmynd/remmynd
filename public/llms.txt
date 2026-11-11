@@ -44,5 +44,8 @@ An iframe of `https://remmynd.space/embed/<payload>` (the code after `/r/` in a 
 - [For hosts](https://remmynd.space/hosts): badges, QR codes and chat previews
 - [Privacy](https://remmynd.space/privacy): what the server keeps (only an anonymous ping time for phone alerts, deleted once sent)
 - [Changelog](https://remmynd.space/changelog)
+- [About](https://remmynd.space/about): who makes remmynd and the principles it holds to
+- [Open numbers](https://remmynd.space/open): stars, downloads, tests, size budgets and what the server keeps, with how each is checked
+- [Blog](https://remmynd.space/blog): what changed and why
 - [Source on GitHub](https://github.com/Remmynd/remmynd)
 - [npm package](https://www.npmjs.com/package/remmynd): `npm install remmynd`, or `npx remmynd "Demo day" --at "2026-12-05 18:00" --tz Asia/Kolkata`
