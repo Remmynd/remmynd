@@ -633,6 +633,71 @@ test("connector: an MCP server that makes and reads reminder links, and stores n
   assert.doesNotMatch(mcp, /env\.|fetch\(|console\./);
 });
 
+test("embed: the reminder card any site can show, drawn from the link and never stored", async () => {
+  const worker = (await import("../worker/index.js")).default;
+  const { EMBED_CSP } = await import("../worker/embed.js");
+  const env = shellEnv();
+  const get = (path, init) => worker.fetch(new Request("https://remmynd.space" + path, init), env);
+  const link = R.createLink({ title: "Demo <day> & \"night\"", start: "2026-12-05T18:00", timeZone: "Asia/Kolkata", durationMinutes: 90, host: "North<wind>" });
+  const code = link.split("/r/")[1];
+
+  let res = await get("/embed/" + code + "?theme=dark");
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "text/html; charset=utf-8");
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal(res.headers.get("x-robots-tag"), "noindex");
+  assert.equal(res.headers.get("content-security-policy"), EMBED_CSP);
+  assert.match(EMBED_CSP, /frame-ancestors \*/, "any site may frame the card");
+  assert.match(EMBED_CSP, /script-src 'self'; style-src 'self'/, "and it runs only this site's own files");
+  assert.equal(res.headers.get("x-frame-options"), null);
+  const html = await res.text();
+  assert.match(html, /<html lang="en" data-theme="dark">/);
+  assert.ok(html.includes('<b class="em-title">Demo &lt;day&gt; &amp; &quot;night&quot;</b>'), "the title is escaped");
+  assert.ok(html.includes("Reminder · from North&lt;wind&gt;"), "so is the host");
+  assert.ok(html.includes('href="https://remmynd.space/r/' + code + '" target="_blank" rel="noopener"'), "Remind me opens the shared link in a new tab");
+  assert.ok(html.includes("Sat 5 Dec, 6:00 PM IST"), "without script, the time in the host's zone");
+  assert.match(html, /<svg class="ring ring-(open|soon|now|missed)"/);
+  assert.match(html, /data-start="\d+" data-end="\d+"/);
+  assert.ok(html.includes('<link rel="stylesheet" href="/embed.css">') && html.includes('<script type="module" src="/embed.js"></script>'));
+  assert.doesNotMatch(html, /\son[a-z]+="|\sstyle="|<script>/, "nothing the card's policy would block");
+  assert.doesNotMatch(await (await get("/embed/" + code)).text(), /data-theme/, "no theme asked for: it follows the system");
+
+  res = await get("/embed/example");
+  assert.equal(res.status, 200);
+  const ex = await res.text();
+  assert.ok(ex.includes(" data-example") && ex.includes('href="https://remmynd.space/example"'));
+  for (const bad of ["/embed/", "/embed/zzz", "/embed/" + "a".repeat(2100), "/embed/abc.def"]) assert.equal((await get(bad)).status, 404, bad);
+  assert.equal((await get("/embed/" + code, { method: "POST" })).status, 405);
+  assert.equal((await get("/embed/" + code, { method: "HEAD" })).status, 200);
+
+  // The page's script shows the time in the visitor's zone; its styles use the tokens.
+  const js = readFileSync(join(root, "public/embed.js"), "utf8"), css = readFileSync(join(root, "public/embed.css"), "utf8");
+  assert.match(js, /^import \{ ringSVG, ringLabel \} from "\/ring\.js";$/m);
+  assert.match(js, /new Intl\.DateTimeFormat\(undefined, \{ hour: "numeric", minute: "2-digit" \}\)/);
+  const parts = css.split("/* ---------- the card ---------- */");
+  assert.equal(parts.length, 2);
+  assert.doesNotMatch(parts[1].replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "embed.css: below the tokens, token names only");
+  assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ""), /(^|[;{\s])color-scheme\s*:/, "no color-scheme, so the frame stays see-through on any page");
+  assert.ok(!firstVisit({ cache: true }).some(f => /^embed\./.test(f)), "the app's first visit doesn't load the card's files");
+
+  // The library and the command line write the snippet; private links are refused.
+  assert.equal(R.embedURL(link), "https://remmynd.space/embed/" + code);
+  assert.equal(R.embedURL(link + "/", { theme: "light" }), "https://remmynd.space/embed/" + code + "?theme=light");
+  assert.equal(R.embedURL("http://localhost:8787/r/" + code), "http://localhost:8787/embed/" + code, "self-hosted links keep their host");
+  assert.equal(R.embedHTML(link, { theme: "dark" }), '<iframe src="https://remmynd.space/embed/' + code + '?theme=dark" title="Reminder: Demo <day> &amp; &quot;night&quot;" width="440" height="112" style="width:100%;max-width:440px;border:0" loading="lazy"></iframe>');
+  assert.throws(() => R.embedURL(R.createLink({ title: "x", start: "2026-12-05T18:00Z" }, { private: true })), /Private links can't be embedded/);
+  assert.throws(() => R.embedHTML("https://example.com/hello"), /Not a remmynd shared link/);
+  const cli = (...args) => execFileSync(process.execPath, [join(root, "bin/remmynd.js"), ...args], { encoding: "utf8" });
+  assert.ok(cli("Demo day", "--at", "2026-12-05 18:00", "--tz", "Asia/Kolkata", "--embed").includes('<iframe src="https://remmynd.space/embed/'));
+  assert.throws(() => execFileSync(process.execPath, [join(root, "bin/remmynd.js"), "Demo", "--at", "2026-12-05 18:00", "--tz", "UTC", "--embed", "--private"], { stdio: "pipe" }), /needs a shared link/);
+
+  // For hosts shows a live example and the snippet; the docs explain it.
+  const hosts = readFileSync(join(root, "public/hosts/index.html"), "utf8"), docs = readFileSync(join(root, "public/docs/index.html"), "utf8");
+  assert.ok(hosts.includes('<iframe class="embed-demo" src="/embed/example" title="Example reminder card" width="440" height="112" loading="lazy"></iframe>'));
+  for (const page of [hosts, docs]) assert.ok(page.includes("&lt;iframe src=&quot;https://remmynd.space/embed/your-link&quot;"), "the snippet is shown as text");
+  assert.ok(docs.includes('<h2 id="embed">Reminder card</h2>'));
+});
+
 test("qr: codes drawn on the device follow the standard", async () => {
   const { qrMatrix, qrSVG } = await import("../public/qr.js");
   const size = text => qrMatrix(text).length;
@@ -1908,7 +1973,9 @@ test("security: a strict content security policy, HSTS and security.txt", () => 
     assert.doesNotMatch(html, /\son[a-z]+="|\sstyle="|javascript:/i, f + ": no inline handlers, styles or javascript: links");
   }
   for (const f of readdirSync(join(root, "public")).filter(f => f.endsWith(".js"))) {
-    const js = readFileSync(join(root, "public", f), "utf8");
+    let js = readFileSync(join(root, "public", f), "utf8");
+    // The one exception: embedHTML() in the library writes a snippet for other sites' pages, sized with a style attribute.
+    if (f === "remmynd.js") js = js.replace(/export function embedHTML\([\s\S]*?\n\}\n/, "");
     assert.doesNotMatch(js, /setAttribute\(\s*["']style|\sstyle=\\?["']|\beval\(|new Function\(/, "public/" + f + " writes nothing the policy would block");
   }
   assert.match(headers, /^  Strict-Transport-Security: max-age=31536000; includeSubDomains$/m);

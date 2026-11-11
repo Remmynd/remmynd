@@ -28,6 +28,10 @@ Assistants that take MCP connectors (remote MCP servers) can add remmynd at http
 
 The connector only turns words into a link and a link back into words. It stores and logs nothing.
 
+## Reminder card
+
+An iframe of `https://remmynd.space/embed/<payload>` (the code after `/r/` in a shared link) shows the reminder as a card with a Remind me button. `?theme=light` or `?theme=dark` pins a theme. Private links can't be embedded.
+
 ## Links
 
 - Shared links, `https://remmynd.space/r/<payload>`, show the title and time in chat previews. The server reads them only to fill the preview and stores and logs nothing.

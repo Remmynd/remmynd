@@ -71,6 +71,16 @@ Markdown:
 
 A dark version is at `https://remmynd.space/badge-dark.svg`.
 
+### Put the reminder card on your page
+
+An iframe of `/embed/` and your shared link's code shows the reminder as a card: the moment ring, the title, the time in each visitor's own zone, and a Remind me button. Add `?theme=dark` or `?theme=light` to pin a theme.
+
+```html
+<iframe src="https://remmynd.space/embed/YOUR-LINK-CODE" title="Reminder: Demo day" width="440" height="112" style="width:100%;max-width:440px;border:0" loading="lazy"></iframe>
+```
+
+`embedHTML(link)` in the library and `--embed` on the command line write it for you. Private links can't be embedded, because they never reach a server.
+
 ### From the command line
 
 ```sh
@@ -204,7 +214,7 @@ Free, no account needed, no tracking. Your reminder lives in the link and on you
 
 ## Self-host
 
-remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/share`, `/mcp` (the connector for AI assistants), `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/share`, `/embed/` (the reminder card), `/mcp` (the connector for AI assistants), `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
 
 ```sh
 git clone https://github.com/Remmynd/remmynd.git

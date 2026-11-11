@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>For hosts · remmynd</title>
-<meta name="description" content="Put Remind me on anything: a badge for your site, a QR code for slides and posters, and a preview card in chats. Free, no account needed, no tracking.">
+<meta name="description" content="Put Remind me on anything: a badge or a reminder card for your site, a QR code for slides and posters, and a preview card in chats. Free, no account needed, no tracking.">
 <meta name="author" content="Zoof04 Inc.">
 <link rel="canonical" href="https://remmynd.space/hosts">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://remmynd.space/hosts">
 <meta property="og:title" content="For hosts · remmynd">
-<meta property="og:description" content="Put Remind me on anything: a badge for your site, a QR code for slides and posters, and a preview card in chats. Free, no account needed, no tracking.">
+<meta property="og:description" content="Put Remind me on anything: a badge or a reminder card for your site, a QR code for slides and posters, and a preview card in chats. Free, no account needed, no tracking.">
 <meta property="og:image" content="https://remmynd.space/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -52,6 +52,7 @@
       <p class="lede">A launch, a webinar, a product drop, a meetup. Your audience saves it in one tap and you never ask for an email address.</p>
       <ul class="ticks">
         <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>A badge for your site, post or email</li>
+        <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>A reminder card for your own page</li>
         <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>A QR code for slides and posters</li>
         <li><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/></svg>A preview card that shows your event in chats</li>
       </ul>
@@ -65,6 +66,21 @@
 &lt;/a&gt;</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
       <div class="snippet"><pre class="light" aria-label="Badge Markdown"><code>[![Remind me](https://remmynd.space/badge.svg)](https://remmynd.space/r/your-link)</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
       <p>Copy, paste, done. Put your own link in place of the example. The dark badge is at <code>/badge-dark.svg</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec wide tight">
+  <div class="card" id="embed">
+    <div class="cols center">
+      <div class="flow">
+        <p class="kicker">On your page</p>
+        <h2 class="h3">The reminder card</h2>
+        <p>The ring, the title and the time in each visitor's own time zone, with a Remind me button that opens the reminder. One line of HTML: put your shared link's code after <code>/embed/</code>. Add <code>?theme=dark</code> or <code>?theme=light</code> to pin a theme.</p>
+        <div class="snippet"><pre aria-label="Reminder card HTML"><code>&lt;iframe src=&quot;https://remmynd.space/embed/your-link&quot; title=&quot;Reminder: Demo day&quot; width=&quot;440&quot; height=&quot;112&quot; style=&quot;width:100%;max-width:440px;border:0&quot; loading=&quot;lazy&quot;&gt;&lt;/iframe&gt;</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+        <p>Private links can't be embedded: a card is drawn by our server, and a private link never reaches it.</p>
+      </div>
+      <iframe class="embed-demo" src="/embed/example" title="Example reminder card" width="440" height="112" loading="lazy"></iframe>
     </div>
   </div>
 </section>
@@ -108,7 +124,7 @@
   <div class="tiles">
     <div data-stat="stars" hidden><b>–</b><span>GitHub stars, shown live</span></div>
     <div data-stat="downloads" hidden><b>–</b><span>npm downloads last week, shown live</span></div>
-    <div><b id="tests">65</b><span>tests, all passing before every deploy</span></div>
+    <div><b id="tests">66</b><span>tests, all passing before every deploy</span></div>
     <div><b>&lt; 60 KB</b><span>of app code, compressed. No framework, no tracking.</span></div>
   </div>
   <div class="btns"><a class="btn ink" href="https://github.com/Remmynd/remmynd">Star on GitHub</a><span class="chipcode">npm i remmynd</span></div>
