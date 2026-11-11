@@ -1,8 +1,13 @@
 /* remmynd account sheet: sign in, passkeys, email reminders. Loaded by account.js only when the sheet
    opens, after app.css, so it uses the same tokens. Token names only, no raw colours (a test checks). */
-.ac-card{display:grid;gap:14px}
+/* The content box carries the rhythm: one gap between every part of the sheet. */
+#ac-body{display:grid;gap:14px}
+/* Inside this sheet, buttons size to their place: the general ".sheet .btn" rule makes every button full width. */
+.ac-card .btn{margin:0}
+.ac-card .opt-row{margin:0}
+.ac-card .label{margin:6px 0 -6px}
 .ac-card h2{margin:0 44px 0 0;font-size:22px;letter-spacing:-.02em}
-.ac-card .rp-sub{margin:-6px 0 0}
+.ac-card .rp-sub{margin:-8px 0 0}
 .ac-email{font:500 14px var(--mono);word-break:break-all}
 .ac-wide{width:100%}
 .ac-card .btn svg{width:18px;height:18px}
@@ -20,11 +25,13 @@
 .ac-offer b{font-size:16px}
 .ac-offer span{font-size:14px;color:var(--ink-2);margin-bottom:6px}
 .ac-keys{display:grid;gap:8px}
-.ac-key{display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 6px 6px 14px;border:1px solid var(--hairline);border-radius:var(--r-row)}
+.ac-key{display:flex;align-items:center;gap:12px;min-height:60px;padding:8px 8px 8px 14px;border:1px solid var(--hairline);border-radius:var(--r-row)}
 .ac-key svg{width:20px;height:20px;flex:none;color:var(--ink-2)}
-.ac-key span{flex:1;min-width:0;display:grid}
+.ac-key span{flex:1;min-width:0;display:grid;gap:2px}
+.ac-key b{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-key .btn{width:auto;flex:none;padding:0 14px}
 .ac-key i{font:400 12px var(--mono);font-style:normal;color:var(--muted)}
 .ac-none{margin:0;font-size:14px;color:var(--muted)}
 .ac-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ac-danger{background:var(--moment-tint);border-color:transparent;color:var(--on-moment-tint)}
-.ac-card .linkish{justify-self:center}
+.ac-card .linkish{justify-self:center;display:inline-flex;align-items:center}

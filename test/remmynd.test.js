@@ -1966,4 +1966,11 @@ test("account: the app loads sign-in only when needed and keeps private links on
   assert.doesNotMatch(readFileSync(join(root, "public/account.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "account.css uses token names, not raw colours");
   // The first visit doesn't download any of it.
   assert.ok(!firstVisit({ cache: true }).some(f => /^account\./.test(f)));
+  // Layout: the sheet's content box carries the spacing, and small buttons (Remove) keep their size
+  // instead of the general ".sheet .btn" full width; the toast sizes to its text, not half the screen.
+  const ac = readFileSync(join(root, "public/account.css"), "utf8"), appCss = readFileSync(join(root, "public/app.css"), "utf8");
+  assert.match(ac, /#ac-body\{display:grid;gap:14px\}/);
+  assert.match(ac, /\.ac-key \.btn\{width:auto;flex:none;/);
+  assert.match(ac, /\.ac-card \.btn\{margin:0\}/);
+  assert.match(appCss, /\.toast\{[^}]*transform:translate\(-50%,16px\);width:max-content;/);
 });
