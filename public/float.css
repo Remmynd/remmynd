@@ -1,0 +1,7 @@
+/* remmynd floating countdown window. Loaded into the Picture-in-Picture window after app.css, so it
+   uses the same tokens and follows the same theme. Token names only, no raw colours (a test checks). */
+.fl{display:flex;align-items:center;gap:16px;box-sizing:border-box;min-height:100vh;margin:0;padding:0 20px;background:var(--card);color:var(--ink);overflow:hidden}
+.fl-ring .ring{width:56px;height:56px}
+.fl-text{display:grid;gap:2px;min-width:0}
+.fl-big{font:600 34px/1.1 var(--mono);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.fl-small{font-size:14px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

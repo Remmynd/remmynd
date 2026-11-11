@@ -66,7 +66,7 @@
     </form>
 
     <section class="lists" id="lists" hidden>
-      <nav class="tabs" aria-label="Your lists"><a href="/#coming-up" id="tab-coming">Coming up</a><a href="/#links" id="tab-links">My links</a></nav>
+      <div class="lists-top"><nav class="tabs" aria-label="Your lists"><a href="/#coming-up" id="tab-coming">Coming up</a><a href="/#links" id="tab-links">My links</a></nav><p class="kept" id="kept" hidden><svg class="s-on" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="kept-n"></span></p></div>
       <div class="li-body" id="list-body"></div>
       <p class="hint" id="list-hint" hidden></p>
     </section>
@@ -185,6 +185,7 @@
     <nav class="menu-links" aria-label="Menu"><a href="/why">Why</a><a href="/hosts">For hosts</a><a href="/docs">Docs</a><a href="/roadmap">Roadmap</a><a href="https://github.com/Remmynd/remmynd">GitHub</a></nav>
     <div class="theme" role="group" aria-labelledby="theme-m"><span class="label" id="theme-m">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
     <div class="theme" role="group" aria-labelledby="sound-m"><span class="label" id="sound-m">Sound</span><div class="seg"><button type="button" data-sound="on" aria-pressed="true">On</button><button type="button" data-sound="off" aria-pressed="false">Off</button></div></div>
+    <button type="button" class="btn" id="cmd-btn">Search and commands<kbd id="cmd-k">Ctrl K</kbd></button>
     <button type="button" class="btn" id="acct-btn">Sign in to sync and get email</button>
     <button type="button" class="btn" id="install" hidden>Install app</button>
   </div>

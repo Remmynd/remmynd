@@ -134,6 +134,18 @@ IndexedDB `remmynd`, version 2, opened only through `public/db.js`, which the pa
 
 Every ring is an image with a label that says the time and the state in words, for example "Day dial showing 5:00 in the afternoon, reminder set".
 
+### Loaded only when asked for
+
+The first visit downloads the app and nothing it might not use. Three parts load the first time they're needed, through `import()`, and the service worker keeps them for offline use after that:
+
+| Part | Files | Loads when |
+|---|---|---|
+| Search and commands | `palette.js`, `palette.css` | Ctrl or Cmd + K, or Search and commands in the menu. It lists reminders and links from on-device storage and presses the menu's own buttons for theme, sound, sign in and install, so the two never disagree |
+| Floating countdown | `float.js`, `float.css` | "Float it above my windows" on a held reminder. It opens a Document Picture-in-Picture window (Chrome and Edge on a computer) that uses `app.css` and `float.css`, follows the theme, and runs its timer in the floating window so a background tab doesn't slow it. Where the browser has no such window the row isn't shown |
+| Sign-in | `account.js`, `account.css` | See below |
+
+"Kept N of M this month" is part of the app itself: of the reminders whose time came this month (counted once they're over, or when they were marked done), how many were marked done. It only appears once one is kept.
+
 ## Optional sign-in, sync and email
 
 No account is needed. Signing in is for people who want their reminders on every device and by email. The browser part (`public/account.js`, `account.css`) loads only when someone opens sign-in, or on a device that is signed in; the server part is `worker/account.js`, with passkeys checked by `worker/webauthn.js`.
@@ -222,7 +234,8 @@ Details, setup and rollback: [RELEASING.md](RELEASING.md).
 ## Repository layout
 
 ```text
-public/          the app (index.html, app.js, app.css, remmynd.js, ring.js, qr.js, db.js, push.js, sw.js), the website pages
+public/          the app (index.html, app.js, app.css, remmynd.js, ring.js, qr.js, db.js, push.js, sw.js; loaded when used:
+                 palette.js/.css, float.js/.css, account.js/.css), the website pages
                  (why/ hosts/ docs/ install/ roadmap/ privacy/ press/ changelog/, 404.html, site.css, site.js),
                  fonts/, icons, badges, manifest, llms.txt, sitemap.xml, _headers
 worker/          Cloudflare Worker: routing, /r/ previews and /new (preview.js), /changelog (changelog.js), /stats (stats.js),

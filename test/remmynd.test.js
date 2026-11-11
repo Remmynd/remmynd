@@ -1279,8 +1279,88 @@ test("lists: Coming up and My links, grouped Today, This week, Later, Kept", () 
     "Nothing coming up yet. Write one in the bar below, then tap Remind me.", "No reminders made yet. Write one in the bar below and press Enter.", 'GROUPS={today:"Today",week:"This week",later:"Later",kept:"Kept"']) assert.ok(app.includes(w), "app.js has " + w);
   assert.match(app, /if\(k==="j"\|\|k==="k"\)/, "J and K move");
   assert.match(app, /rowAct\(li\.dataset\.rkey,k==="d"\?"done":"replan",i\)/, "D marks done, S re-plans");
-  assert.doesNotMatch(app, /Kept \d+ of \d+/, "the monthly count waits until everything else is built");
   assert.doesNotMatch(readFileSync(join(root, "public/push.js"), "utf8"), /renderHome|coming-up/, "the old home card is gone");
+});
+
+test("extras: Kept N of M this month, Ctrl or Cmd + K, and the floating countdown", async () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+
+  // Kept N of M this month: what came due this month (once it's over, or when it was marked done); kept is what was marked Done.
+  const keptCount = new Function(line("function parts(") + line("function offsetMin(") + line("function zonedToUTC(") + line("const keptCount=") + "; return keptCount;")();
+  const tz = "Asia/Kolkata", at = (mo, d, h, mi = 0) => R.zonedTime(2026, mo, d, h, mi, tz).getTime(), now = at(11, 20, 12);
+  const recs = [
+    { start: at(11, 3, 9), state: "kept", doneAt: at(11, 3, 10) }, // kept this month
+    { start: at(10, 31, 9), state: "kept", doneAt: at(11, 1, 8) }, // marked done on the 1st: this month
+    { start: at(10, 30, 9), state: "kept", doneAt: at(10, 30, 10) }, // last month
+    { start: at(11, 10, 9), state: "held" }, // over, never marked done
+    { start: at(11, 10, 9), state: "dropped" }, // dropped: not kept
+    { start: at(11, 2, 9), replanAt: at(11, 2, 10), state: "held" }, // re-planned, and that time has passed too
+    { start: at(11, 20, 11, 30), state: "held" }, // still going (an hour long): not yet
+    { start: at(11, 19, 9), replanAt: at(11, 21, 9), state: "held" }, // re-planned to tomorrow: not yet
+    { start: at(11, 25, 9), state: "held" }, // later this month: not yet
+  ];
+  assert.deepEqual(keptCount(recs, now, tz), { k: 2, n: 5 });
+  assert.deepEqual(keptCount([], now, tz), { k: 0, n: 0 });
+  assert.match(html, /<p class="kept" id="kept" hidden><svg class="s-on"[^>]*aria-hidden="true">[\s\S]*?<\/svg><span id="kept-n"><\/span><\/p>/);
+  assert.ok(app.includes('$("#kept-n").textContent="Kept "+kc.k+" of "+kc.n+" this month";$("#kept").hidden=!(up&&kc.k);'), "shown on Coming up once one is kept, never as a zero");
+
+  // Ctrl or Cmd + K, and Search and commands in the menu, open the palette; it loads only then.
+  assert.match(app, /if\(\(e\.metaKey\|\|e\.ctrlKey\)&&!e\.altKey&&!e\.shiftKey&&\(e\.key\|\|""\)\.toLowerCase\(\)==="k"\)\{e\.preventDefault\(\);openPalette\(\);\}/);
+  assert.ok(app.includes('import("/palette.js")') && app.includes('$("#cmd-btn").addEventListener("click",openPalette)'));
+  assert.ok(html.includes('<button type="button" class="btn" id="cmd-btn">Search and commands<kbd id="cmd-k">Ctrl K</kbd></button>'));
+  const P = await import("../public/palette.js");
+  const called = [];
+  const api = {
+    host: "remmynd.space", theme: "dark", sound: true, accountLabel: "Sign in to sync and get email", install: null, when: t => (t > now ? "soon" : "before"),
+    recs: [
+      ...[1, 2, 3, 4, 5, 6].map(i => ({ title: "Call " + i, start: now + i * 36e5, share: "https://remmynd.space/r/c" + i, state: "held" })),
+      { title: "Dentist", start: now - 864e5, doneAt: now - 8e7, state: "kept", share: "https://remmynd.space/r/d" },
+      { title: "Gone", start: now + 36e5, state: "dropped", share: "https://remmynd.space/r/g" },
+    ],
+    links: [{ title: "Call 1", start: now + 36e5, share: "https://remmynd.space/r/c1" }, { title: "Book club", start: now + 2 * 864e5, share: "https://remmynd.space/#bc", private: true }],
+    pages: [["Why", "https://remmynd.space/why"], ["GitHub", "https://github.com/Remmynd/remmynd"], ["Privacy", "/privacy"]],
+    go: u => called.push(["go", u]), newOne: t => called.push(["new", t]), setTheme: t => called.push(["theme", t]), setSound: on => called.push(["sound", on]), account: () => called.push(["account"]),
+  };
+  const items = P.commands(api, now), labels = list => list.map(i => i.group + ": " + i.label);
+  const first = P.pick(items, "", api.newOne);
+  assert.deepEqual(labels(first).slice(0, 8), ["Do: New reminder", "Go to: Coming up", "Go to: My links", "Reminders: Call 1", "Reminders: Call 2", "Reminders: Call 3", "Reminders: Call 4", "Reminders: Call 5"], "what's next first, five before you type");
+  assert.ok(!labels(first).includes("Reminders: Gone") && !labels(first).includes("Reminders: Call 6"));
+  assert.deepEqual(labels(P.pick(items, "call 6", api.newOne)), ["Reminders: Call 6", "Make: New reminder: call 6"], "typing finds the rest");
+  assert.deepEqual(labels(P.pick(items, "book", api.newOne)), ["Links: Book club", "Make: New reminder: book"], "a link that is also a reminder is listed once");
+  assert.equal(P.pick(items, "book", api.newOne)[0].hint, "soon · private");
+  assert.deepEqual(labels(P.pick(items, "dark", api.newOne)), ["Settings: Theme: Dark", "Make: New reminder: dark"]);
+  assert.equal(items.find(i => i.label === "Theme: Dark").hint, "On");
+  assert.ok(!items.some(i => /float/i.test(i.label)), "no float command unless the ticket can float");
+  assert.ok(P.commands({ ...api, float: () => {} }, now).some(i => i.label === "Float the countdown above my windows"));
+  assert.deepEqual(labels(P.pick(items, "github", api.newOne)), ["Pages: GitHub", "Make: New reminder: github"]);
+  const make = P.pick(items, "Dentist tue 4pm", api.newOne);
+  assert.deepEqual(labels(make), ["Make: New reminder: Dentist tue 4pm"], "nothing matches: it offers to make it");
+  make[0].run();
+  P.pick(items, "call 2", api.newOne)[0].run();
+  items.find(i => i.label === "Turn the sound off").run();
+  items.find(i => i.label === "Theme: Light").run();
+  assert.deepEqual(called, [["new", "Dentist tue 4pm"], ["go", "https://remmynd.space/r/c2"], ["sound", false], ["theme", "light"]]);
+  const pal = readFileSync(join(root, "public/palette.js"), "utf8");
+  assert.match(pal, /role="combobox" aria-expanded="true" aria-controls="pal-list"/);
+  assert.match(pal, /role="listbox"/);
+  assert.match(pal, /setAttribute\("aria-activedescendant"/);
+
+  // The floating countdown: offered only where Document Picture-in-Picture exists, loaded only when asked for.
+  assert.ok(app.includes('const PIP="documentPictureInPicture" in window') && app.includes('const floatRow=()=>{if(!PIP||FL.no)return"";') && app.includes('import("/float.js")'));
+  assert.ok(app.includes("Float it above my windows"));
+  const F = await import("../public/float.js");
+  assert.deepEqual([F.left(41 * 6e4 + 58e3), F.left(5 * 36e5 + 41 * 6e4 + 58e3), F.left(3 * 864e5 + 5), F.left(-1)], ["41:58", "5:41:58", "3 days", "00:00"]);
+  const ev = { title: "Demo day", at: now, end: now + 36e5 };
+  assert.deepEqual([F.face(ev, now - 2 * 36e5), F.face(ev, now - 6e4), F.face(ev, now + 1), F.face(ev, now + 36e5)].map(f => [f.state, f.big, f.small]),
+    [["held", "2:00:00", "until Demo day"], ["soon", "01:00", "until Demo day"], ["now", "Now", "Demo day"], ["missed", "Ended", "Demo day"]]);
+  const fl = readFileSync(join(root, "public/float.js"), "utf8");
+  assert.match(fl, /for \(const href of \["\/app\.css", "\/float\.css"\]\)/, "the window uses the site's own stylesheets");
+  assert.match(fl, /win\.setInterval\(paint, 1000\)/, "the floating window keeps its own time, so a background tab doesn't slow it");
+
+  // None of it is in the first visit, and the new stylesheets use tokens only.
+  assert.ok(!firstVisit({ cache: true }).some(f => /^(palette|float)\./.test(f)));
+  for (const f of ["palette.css", "float.css"]) assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, f + " uses token names, not raw colours");
 });
 
 test("follow through: the re-plan sheet's choices", () => {
