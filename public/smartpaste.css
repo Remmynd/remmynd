@@ -1,0 +1,8 @@
+/* remmynd smart paste: the offer above the bar after a long paste or an image. Loaded by
+   smartpaste.js, after app.css, so it uses the same tokens. Token names only, no raw colours (a test checks). */
+.sp{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 8px;margin:0 0 10px;padding:10px 8px 10px 12px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row);box-shadow:var(--shadow-card)}
+.sp-go{justify-self:start;display:inline-flex;align-items:center;gap:8px;min-height:var(--tap);padding:0 14px;border:0;border-radius:var(--r-button);background:var(--ink);color:var(--card);font:600 14px var(--font);cursor:pointer}
+.sp-go svg{width:18px;height:18px;color:var(--moment)}
+.sp-go:disabled{opacity:.7;cursor:progress}
+.sp-sub{grid-column:1/-1;font-size:12px;line-height:1.35;color:var(--muted)}
+.sp-x{grid-row:1;grid-column:2;width:var(--tap);height:var(--tap);border:0;border-radius:50%;background:var(--well);color:var(--ink);font-size:20px;line-height:1;cursor:pointer}

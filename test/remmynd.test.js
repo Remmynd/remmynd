@@ -1624,6 +1624,53 @@ test("my plan: say when and where, and the alerts and emails repeat it back", as
   assert.equal(reminderMail({ ...d, plan: "x".repeat(500) }, "start", "s", "https://remmynd.space").text.match(/Your plan: (x+)/)[1].length, 120);
 });
 
+test("smart paste: the browser's on-device AI reads an email or a poster into one line", async () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), sp = readFileSync(join(root, "public/smartpaste.js"), "utf8");
+  // Offered only on a long paste or an image, only where the browser has the Prompt API, and loaded only then.
+  assert.ok(app.includes('C.input.addEventListener("paste",e=>{const d=e.clipboardData;if(!d||!("LanguageModel" in self))return;'));
+  assert.ok(app.includes('if(image||t.length>80||/\\n/.test(t.trim()))import("/smartpaste.js").then(m=>m.offer({text:t,image,form:C.form,put:newOne,toast,R,timeZone:TZ}))'));
+  assert.ok(!firstVisit({ cache: true }).some(f => /^smartpaste\./.test(f)), "the first visit doesn't download it");
+  assert.doesNotMatch(readFileSync(join(root, "public/smartpaste.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "smartpaste.css uses token names");
+
+  // It runs on the device: it never asks a server for anything, and says so before it starts.
+  assert.doesNotMatch(sp, /fetch\(|XMLHttpRequest|sendBeacon|WebSocket/);
+  assert.ok(sp.includes("Runs on this device. Nothing is sent anywhere."));
+  assert.ok(sp.includes('if (ready === "unavailable")'), "no offer where the model can't run");
+  assert.match(sp, /initialPrompts: \[\{ role: "system", content: instructions\(new Date\(\), timeZone\) \}\]/);
+  assert.match(sp, /m\.addEventListener\("downloadprogress"/, "a first download shows its progress");
+  assert.match(sp, /session\.prompt\(\[\{ role: "user", content \}\], \{ responseConstraint: SCHEMA \}\)/);
+  assert.match(sp, /finally \{ if \(session\) session\.destroy\(\); \}/);
+  assert.match(sp, /\{ type: "image", value: image \}/, "an image goes to the model with the text");
+
+  const S = await import("../public/smartpaste.js");
+  assert.deepEqual(S.SCHEMA.required, ["title", "date", "time", "time_zone", "duration_minutes", "place"]);
+  assert.equal(S.SCHEMA.additionalProperties, false);
+  const said = S.instructions(new Date("2026-11-11T10:00:00Z"), "Asia/Kolkata");
+  assert.ok(said.includes("Today is Wednesday, 11 November 2026 and the reader's time zone is Asia/Kolkata."));
+  assert.ok(said.includes("Never invent a date or time."));
+
+  // The answer becomes one line the bar reads like anything typed, in the reader's zone.
+  const tz = "Asia/Kolkata", now = new Date("2026-11-11T10:00:00Z");
+  const line = r => S.lineFrom(r, tz, R.zonedTime);
+  const read = l => { const p = R.parse(l, { timeZone: tz, now }); return [p.title, p.start && p.start.toISOString(), p.dur, p.place]; };
+  let out = line({ title: "Quarterly review", date: "2026-12-05", time: "18:00", time_zone: "", duration_minutes: 90, place: "Studio 4, Main Street" });
+  assert.deepEqual(out, { line: "Quarterly review 2026-12-05 18:00 for 90 min at Studio 4, Main Street", found: true });
+  assert.deepEqual(read(out.line), ["Quarterly review", "2026-12-05T12:30:00.000Z", 90, "Studio 4, Main Street"]);
+  out = line({ title: "Webinar", date: "2026-12-05", time: "09:00", time_zone: "America/New_York", duration_minutes: 0, place: "https://zoom.us/j/1" });
+  assert.equal(out.line, "Webinar 2026-12-05 19:30 https://zoom.us/j/1", "a time written in another zone is moved into the reader's");
+  assert.deepEqual(read(out.line), ["Webinar", "2026-12-05T14:00:00.000Z", null, "https://zoom.us/j/1"]);
+  assert.equal(line({ title: "Standup", date: "2026-12-07", time: "09:30", time_zone: "Asia/Kolkata", duration_minutes: 15, place: "meet.example/abc" }).line, "Standup 2026-12-07 09:30 for 15 min meet.example/abc");
+  assert.equal(line({ title: "Dentist", date: "2026-11-17", time: "", time_zone: "", duration_minutes: 0, place: "Smile Clinic" }).line, "Dentist 2026-11-17 at Smile Clinic", "a date alone: the bar reads it as 9 AM");
+  assert.deepEqual(line({ title: "Book club", date: "", time: "19:00", time_zone: "", duration_minutes: 0, place: "" }), { line: "Book club", found: false });
+  for (const date of ["2026-13-40", "2026-11-31", "12/05/2026", "soon"]) assert.equal(line({ title: "X", date, time: "10:00" }).found, false, date);
+  assert.equal(line({ title: "Leap", date: "2028-02-29" }).found, true);
+  assert.equal(line({ title: "X", date: "2026-12-05", time: "25:99" }).line, "X 2026-12-05", "a time that isn't one is left out");
+  assert.equal(line({ title: "X", date: "2026-12-05", duration_minutes: 5000 }).line, "X 2026-12-05", "and so is a length out of range");
+  assert.equal(line({ title: "  Two\n  lines  ", date: "", place: "" }).line, "Two lines");
+  assert.equal(line({ title: "t".repeat(500) }).line.length, 120);
+  assert.deepEqual(line(null), { line: "", found: false });
+});
+
 test("follow through: the re-plan sheet's choices", () => {
   const app = readFileSync(join(root, "public/app.js"), "utf8");
   const line = p => app.split("\n").find(l => l.startsWith(p));

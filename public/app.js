@@ -309,6 +309,9 @@ C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.lin
   if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{setMode("draft");renderDraft();});}
   else if(typing)renderDraft();
   else if(D.mode==="draft"){const m=D.made?"ready":D.base;D.mode=m;swap(()=>{setMode(m);renderMaker();});}});
+/* Smart paste: a long paste or an image can be read by the browser's own on-device AI, where it has one (smartpaste.js, loaded only then). */
+C.input.addEventListener("paste",e=>{const d=e.clipboardData;if(!d||!("LanguageModel" in self))return;const t=d.getData("text/plain")||"",image=[...d.files].find(f=>/^image\//.test(f.type))||null;
+  if(image||t.length>80||/\n/.test(t.trim()))import("/smartpaste.js").then(m=>m.offer({text:t,image,form:C.form,put:newOne,toast,R,timeZone:TZ})).catch(()=>{});});
 C.form.addEventListener("submit",e=>{e.preventDefault();make();});
 /* Chips: What, Where and Note open a small editor; When opens the device's own date and time picker. */
 const EDIT={title:"What",place:"Where",notes:"Note"};
