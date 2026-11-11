@@ -27,7 +27,8 @@ if (!body) {
   process.exit(1);
 }
 
-const compare = log.match(new RegExp(`^\\[${version.replace(/\./g, "\\.")}\\]: (.+)$`, "m"));
+const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const compare = log.match(new RegExp(`^\\[${escaped}\\]: (.+)$`, "m"));
 console.log(body);
 console.log("\n---\n");
 console.log(`**npm:** \`npm install remmynd@${version}\` · https://www.npmjs.com/package/remmynd/v/${version}`);

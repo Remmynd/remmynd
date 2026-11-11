@@ -273,7 +273,7 @@ test("website and library produce the same links", () => {
 
 test("website script parses", () => {
   const html = readFileSync(join(root, "public/index.html"), "utf8");
-  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  const scripts = [...html.matchAll(/<script\s*>([\s\S]*?)<\/script\s*>/gi)].map(m => m[1]);
   assert.equal(scripts.length, 1, "only the theme line stays inline; the app is app.js");
   for (const js of scripts) assert.doesNotThrow(() => new Function(js), "inline script has a syntax error");
   assert.match(html, /<script src="\/db\.js" defer><\/script>\n<script type="module" src="\/app\.js"><\/script>\n<script src="\/push\.js" defer><\/script>/, "db.js, then app.js, then push.js");
@@ -626,19 +626,25 @@ function jsLoads(js) {
   return kinds.flatMap(([re, file]) => [...js.matchAll(re)].map(m => ({ ref: m[3], by: m[1], file })));
 }
 
+// Replaces until nothing changes, so a comment or block hidden inside another can't survive one pass.
+const untilStable = (s, re, to) => { let prev; do { prev = s; s = s.replace(re, to); } while (s !== prev); return s; };
+const stripComments = s => untilStable(s, /<!--[\s\S]*?-->/g, "");
+// An end tag may carry spaces before its ">" ("</script >") and any letter case.
+const SCRIPT_BLOCK = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+
 // Inline script bodies of an HTML page (not JSON data blocks), or a whole script file.
 function scriptsIn(file, text) {
   if (/\.m?js$/.test(file)) return [text];
   if (!/\.(html|svg)$/.test(file)) return [];
-  return [...text.replace(/<!--[\s\S]*?-->/g, "").matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
+  return [...stripComments(text).matchAll(SCRIPT_BLOCK)]
     .filter(m => !/type\s*=\s*["']?[^"'\s>]*json/i.test(m[1])).map(m => m[2]);
 }
 
 // What a page or SVG fetches by itself. Markup written inside a script is not markup.
 function markupLoads(file, html) {
   const out = scriptsIn(file, html).flatMap(jsLoads);
-  html = html.replace(/<!--[\s\S]*?-->/g, "").replace(/(<script\b[^>]*>)[\s\S]*?<\/script>/gi, "$1")
-    .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, (_, css) => { out.push(...cssLoads(css)); return ""; });
+  html = untilStable(stripComments(html), /(<script\b[^>]*>)[\s\S]*?<\/script\s*>/gi, "$1");
+  html = untilStable(html, /<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi, (_, css) => { out.push(...cssLoads(css)); return ""; });
   for (const [, name, rest] of html.matchAll(/<([a-z][a-z0-9:-]*)\b([^>]*)>/gi)) {
     const tag = name.toLowerCase(), a = attrs(rest), add = (ref, at) => out.push({ ref, by: "<" + tag + " " + at + ">", file: true });
     if (a.style) cssLoads(a.style).forEach(l => add(l.ref, "style"));
@@ -689,6 +695,8 @@ test("no third parties: nothing in public/ loads from another host", () => {
     ["a.js", 'navigator.sendBeacon("https://stats.example.com/b")'],
     ["a.svg", '<svg><image href="https://img.example.com/d.png"/></svg>'],
     ["a.webmanifest", '{"icons":[{"src":"https://img.example.com/i.png"}]}'],
+    ["a.html", '<script>x</script ><img src="https://img.example.com/e.png">'],
+    ["a.html", '<!--<!-- -->--><SCRIPT SRC="https://cdn.example.com/f.js"></SCRIPT>'],
   ];
   for (const [f, text] of hostile) assert.ok(loadsIn(f, text).some(l => !sameSite(l.ref)), "the guard misses " + text);
   const fine = '<a href="https://github.com/x">Source</a><link rel="canonical" href="https://remmynd.space/"><img src="icon.svg"><script>const s=\'<img src="https://x.example.com/b.svg">\'</script>';
@@ -1554,7 +1562,7 @@ test("accessibility: tap targets, dialogs, headings and focus", () => {
     const html = readFileSync(join(root, f), "utf8");
     for (const [, a] of html.matchAll(/<div class="sheet"([^>]*)>/g)) assert.match(a, /role="dialog" aria-modal="true" aria-label(ledby)?="[^"]+"/, f + ": a sheet is a named modal dialog");
     for (const [, a] of html.matchAll(/<img\b([^>]*)>/g)) assert.match(a, /\salt="/, f + ": every image has alt text");
-    for (const [, a, inner] of html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)) assert.ok(/aria-label="[^"]+"/.test(a) || inner.replace(/<[^>]+>/g, "").trim(), f + ": a button without a name");
+    for (const [, a, inner] of html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)) assert.ok(/aria-label="[^"]+"/.test(a) || untilStable(inner, /<[^>]+>/g, "").trim(), f + ": a button without a name");
     let last = 0;
     for (const [, l] of html.matchAll(/<h([1-4])[\s>]/g)) { assert.ok(!last || +l <= last + 1, f + ": heading h" + l + " follows h" + last); last = +l; }
   }
@@ -1609,7 +1617,7 @@ test("security: a strict content security policy, HSTS and security.txt", () => 
   const hashes = dir["script-src"].filter(v => v.startsWith("'sha256-")).map(v => v.slice(8, -1));
   for (const f of ["public/index.html", ...[...PAGES, "404"].map(pageFile)]) {
     const html = readFileSync(join(root, f), "utf8");
-    const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+    const inline = [...html.matchAll(/<script\s*>([\s\S]*?)<\/script\s*>/gi)].map(m => m[1]);
     assert.equal(inline.length, 1, f + ": one inline script");
     assert.ok(hashes.includes(createHash("sha256").update(inline[0]).digest("base64")), f + ": the inline script's hash is in script-src");
     assert.doesNotMatch(html, /\son[a-z]+="|\sstyle="|javascript:/i, f + ": no inline handlers, styles or javascript: links");
@@ -1653,4 +1661,19 @@ test("pipelines: workflows pin their actions, keep tokens to themselves and decl
   const live = readFileSync(join(dir, "live-check.yml"), "utf8");
   assert.match(live, /loads from another host/, "the live check fails if a page loads from another host");
   assert.match(live, /content-security-policy: default-src 'self'/, "the live check looks for the security policy header");
+});
+
+test("security: crafted input can't make the library or the page slow", () => {
+  const fast = (label, fn) => { const t = performance.now(); fn(); const ms = performance.now() - t; assert.ok(ms < 250, label + " took " + ms.toFixed(0) + " ms"); };
+  fast("decode with many r/-? parts", () => R.decode("r/-?".repeat(20000) + "\n"));
+  fast("decode with many #", () => R.decode("#".repeat(50000)));
+  fast("fromQuery with many #", () => R.fromQuery("#".repeat(50000) + "\n"));
+  fast("createLink with a base of slashes", () => R.createLink({ title: "x", start: "2026-12-05T18:00Z" }, { base: "/".repeat(50000) + "x" }));
+  fast("parse with invite and many spaces", () => R.parse("invite" + " ".repeat(50000) + "x", { now: new Date("2026-11-10T12:00:00Z"), timeZone: "UTC" }));
+  // The same link reads back in every form.
+  const link = R.createLink({ title: "Demo", start: "2026-12-05T18:00Z" }), payload = link.split("/r/")[1];
+  for (const form of [link, link + "/", link + "?x=1", "r/" + payload, payload, "https://remmynd.space/#" + payload]) assert.equal(R.decode(form)?.title, "Demo", form);
+  assert.equal(R.createLink({ title: "x", start: "2026-12-05T18:00Z" }, { base: "https://example.org//#y" }).split("/r/")[0], "https://example.org");
+  // The page looks up named examples among its own keys only, so #constructor is just an unknown link.
+  assert.match(readFileSync(join(root, "public/app.js"), "utf8"), /if\(Object\.prototype\.hasOwnProperty\.call\(PRESETS,h\)\)return showView/);
 });
