@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Docs · remmynd</title>
-<meta name="description" content="Make remmynd links from a web address, the command line or your own code. The link format, the npm library, the CLI, badges and how to self-host.">
+<meta name="description" content="Make remmynd links from a web address, an AI assistant, the command line or your own code. The link format, the connector for AI assistants, the npm library, the CLI, badges and how to self-host.">
 <meta name="author" content="Zoof04 Inc.">
 <link rel="canonical" href="https://remmynd.space/docs">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://remmynd.space/docs">
 <meta property="og:title" content="Docs · remmynd">
-<meta property="og:description" content="Make remmynd links from a web address, the command line or your own code. The link format, the npm library, the CLI, badges and how to self-host.">
+<meta property="og:description" content="Make remmynd links from a web address, an AI assistant, the command line or your own code. The link format, the connector for AI assistants, the npm library, the CLI, badges and how to self-host.">
 <meta property="og:image" content="https://remmynd.space/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -49,7 +49,7 @@
   <h1>Make reminders from anywhere.</h1>
   <p class="lede">Everything a remmynd reminder needs travels in its link. Make one from a web address, the command line or your own code. No account, no API key.</p>
   <ul class="toc" aria-label="On this page">
-    <li><a href="#link">The link</a></li><li><a href="#new">Write one by hand</a></li><li><a href="#library">Library</a></li><li><a href="#cli">Command line</a></li><li><a href="#badges">Badges</a></li><li><a href="#self-host">Self-host</a></li><li><a href="#more">More</a></li>
+    <li><a href="#link">The link</a></li><li><a href="#new">Write one by hand</a></li><li><a href="#connector">AI assistants</a></li><li><a href="#library">Library</a></li><li><a href="#cli">Command line</a></li><li><a href="#badges">Badges</a></li><li><a href="#self-host">Self-host</a></li><li><a href="#more">More</a></li>
   </ul>
 </section>
 
@@ -96,6 +96,19 @@ https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and ev
       </tbody>
     </table>
     <p>With <code>tz</code>, or a <code>Z</code> or offset in <code>at</code>, the address redirects to the shared link straight away. Without one, the time is read in the visitor's own time zone. If the title or time is missing, the maker opens with what was given.</p>
+
+    <h2 id="connector">Connector for AI assistants</h2>
+    <p>Add remmynd to any AI assistant that takes MCP connectors (remote MCP servers), then ask it for a reminder in your own words. It answers with a link you can share or tap. No account and no key.</p>
+    <div class="snippet"><pre class="light" aria-label="Connector address"><code>https://remmynd.space/mcp</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+    <table>
+      <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><code>make_reminder_link</code></td><td>A link from a title, a start (<code>YYYY-MM-DDTHH:mm</code> and an IANA time zone, or an exact time), and optionally a length, a place or link, notes and a host</td></tr>
+        <tr><td><code>make_reminder_from_text</code></td><td>A link from one line, read the way the app reads what you type: "Demo day Fri 5pm zoom.us/j/123"</td></tr>
+        <tr><td><code>read_reminder_link</code></td><td>What a remmynd link holds: title, time, length, place, notes and host</td></tr>
+      </tbody>
+    </table>
+    <p>It speaks MCP 2026-07-28 (stateless, per-request versions) and the earlier versions back to 2025-03-26, over Streamable HTTP. The tools only turn words into a link and a link back into words, with the same library as this site, so the links are identical. Nothing is stored or logged, and the connector asks no other host for anything.</p>
 
     <h2 id="library">In your code</h2>
     <p>The <a href="https://www.npmjs.com/package/remmynd">remmynd</a> package makes and reads links. Zero dependencies. Works in Node 20 and later, Deno, Bun, Cloudflare Workers and browsers. Types included.</p>

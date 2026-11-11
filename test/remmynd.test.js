@@ -503,6 +503,136 @@ test("worker: /new redirects exact times to the /r/ link", async () => {
   assert.equal((await worker.fetch(new Request("https://remmynd.space/new?t=x", { method: "POST" }), env)).status, 405);
 });
 
+test("connector: an MCP server that makes and reads reminder links, and stores nothing", async () => {
+  const worker = (await import("../worker/index.js")).default;
+  const { TOOLS, SUPPORTED } = await import("../worker/mcp.js");
+  const env = shellEnv();
+  const V = "2026-07-28";
+  const meta = { "io.modelcontextprotocol/protocolVersion": V, "io.modelcontextprotocol/clientInfo": { name: "test", version: "1" }, "io.modelcontextprotocol/clientCapabilities": {} };
+  const post = (body, headers = {}) => worker.fetch(new Request("https://remmynd.space/mcp", { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) }), env);
+  // A modern request: version in _meta and in the headers, which must match the body.
+  const call = (method, params = {}, headers) => post({ jsonrpc: "2.0", id: 7, method, params: { ...params, _meta: meta } },
+    { "mcp-protocol-version": V, "mcp-method": method, ...(method === "tools/call" ? { "mcp-name": params.name } : {}), ...headers });
+  const json = async res => ({ status: res.status, body: await res.json() });
+  const tool = async (name, args) => (await json(await call("tools/call", { name, arguments: args }))).body.result;
+
+  // Discovery and the tool list.
+  let r = await json(await call("server/discover"));
+  assert.equal(r.status, 200);
+  assert.equal(r.body.result.resultType, "complete");
+  assert.deepEqual(r.body.result.supportedVersions, SUPPORTED);
+  assert.ok(SUPPORTED.includes("2026-07-28") && SUPPORTED.includes("2025-06-18"));
+  assert.deepEqual(r.body.result.capabilities, { tools: {} });
+  assert.equal(r.body.result._meta["io.modelcontextprotocol/serverInfo"].name, "remmynd");
+  assert.match(r.body.result.instructions, /IANA time zone/);
+  r = await json(await call("tools/list"));
+  assert.deepEqual(r.body.result.tools.map(t => t.name), ["make_reminder_link", "make_reminder_from_text", "read_reminder_link"], "always the same order");
+  for (const t of r.body.result.tools) {
+    assert.equal(t.inputSchema.additionalProperties, false, t.name);
+    assert.equal(t.annotations.readOnlyHint, true, t.name);
+    assert.equal(t.annotations.openWorldHint, false, t.name);
+    assert.ok(t.outputSchema && t.description && t.title, t.name);
+  }
+  assert.deepEqual(r.body.result.tools, TOOLS);
+
+  // make_reminder_link: the same link the library and the website make.
+  let out = await tool("make_reminder_link", { title: "Demo day", start: "2026-12-04T17:00", time_zone: "Asia/Kolkata", duration_minutes: 90, location: "https://lu.ma/demo", host: "Northwind" });
+  assert.equal(out.isError, false);
+  assert.equal(out.resultType, "complete");
+  const expected = R.createLink({ title: "Demo day", start: "2026-12-04T17:00", timeZone: "Asia/Kolkata", durationMinutes: 90, location: "https://lu.ma/demo", host: "Northwind" });
+  assert.equal(out.structuredContent.link, expected);
+  assert.deepEqual([out.structuredContent.starts_at, out.structuredContent.time_zone, out.structuredContent.duration_minutes, out.structuredContent.private], ["2026-12-04T11:30:00.000Z", "Asia/Kolkata", 90, false]);
+  assert.equal(out.content[0].text, "Demo day · Fri 4 Dec, 5:00 PM IST · 1 h 30 min · https://lu.ma/demo\n" + expected);
+  assert.deepEqual(JSON.parse(out.content[1].text), out.structuredContent, "the structured result also comes as JSON text");
+  out = await tool("make_reminder_link", { title: "Demo day", start: "2026-12-04T11:30Z", private: true });
+  assert.match(out.structuredContent.link, /^https:\/\/remmynd\.space\/#[A-Za-z0-9_-]+$/, "a private link keeps everything after #");
+  assert.match(out.content[0].text, /Private link/);
+
+  // Mistakes come back as tool errors the assistant can fix, not protocol errors.
+  for (const [args, said] of [
+    [{ title: "Demo", start: "2026-12-04T17:00" }, /Which time zone/],
+    [{ title: "Demo", start: "2026-12-04T17:00", time_zone: "Mars/Base" }, /isn't a time zone/],
+    [{ title: " ", start: "2026-12-04T17:00Z" }, /title/],
+    [{ title: "Demo", start: "soon", time_zone: "UTC" }, /Could not read the time/],
+    [{ title: "Demo", start: "2026-12-04T17:00Z", duration_minutes: 0 }, /1 to 1440/]
+  ]) {
+    out = await tool("make_reminder_link", args);
+    assert.equal(out.isError, true, JSON.stringify(args));
+    assert.match(out.content[0].text, said);
+  }
+
+  // make_reminder_from_text reads a line like the bar does, in the person's zone.
+  out = await tool("make_reminder_from_text", { text: "Dentist Tue 4pm at Smile Clinic", time_zone: "Europe/London", now: "2026-11-11T10:00:00Z" });
+  assert.equal(out.isError, false);
+  assert.deepEqual([out.structuredContent.title, out.structuredContent.starts_at, out.structuredContent.location, out.structuredContent.time_zone], ["Dentist", "2026-11-17T16:00:00.000Z", "Smile Clinic", "Europe/London"]);
+  out = await tool("make_reminder_from_text", { text: "Standup tomorrow 9:30 for 15 min https://meet.example/abc", time_zone: "Asia/Kolkata", now: "2026-11-11T10:00:00Z" });
+  assert.deepEqual([out.structuredContent.starts_at, out.structuredContent.duration_minutes, out.structuredContent.location], ["2026-11-12T04:00:00.000Z", 15, "https://meet.example/abc"]);
+  out = await tool("make_reminder_from_text", { text: "Dentist sometime", time_zone: "Europe/London" });
+  assert.equal(out.isError, true);
+  assert.match(out.content[0].text, /No day or time/);
+  out = await tool("make_reminder_from_text", { text: "Dentist Tue 4pm", time_zone: "nowhere" });
+  assert.equal(out.isError, true);
+
+  // read_reminder_link reads both kinds of link, and says plainly when it isn't one.
+  out = await tool("read_reminder_link", { link: expected });
+  assert.deepEqual([out.structuredContent.title, out.structuredContent.duration_minutes, out.structuredContent.host, out.structuredContent.link], ["Demo day", 90, "Northwind", expected]);
+  out = await tool("read_reminder_link", { link: "https://example.com/hello" });
+  assert.equal(out.isError, true);
+
+  // Protocol errors: unknown tool and method, unsupported version, headers that don't match the body.
+  r = await json(await call("tools/call", { name: "delete_everything", arguments: {} }));
+  assert.equal(r.body.error.code, -32602);
+  r = await json(await call("prompts/list"));
+  assert.deepEqual([r.status, r.body.error.code], [404, -32601]);
+  r = await json(await post({ jsonrpc: "2.0", id: 1, method: "tools/list", params: { _meta: { ...meta, "io.modelcontextprotocol/protocolVersion": "1900-01-01" } } }, { "mcp-protocol-version": "1900-01-01", "mcp-method": "tools/list" }));
+  assert.deepEqual([r.status, r.body.error.code, r.body.error.data.supported], [400, -32022, SUPPORTED]);
+  for (const h of [{ "mcp-method": "tools/list" }, { "mcp-protocol-version": "2025-11-25" }, { "mcp-name": "read_reminder_link" }]) {
+    r = await json(await call("tools/call", { name: "make_reminder_link", arguments: {} }, h));
+    assert.deepEqual([r.status, r.body.error.code], [400, -32020], JSON.stringify(h));
+  }
+  r = await json(await call("tools/list", {}, { "mcp-method": "tools/call" }));
+  assert.deepEqual([r.status, r.body.error.code], [400, -32020]);
+  const b64 = "=?base64?" + Buffer.from("read_reminder_link").toString("base64") + "?=";
+  r = await json(await call("tools/call", { name: "read_reminder_link", arguments: { link: expected } }, { "mcp-name": b64 }));
+  assert.equal(r.body.result.isError, false, "an encoded Mcp-Name is decoded before it's compared");
+
+  // Legacy clients: initialize, then plain requests, with no session id minted.
+  let res = await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "old", version: "1" } } });
+  r = await json(res);
+  assert.deepEqual([r.body.result.protocolVersion, r.body.result.capabilities, r.body.result.serverInfo.name], ["2025-06-18", { tools: { listChanged: false } }, "remmynd"]);
+  assert.equal(res.headers.get("mcp-session-id"), null);
+  r = await json(await post({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-01-01" } }));
+  assert.equal(r.body.result.protocolVersion, "2025-11-25", "an unknown version gets the newest handshake version");
+  assert.equal((await post({ jsonrpc: "2.0", method: "notifications/initialized" }, { "mcp-protocol-version": "2025-06-18" })).status, 202);
+  r = await json(await post({ jsonrpc: "2.0", id: 2, method: "tools/list" }, { "mcp-protocol-version": "2025-06-18" }));
+  assert.equal(r.body.result.tools.length, 3);
+  assert.equal(r.body.result.resultType, undefined, "legacy results keep the legacy shape");
+  r = await json(await post({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "make_reminder_link", arguments: { title: "Demo day", start: "2026-12-04T17:00", time_zone: "Asia/Kolkata", duration_minutes: 90, location: "https://lu.ma/demo", host: "Northwind" } } }));
+  assert.equal(r.body.result.structuredContent.link, expected, "no header at all reads as 2025-03-26");
+  assert.equal((await json(await post({ jsonrpc: "2.0", id: 4, method: "ping" }))).body.result.resultType, undefined);
+
+  // Transport rules: GET has no stream, a browser gets the docs, bad origins, bodies and batches are refused.
+  const get = headers => worker.fetch(new Request("https://remmynd.space/mcp", { headers }), env);
+  assert.equal((await get({ accept: "text/event-stream" })).status, 405);
+  res = await get({ accept: "text/html,application/xhtml+xml" });
+  assert.deepEqual([res.status, res.headers.get("location")], [302, "https://remmynd.space/docs#connector"]);
+  assert.equal((await worker.fetch(new Request("https://remmynd.space/mcp", { method: "DELETE" }), env)).status, 405);
+  assert.equal((await worker.fetch(new Request("https://remmynd.space/mcp", { method: "OPTIONS" }), env)).status, 204);
+  assert.equal((await post({ jsonrpc: "2.0", id: 1, method: "ping" }, { origin: "null" })).status, 403);
+  assert.equal((await post({ jsonrpc: "2.0", id: 1, method: "ping" }, { origin: "https://app.example" })).status, 200);
+  assert.equal((await post("{nope")).status, 400);
+  assert.equal((await post([{ jsonrpc: "2.0", id: 1, method: "ping" }])).status, 400);
+  assert.equal((await post(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping", params: { pad: "x".repeat(40000) } }))).status, 413);
+  assert.equal((await post({ jsonrpc: "2.0", id: 1, method: "ping" }, { "content-type": "text/plain" })).status, 415);
+  res = await call("tools/list");
+  assert.deepEqual([res.headers.get("cache-control"), res.headers.get("content-type"), res.headers.get("set-cookie")], ["no-store", "application/json", null]);
+
+  // Nothing is stored: the connector never gets the database or any other binding.
+  const index = readFileSync(join(root, "worker/index.js"), "utf8"), mcp = readFileSync(join(root, "worker/mcp.js"), "utf8");
+  assert.match(index, /return handleMcp\(request, url\);/);
+  assert.doesNotMatch(mcp, /env\.|fetch\(|console\./);
+});
+
 test("qr: codes drawn on the device follow the standard", async () => {
   const { qrMatrix, qrSVG } = await import("../public/qr.js");
   const size = text => qrMatrix(text).length;

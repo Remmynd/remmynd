@@ -18,6 +18,16 @@ https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&l=https
 
 With `tz`, or a `Z` or offset in `at`, the address redirects to a shared link (`https://remmynd.space/r/…`) at once. Without one, the time is read in the visitor's own time zone. URL-encode each value.
 
+## Connector (MCP)
+
+Assistants that take MCP connectors (remote MCP servers) can add remmynd at https://remmynd.space/mcp (Streamable HTTP, MCP 2026-07-28 and earlier versions back to 2025-03-26). No account and no key. Tools:
+
+- `make_reminder_link`: title, start (`YYYY-MM-DDTHH:mm` with an IANA `time_zone`, or an exact time with `Z` or an offset), and optional `duration_minutes`, `location`, `notes`, `host`, `private`
+- `make_reminder_from_text`: one line the way a person writes it ("Dentist Tue 4pm"), with the person's `time_zone`
+- `read_reminder_link`: what a remmynd link holds
+
+The connector only turns words into a link and a link back into words. It stores and logs nothing.
+
 ## Links
 
 - Shared links, `https://remmynd.space/r/<payload>`, show the title and time in chat previews. The server reads them only to fill the preview and stores and logs nothing.
@@ -26,7 +36,7 @@ With `tz`, or a `Z` or offset in `at`, the address redirects to a shared link (`
 
 ## Docs
 
-- [Docs](https://remmynd.space/docs): the link format, /new, the npm library, the command line, badges and self-hosting
+- [Docs](https://remmynd.space/docs): the link format, /new, the connector for AI assistants, the npm library, the command line, badges and self-hosting
 - [For hosts](https://remmynd.space/hosts): badges, QR codes and chat previews
 - [Privacy](https://remmynd.space/privacy): what the server keeps (only an anonymous ping time for phone alerts, deleted once sent)
 - [Changelog](https://remmynd.space/changelog)

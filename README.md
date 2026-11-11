@@ -116,6 +116,18 @@ https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&l=https
 
 With `tz`, or a `Z` or offset in `at`, the address redirects to the shared link straight away. Without one, the time is read in the visitor's own time zone. If the title or time is missing, the maker opens with what was given.
 
+### As a connector for AI assistants
+
+Assistants that take MCP connectors (remote MCP servers) can add remmynd at `https://remmynd.space/mcp`, then make a reminder link from what you ask in your own words. No account and no key.
+
+| Tool | What it does |
+|---|---|
+| `make_reminder_link` | A link from a title and a start (`YYYY-MM-DDTHH:mm` with an IANA `time_zone`, or an exact time), with optional length, place or link, notes and host |
+| `make_reminder_from_text` | A link from one line, read the way the app reads it: "Demo day Fri 5pm zoom.us/j/123" |
+| `read_reminder_link` | What a remmynd link holds |
+
+It speaks MCP 2026-07-28 and the earlier versions back to 2025-03-26, over Streamable HTTP. It stores and logs nothing: it only turns words into a link and back, with the same library as the site.
+
 ### In your code
 
 ```sh
@@ -192,7 +204,7 @@ Free, no account needed, no tracking. Your reminder lives in the link and on you
 
 ## Self-host
 
-remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/share`, `/mcp` (the connector for AI assistants), `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
 
 ```sh
 git clone https://github.com/Remmynd/remmynd.git

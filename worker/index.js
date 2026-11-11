@@ -5,6 +5,7 @@ import { handlePush, sendDuePings } from "./push.js";
 import { sharedResponse, newResponse, shareResponse } from "./preview.js";
 import { changelogResponse } from "./changelog.js";
 import { statsResponse } from "./stats.js";
+import { handleMcp } from "./mcp.js";
 import { handleAccount, sendDueMails } from "./account.js";
 
 const PRESETS = new Set(["example"]);
@@ -27,6 +28,9 @@ export default {
 
     // Optional sign-in, sync and email reminders.
     if (url.pathname.startsWith("/api/")) return handleAccount(request, env, url, ctx);
+
+    // Connector for AI assistants (MCP): makes and reads reminder links, stores nothing.
+    if (url.pathname === "/mcp" || url.pathname === "/mcp/") return handleMcp(request, url);
 
     // Push notifications: public key, schedule and cancel anonymous pings.
     if (url.pathname.startsWith("/push/")) return handlePush(request, env, url);
