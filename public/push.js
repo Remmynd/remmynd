@@ -58,8 +58,16 @@
     const rkey = rkeyOf(d.r.t, start);
     const on = (await getAll()).some(a => a.rkey === rkey && !a.shown);
     if (on) {
-      el.innerHTML = row(when(d), '<button type="button" class="s-btn" id="n-off" aria-label="Notifications on. Turn them off">' + ON + '</button>');
+      el.innerHTML = row(when(d), '<span class="s-ends"><button type="button" class="btn small" id="n-test">Test</button><button type="button" class="s-btn" id="n-off" aria-label="Notifications on. Turn them off">' + ON + '</button></span>');
       el.querySelector("#n-off").addEventListener("click", async () => { try { await turnOff(rkey); } catch (e) {} renderRow(d); });
+      // A test alert now, shown by this device itself, so you can see and hear how a reminder arrives.
+      el.querySelector("#n-test").addEventListener("click", async () => {
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification(d.r.t, { body: "Test alert. This is how remmynd will remind you.", icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: "rm-test", data: { url: d.share } });
+          RM.toast("Test sent. Check your notifications.");
+        } catch (e) { RM.toast("This browser didn't show the test"); }
+      });
     } else if (Notification.permission === "denied") {
       el.innerHTML = row("Blocked in this browser's settings", "", true);
     } else {

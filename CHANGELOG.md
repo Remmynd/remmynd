@@ -6,6 +6,25 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- Remind me right after making a reminder: the ready screen leads with it, so one tap sends your own reminder to your calendar, turns on alerts and holds it. Sharing tools follow under "Share it".
+- Delete, with Undo: every row in Coming up and My links has a ⋯ button (and swipe) for its actions, now including Delete; a held reminder has "Remove this reminder". The delete waits 5 seconds behind Undo, and a removed reminder's alerts are cancelled.
+- Edit a reminder you made (from the ready screen or My links): its parts go back into the line, and making it again replaces the old link.
+- A Test button in the Notification row shows a test alert, so you can see and hear how reminders arrive.
+- The remmynd chime and a buzz when a held reminder starts while the page is open.
+- Back on a reminder opened from inside the app. The Delete key removes the row in focus.
+
+### Changed
+
+- "Remind me at 9 AM instead" is now an offer, off by default, and only for a night-time reminder at least 12 hours away. A reminder set at midnight for two minutes later goes off at the time you set.
+- Row actions appear as a row of buttons under the reminder instead of sliding it aside, so titles stay readable on small screens.
+- The badge maker moved from the app's home to For hosts.
+
+### Fixed
+
+- The Soon label no longer stretches across a row and hides its title.
+
 ## [2.0.1] - 2026-11-11
 
 remmynd 2.0.1: security and polish. The library reads links, `/new` addresses and pasted invitations without slowing down on crafted input, credit is Zoof04 Inc. everywhere, and the site sends a strict security policy. Links and the library's functions are unchanged.

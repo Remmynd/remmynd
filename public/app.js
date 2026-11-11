@@ -109,7 +109,7 @@ function hold(cal){const c=S.ctx;if(S.held||!c)return;S.held=true;c.el.dataset.h
   setTimeout(renderBottom,60);}
 const VIA=()=>'<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I.mark+'remmynd</a>';
 const ALTS='<div class="alts" id="alts" hidden><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button><button type="button" id="a-qr">QR code</button></div>';
-function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+esc(fShort(c.start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(c.start,TZ),TZ))+'</b> instead.</span><label class="switch"><input type="checkbox" id="sleep"'+(c.morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
+function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+esc(fShort(c.start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(c.start,TZ),TZ))+'</b> instead?</span><label class="switch"><input type="checkbox" id="sleep"'+(c.morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
   '<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+(PUSH_OK?"Calendar and a notification on this "+DEVICE+", in one tap.":"Adds it to your calendar, with alerts.")+'</div>'+
   '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
 /* The stack (mock-up 05): what this one tap set up, plus the nudge switch. */
@@ -121,7 +121,8 @@ function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
     '<div class="srow muted">'+I.mail+'<span class="stext"><b>Email</b><span>Coming in December</span></span><span class="s-soon">Soon</span></div></div>'+
     '<label class="opt-row"><span class="opt-text"><b id="nudge-l">Nudge me until I\'m in</b><span id="nudge-d">Up to 3 nudges, 10 minutes apart.</span></span><span class="switch"><input type="checkbox" id="s-nudge" role="switch" aria-labelledby="nudge-l" aria-describedby="nudge-d"'+(rec.nudge?" checked":"")+'><span></span></span></label>'+
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
-    '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+VIA();}
+    '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+
+    '<button type="button" class="linkish s-remove" id="s-remove">Remove this reminder</button>'+VIA();}
 /* Follow through (step 5): before it starts the stack; from the start, Open the link, Not yet and Done;
  * after Not yet, the stack again until the new time; then the same question. */
 function phase(c){const now=Date.now(),r=S.rec||{};if(r.state==="kept")return"kept";if(r.state==="dropped")return"dropped";
@@ -134,7 +135,9 @@ function followHTML(c){const l=c.r.l;
 function labelFor(c,ph){const now=Date.now(),end=c.start.getTime()+(c.r.d||60)*6e4;
   return ph==="kept"?"Kept":ph==="dropped"?"Dropped":ph==="due"?(S.rec&&S.rec.replanAt?"It's time":now<end?"Starting now":"Ended"):S.held?"Held":"Reminder";}
 function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.el.querySelector(".t-bottom");
-  const ph=S.held?phase(c):"open";S.phase=ph;c.el.dataset.rstate=(S.rec&&S.rec.state)||"";c.el.dataset.replan=(S.rec&&S.rec.replanAt)||0;
+  const ph=S.held?phase(c):"open",was=S.phase;S.phase=ph;
+  /* It has started and the page is open: the remmynd chime and a buzz, once. */
+  if(S.held&&was&&was!=="due"&&ph==="due"&&document.visibilityState==="visible"){chime();try{if(navigator.vibrate)navigator.vibrate([30,60,30]);}catch(e){}}c.el.dataset.rstate=(S.rec&&S.rec.state)||"";c.el.dataset.replan=(S.rec&&S.rec.replanAt)||0;
   b.innerHTML=!S.held?remindHTML(c):ph==="due"?followHTML(c):ph==="kept"?'<p class="held-line">'+I.on+'Done. You kept it.</p>'+VIA():
     ph==="dropped"?'<p class="held-line muted">Dropped. No more alerts for this one.</p><button type="button" class="btn" id="f-later">Pick a new time</button>'+VIA():stackHTML(c);
   c.el.querySelector(".t-head .label").textContent=labelFor(c,ph);
@@ -157,14 +160,17 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#s-nudge",sw=>sw.addEventListener("change",()=>{if(!S.rec)return;S.rec.nudge=c.nd.nudge=sw.checked;keepRec();if(window.__rmPush)window.__rmPush.setNudge(c.nd,sw.checked).catch(()=>{});toast(sw.checked?"Nudges on: up to 3, 10 minutes apart":"Nudges off");}));
   on("#f-open",a=>a.addEventListener("click",()=>{if(!S.rec)return;S.rec.openedAt=Date.now();keepRec();if(window.__rmPush)window.__rmPush.cancel(S.rkey,["nudge"]).catch(()=>{});}));
   on("#f-done",x=>x.addEventListener("click",markDone));
+  on("#s-remove",x=>x.addEventListener("click",()=>{const rec=S.rec,k=S.rkey;if(!rec)return;const flip=h=>{S.held=h;S.rec=h?rec:null;if(h)c.el.dataset.held="1";else delete c.el.dataset.held;renderTicket(c.el,c.r,c.o);};
+    flip(false);later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.");}));
   on("#f-later",x=>x.addEventListener("click",openReplan));
   on("#s-add-b",x=>x.addEventListener("click",()=>{if(!openSheet())toast("Open remmynd.space in Safari or Chrome to install it");}));
   if(S.held&&b.querySelector("#s-notify")){c.nd.el=b.querySelector("#s-notify");window.__rmLast={type:"stack",detail:c.nd};window.dispatchEvent(new CustomEvent("rm:stack",{detail:c.nd}));refreshInstall();}
   else window.__rmLast={type:"ticket"};}
 
 function renderTicket(el,r,o){
-  const start=startOf(r),end=new Date(start.getTime()+(r.d||60)*6e4),p=parts(start,TZ),night=p.h>=23||p.h<7;
-  if(o.interactive&&S.morning===null)S.morning=night;
+  const start=startOf(r),end=new Date(start.getTime()+(r.d||60)*6e4),p=parts(start,TZ),night=(p.h>=23||p.h<7)&&start-Date.now()>=432e5;
+  /* Sleep-safe is an offer, off by default, and only for a night-time reminder at least 12 hours away. */
+  if(o.interactive&&S.morning===null)S.morning=false;
   const morning=o.interactive&&night&&S.morning;
   const when=morning?morningOf(start,TZ):start;
   const t=fTime(start,TZ),host=hostClock(start,r.z),H=o.interactive?"h1":"h2",held=o.interactive&&S.held;
@@ -183,7 +189,7 @@ function renderTicket(el,r,o){
   if(!o.interactive)return;
   S.rkey=rkeyOf(r.t,start);
   /* Held already, from an earlier visit: show it and its stack without the animation. */
-  if(!S.held&&window.remmyndDB)window.remmyndDB.getAll("reminders").then(list=>{const rec=list.find(x=>x.rkey===S.rkey);
+  if(!S.held&&window.remmyndDB)window.remmyndDB.getAll("reminders").then(list=>{const rec=list.find(x=>x.rkey===S.rkey&&!PEND.has("r:"+x.rkey));
     if(!S.held&&rec&&el.dataset.start===String(start.getTime())){S.held=true;S.rec=rec;if(S.ctx)S.ctx.nd.nudge=!!rec.nudge;el.dataset.held="1";el.classList.add("still");renderBottom();tick();requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.remove("still")));
       if(new URLSearchParams(location.search).get("act")==="replan"){history.replaceState(null,"",location.pathname+location.hash);openReplan();}}}).catch(()=>{});
   const title=morning?r.t+" (live since "+fShort(start,TZ)+")":r.t;
@@ -234,7 +240,16 @@ QR.x.addEventListener("click",closeQR);QR.el.addEventListener("click",e=>{if(e.t
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!QR.el.hidden)closeQR();});
 
 /* ---------- utilities ---------- */
-function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2400);}
+function toast(m){const t=$("#toast");t.textContent=m;t.classList.remove("act");t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2400);}
+function toastUndo(m,undo){const t=$("#toast"),b=document.createElement("button");t.textContent=m;b.type="button";b.className="toast-undo";b.textContent="Undo";
+  b.addEventListener("click",()=>{t.classList.remove("show","act");undo();});t.append(b);t.classList.add("show","act");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show","act"),5000);}
+/* Delete with Undo: what is deleted disappears at once, but the delete itself waits 5 seconds, so Undo can
+ * bring it back (a held reminder's alerts are cancelled only when the time is up). Leaving the page finishes it. */
+const PEND=new Map();
+function later(key,run,undo,msg){PEND.set(key,{run,t:setTimeout(()=>{PEND.delete(key);run();},5000)});
+  toastUndo(msg,()=>{const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);undo();});}
+addEventListener("pagehide",()=>{for(const[k,p]of PEND){clearTimeout(p.t);PEND.delete(k);p.run();}});
+const forgetRec=k=>{if(window.remmyndDB)window.remmyndDB.del("reminders",k).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(k).catch(()=>{});};
 function copy(text,msg){const ok=()=>toast(msg||"Copied");const fb=()=>{const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy")?ok():toast("Select the text and copy it");}catch(e){toast("Select the text and copy it");}ta.remove();};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,fb);else fb();}
 async function shareIt(data,msg){if(navigator.share){try{await navigator.share(data);toast(msg);return;}catch(e){if(e&&e.name==="AbortError")return;}}copy(data.url,"Link copied. Paste it into Reminders or Notes.");}
@@ -242,9 +257,9 @@ async function shareIt(data,msg){if(navigator.share){try{await navigator.share(d
 /* ---------- maker: one line in, a link out ---------- */
 const C={form:$("#cap-form"),input:$("#cap"),label:$("#cap-l"),hero:$("#hero"),try:$("#try"),draft:$("#draft"),ready:$("#ready"),prev:$("#t-preview"),hint:$("#draft-hint"),
   what:$("#c-what"),when:$("#c-when"),whenIn:$("#c-when-in"),where:$("#c-where"),note:$("#c-note"),edit:$("#edit"),editIn:$("#edit-in"),editL:$("#edit-l"),editOk:$("#edit-ok")};
-const F={link:$("#f-link"),copy:$("#f-copy"),share:$("#f-share"),qr:$("#f-qr"),priv:$("#f-private"),copied:$("#copied"),card:$("#ready-card"),chat:$("#chat-card")};
+const F={remind:$("#f-remind"),edit:$("#f-edit"),link:$("#f-link"),copy:$("#f-copy"),share:$("#f-share"),qr:$("#f-qr"),priv:$("#f-private"),copied:$("#copied"),card:$("#ready-card"),chat:$("#chat-card")};
 /* D.line is the typed line; D.set holds parts fixed with a chip, which win over the line; D.made is the last link made. */
-const D={line:"",set:{},made:null,mode:"home",base:"home",editing:null};
+const D={line:"",set:{},made:null,mode:"home",base:"home",editing:null,replace:null};
 const short=u=>String(u||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
 const webish=s=>/^(https?:\/\/|www\.)|^[\w-]+(\.[\w-]+)+(\/|$)/i.test(s);
 const nextHour=()=>new Date(Math.ceil((Date.now()+1)/36e5)*36e5);
@@ -253,7 +268,7 @@ function whenText(d){return fDate(d,TZ)+" · "+fShort(d,TZ);}
 /* Line to ticket: a same-document view transition where the browser has one, a plain swap elsewhere. */
 const STILL=matchMedia("(prefers-reduced-motion: reduce)");
 function swap(fn){if(document.startViewTransition&&!STILL.matches){const t=document.startViewTransition(fn);t.ready.catch(()=>{});t.finished.catch(()=>{});}else fn();}
-function setMode(m){D.mode=m;$("#home").dataset.mode=m;$("#pane-l").textContent=m==="draft"?"Live preview":m==="ready"?"Your link":m==="lists"?(L.tab==="links"?"My links":"Coming up"):"Example";C.hero.hidden=C.try.hidden=m!=="home";C.draft.hidden=m!=="draft";C.ready.hidden=m!=="ready";L.el.hidden=m!=="lists";$("#badge").hidden=$(".facts").hidden=m==="draft"||m==="lists";
+function setMode(m){D.mode=m;$("#home").dataset.mode=m;$("#pane-l").textContent=m==="draft"?"Live preview":m==="ready"?"Your link":m==="lists"?(L.tab==="links"?"My links":"Coming up"):"Example";C.hero.hidden=C.try.hidden=m!=="home";C.draft.hidden=m!=="draft";C.ready.hidden=m!=="ready";L.el.hidden=m!=="lists";$(".facts").hidden=m==="draft"||m==="lists";
   C.form.classList.toggle("typing",m==="draft");C.label.textContent=m==="draft"?"Enter makes the link":"New reminder";
   const n=$("#nav-right");delete n.dataset.act;if(m==="draft"){n.textContent="Cancel";n.href="/";n.dataset.act="cancel";}else if(m==="ready"){n.textContent="My links";n.href="/#links";}
   else if(m==="home"&&L.has){n.textContent="Coming up";n.href="/#coming-up";}else{n.textContent="See an example";n.href="/#example";}}
@@ -268,8 +283,8 @@ function renderDraft(){const d=draft();
 function renderPane(){if(D.mode==="draft")return renderDraft();if(D.mode==="lists")return previewRow(L.body.querySelector(".li-main"));
   const x=D.mode==="ready"&&D.made?D.made.ev:EX[0];if(!x)return;
   renderTicket(C.prev,{t:x.title,s:pack(x.start),...(x.durationMinutes&&x.durationMinutes!==60?{d:x.durationMinutes}:{}),...(x.location?{l:x.location}:{}),...(x.notes?{n:x.notes}:{}),z:TZ},{interactive:false});}
-function renderMaker(){renderPane();snippet();}
-function clearDraft(){swap(()=>{D.line="";D.set={};C.input.value="";closeEdit();setMode(D.made?"ready":D.base);renderMaker();});}
+function renderMaker(){renderPane();}
+function clearDraft(){swap(()=>{D.line="";D.set={};D.replace=null;C.input.value="";closeEdit();setMode(D.made?"ready":D.base);renderMaker();});}
 C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.line.trim()||Object.keys(D.set).length);
   if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{setMode("draft");renderDraft();});}
   else if(typing)renderDraft();
@@ -293,7 +308,7 @@ function make(){if(D.editing)saveEdit();const d=draft();
   const ev={title:d.title,start:d.start,durationMinutes:d.dur||undefined,location:d.place,notes:d.notes,timeZone:TZ};
   let link;try{link=R.createLink(ev,{base:BASE,private:F.priv.checked});}catch(e){return toast("That reminder can't be made: "+e.message);}
   swap(()=>{D.made={ev,link};D.line="";D.set={};C.input.value="";closeEdit();showReady();});
-  copy(link,"Link copied. Share it anywhere.");D.made={ev,link};keepLink();}
+  copy(link,"Link copied. Share it anywhere.");D.made={ev,link};keepLink(D.replace||undefined);D.replace=null;}
 function keepLink(prev){const m=D.made;if(!m||!window.remmyndDB)return;const DB=window.remmyndDB;
   (prev?DB.del("links",prev):Promise.resolve()).then(()=>DB.put("links",{share:m.link,title:m.ev.title,start:m.ev.start.getTime(),createdAt:Date.now(),private:F.priv.checked})).catch(()=>{});}
 function showReady(){const m=D.made;F.link.value=m.link;
@@ -308,22 +323,24 @@ F.priv.addEventListener("change",()=>{const m=D.made;if(!m)return;const prev=m.l
 F.copy.addEventListener("click",()=>F.link.value&&copy(F.link.value,"Link copied. Share it anywhere."));
 F.share.addEventListener("click",()=>{const m=D.made;if(!m)return;shareIt({title:m.ev.title,text:"Get a reminder: "+m.ev.title,url:m.link},"Shared");});
 F.link.addEventListener("focus",()=>F.link.select());
+F.remind.insertAdjacentHTML("afterbegin",I.bell);
+/* Remind me, right after making it: open the new reminder and press its own Remind me inside this same tap,
+ * so the calendar, notifications and the stack work exactly as on any reminder link. */
+F.remind.addEventListener("click",()=>{const m=D.made;if(!m)return;const u=new URL(m.link);S.back=true;history.pushState(null,"",u.pathname+u.hash);route();const b=$("#remind");if(b)b.click();});
+F.edit.addEventListener("click",()=>{if(D.made)editMade(D.made.link);});
+/* Edit a reminder you made: back to the line with its parts filled in. Making it again replaces the old link in My links. */
+const payloadOf=l=>{const s=String(l),i=s.indexOf("/r/");return i>=0?s.slice(i+3).split(/[?#/]/)[0]:s.slice(s.indexOf("#")+1);};
+function editMade(link){const r=dec(payloadOf(link));if(!r)return;
+  D.set={title:r.t,start:startOf(r),dur:r.d&&r.d!==60?r.d:null,place:r.l||"",notes:r.n||""};D.replace=link;D.line="";D.made=null;C.input.value="";F.priv.checked=!String(link).includes("/r/");
+  if(location.pathname!=="/"||location.hash){history.pushState(null,"","/");routed=location.href;}
+  D.base=D.mode==="lists"?"lists":"home";swap(()=>{setMode("draft");showHome();});C.input.focus();toast("Change what you need, then press Enter");}
 F.qr.addEventListener("click",()=>{const m=D.made;if(m)openQR(m.link,m.ev.title);});
 /* Keep the bar above the on-screen keyboard where the browser doesn't move fixed elements itself. */
 if(window.visualViewport){const vv=window.visualViewport,kb=()=>document.documentElement.style.setProperty("--kb",Math.max(0,Math.round(innerHeight-vv.height-vv.offsetTop))+"px");vv.addEventListener("resize",kb);vv.addEventListener("scroll",kb);}
-let SNIP={fmt:"html",theme:"light"};
 /* Try one: three examples worked out from today, so they are never in the past. */
 const EX=["Demo day Fri 5pm","Rent due 1st","Call Mum Sun 7:30pm"].map(line=>{const p=R.parse(line,{timeZone:TZ});return{title:p.title,start:p.start};});
 (function tryOne(){const list=EX.map(ev=>({p:ev,link:R.createLink({title:ev.title,start:ev.start,timeZone:TZ},{base:BASE})}));
   $("#try-list").innerHTML=list.map(x=>'<a class="row" href="'+esc(x.link)+'">'+ringFor(x.p.start,"open",28)+'<span><b>'+esc(x.p.title)+'</b><i>'+esc(whenText(x.p.start))+'</i></span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>').join("");})();
-
-/* ---------- badge ---------- */
-$("#badges").innerHTML='<a href="/#example" aria-label="Light badge example">'+R.badgeSVG()+'</a><a href="/#example" aria-label="Dark badge example">'+R.badgeSVG({theme:"dark"})+'</a>';
-function snippet(){const L=F.link.value||"https://remmynd.space/r/your-link",img="https://remmynd.space/badge"+(SNIP.theme==="dark"?"-dark":"")+".svg";
-  $("#snip").textContent=SNIP.fmt==="md"?"[![Remind me]("+img+")]("+L+")":'<a href="'+L+'" target="_blank" rel="noopener">\n  <img src="'+img+'" alt="Remind me" width="172" height="44">\n</a>';}
-document.querySelectorAll("[data-fmt],[data-theme-b]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.fmt?"fmt":"theme";SNIP[k]=b.dataset.fmt||b.dataset.themeB;
-  b.parentElement.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));snippet();}));
-$("#snip-copy").addEventListener("click",()=>copy($("#snip").textContent,"Code copied"));
 
 /* ---------- lists: Coming up and My links (mock-up 08) ---------- */
 const L={el:$("#lists"),body:$("#list-body"),hint:$("#list-hint"),tab:"coming",recs:[],links:[],has:false};
@@ -332,56 +349,71 @@ const dayNum=(t,tz)=>{const p=parts(new Date(t),tz);return Date.UTC(p.y,p.mo-1,p
 const groupOf=(t,now,tz)=>{const d=dayNum(t,tz)-dayNum(now,tz);return d===0?"today":d<0?"earlier":d<=7?"week":"later";};
 const GROUPS={today:"Today",week:"This week",later:"Later",kept:"Kept",earlier:"Earlier"};
 const relText=(t,end,now)=>now>=t&&now<end?"now":now>=end?"ended":(t-now)<36e5?"in "+Math.max(1,Math.round((t-now)/6e4))+" min":"in "+Math.round((t-now)/36e5)+" h";
+const MORE=t=>'<button type="button" class="li-more" aria-label="Actions for '+esc(t)+'" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>';
+const ACTS=a=>'<div class="li-acts">'+a.map(([k,t])=>'<button type="button" data-act="'+k+'">'+t+'</button>').join("")+'</div>';
 function upRow(x,now){const later=x.replanAt>now,t=later?x.replanAt:x.start,end=x.start+(x.dur||60)*6e4,kept=x.state==="kept";
   const st=kept?"kept":ringState(x.start,end,true,x.state,x.replanAt||0),g=kept?"kept":groupOf(t,now,TZ),d=new Date(t);
   const sub=kept?fDate(new Date(x.doneAt||x.start),TZ)+" · done":g==="today"?fShort(d,TZ)+" · "+(later?"back ":"")+relText(t,later?t+1:end,now):fDate(d,TZ)+" · "+fShort(d,TZ)+(x.host?" · "+x.host:"");
   const chip=st==="soon"?'<span class="li-chip">Soon</span>':st==="now"?'<span class="li-chip">Now</span>':"";
-  return{g,t:kept?(x.doneAt||x.start):t,html:'<div class="li" data-rkey="'+esc(x.rkey)+'">'+(kept?"":'<div class="li-acts"><button type="button" data-act="replan">Re-plan</button><button type="button" data-act="done">Done</button></div>')+
-    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub)+'</i></span>'+chip+'</a></div>'};}
+  const acts=kept?[["delete","Delete"]]:[["replan","Re-plan"],["done","Done"],["delete","Delete"]];
+  return{g,t:kept?(x.doneAt||x.start):t,html:'<div class="li n'+acts.length+'" data-rkey="'+esc(x.rkey)+'">'+ACTS(acts)+
+    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub)+'</i></span>'+chip+'</a>'+MORE(x.title)+'</div>'};}
 function linkRow(x,now){const d=new Date(x.start);
-  return{g:groupOf(x.start,now,TZ),t:x.start,html:'<div class="li"><a class="li-main" href="'+esc(x.share)+'">'+ringFor(d,x.start<now?"missed":"open",28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(fDate(d,TZ)+" · "+fShort(d,TZ)+(x.private?" · private":""))+'</i></span></a>'+
-    '<button type="button" class="btn small li-copy" data-share="'+esc(x.share)+'">Copy</button></div>'};}
-async function loadLists(){const DB=window.remmyndDB;if(!DB)return;try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}L.has=!!(L.recs.length||L.links.length);}
+  return{g:groupOf(x.start,now,TZ),t:x.start,html:'<div class="li n3" data-share="'+esc(x.share)+'">'+ACTS([["copy","Copy"],["edit","Edit"],["delete","Delete"]])+
+    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(d,x.start<now?"missed":"open",28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(fDate(d,TZ)+" · "+fShort(d,TZ)+(x.private?" · private":""))+'</i></span></a>'+MORE(x.title)+'</div>'};}
+async function loadLists(){const DB=window.remmyndDB;if(!DB)return;try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}
+  L.recs=L.recs.filter(x=>!PEND.has("r:"+x.rkey));L.links=L.links.filter(x=>!PEND.has("l:"+x.share));L.has=!!(L.recs.length||L.links.length);}
 async function renderLists(focusAt){await loadLists();const now=Date.now(),up=L.tab==="coming";
   $("#tab-coming").setAttribute("aria-current",up?"page":"false");$("#tab-links").setAttribute("aria-current",up?"false":"page");
   const rows=up?L.recs.filter(x=>x.state!=="dropped").map(x=>upRow(x,now)).filter(r=>r.g!=="earlier"&&!(r.g==="kept"&&now-r.t>30*864e5)):L.links.map(x=>linkRow(x,now));
   const order=up?["today","week","later","kept"]:["today","week","later","earlier"];
   L.body.innerHTML=rows.length?order.map(g=>{const rs=rows.filter(r=>r.g===g).sort((a,b)=>g==="kept"||g==="earlier"?b.t-a.t:a.t-b.t);
       return rs.length?'<div class="label">'+GROUPS[g]+'</div><div class="li-group">'+rs.map(r=>r.html).join("")+'</div>':"";}).join(""):
-    '<p class="li-empty">'+(up?"Nothing coming up yet. Tap Remind me on any reminder link, or write one in the bar below.":"No links yet. Write one in the bar below and press Enter.")+'</p>';
-  L.hint.textContent=up&&rows.some(r=>r.g!=="kept")?(MOBILE?"Swipe a row left to re-plan it or mark it done.":"J and K move, D marks done, S re-plans, Enter opens."):"";L.hint.hidden=!L.hint.textContent;
+    '<p class="li-empty">'+(up?(L.links.length?"Nothing to remind you of yet. You made "+L.links.length+(L.links.length>1?" reminders":" reminder")+": open one in My links and tap Remind me.":"Nothing coming up yet. Write one in the bar below, then tap Remind me."):"No reminders made yet. Write one in the bar below and press Enter.")+'</p>';
+  L.hint.textContent=rows.length?(MOBILE?"Swipe a row left, or tap ⋯, for "+(up?"Re-plan, Done and Delete.":"Copy, Edit and Delete."):"J and K move, "+(up?"D marks done, S re-plans, ":"")+"Delete removes, Enter opens."):"";L.hint.hidden=!L.hint.textContent;
   const mains=[...L.body.querySelectorAll(".li-main")];if(focusAt!=null&&mains.length)mains[Math.min(focusAt,mains.length-1)].focus();else if(D.mode==="lists")previewRow(mains[0]);}
 /* From 960 px the pane shows the row in focus (J and K move through them). */
 function previewRow(a){if(!a)return renderTicket(C.prev,{t:EX[0].title,s:pack(EX[0].start),z:TZ},{interactive:false});
   const m=/\/r\/([A-Za-z0-9_-]+)|#(.+)$/.exec(a.getAttribute("href")||""),r=m&&dec(m[1]||m[2]);if(r)renderTicket(C.prev,r,{interactive:false});}
 async function rowAct(rkey,act,at){const x=L.recs.find(r=>r.rkey===rkey);if(!x)return;
+  if(act==="delete"){renderListsSoon(at);return later("r:"+rkey,()=>forgetRec(rkey),()=>renderLists(at),"Deleted “"+x.title+"”. Delete it from your calendar too.");}
   if(act==="replan"){const u=new URL(x.share,location.origin);u.searchParams.set("act","replan");location.href=u.href;return;}
   await window.remmyndDB.put("reminders",{...x,state:"kept",doneAt:Date.now()}).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(rkey).catch(()=>{});
   toast("Done. You kept it.");renderLists(at);}
-/* Swipe a row left to reveal Re-plan and Done. */
-L.body.addEventListener("pointerdown",e=>{const a=e.target.closest(".li-main"),row=a&&a.parentElement;if(!a||e.pointerType==="mouse"||!row.querySelector(".li-acts"))return;
-  const x0=e.clientX,y0=e.clientY,base=row.classList.contains("open")?-168:0;let dx=base,drag=false;
-  const move=ev=>{if(!drag&&Math.abs(ev.clientX-x0)>8&&Math.abs(ev.clientX-x0)>Math.abs(ev.clientY-y0))drag=true;if(drag){row.classList.add("swiping");dx=Math.min(0,Math.max(-168,base+ev.clientX-x0));a.style.transition="none";a.style.marginRight=(-dx)+"px";}};
-  const up=()=>{a.removeEventListener("pointermove",move);a.removeEventListener("pointerup",up);a.removeEventListener("pointercancel",up);a.style.transition=a.style.marginRight="";row.classList.remove("swiping");
-    if(drag){row.classList.toggle("open",dx<-60);a.dataset.swiped="1";setTimeout(()=>{delete a.dataset.swiped;},60);}};
+function linkAct(share,act,at){const x=L.links.find(l=>l.share===share);if(!x)return;
+  if(act==="copy")return copy(share,"Link copied");
+  if(act==="edit")return editMade(share);
+  if(act==="delete"){renderListsSoon(at);later("l:"+share,()=>{if(window.remmyndDB)window.remmyndDB.del("links",share).catch(()=>{});},()=>renderLists(at),"Deleted “"+x.title+"”");}}
+/* A delete hides its row at once (PEND keeps it out of the list until Undo or the time is up). */
+const renderListsSoon=at=>setTimeout(()=>renderLists(at),0);
+/* Swipe a row left (or tap ⋯) to show its actions under it; swipe right to hide them. */
+L.body.addEventListener("pointerdown",e=>{const a=e.target.closest(".li-main"),row=a&&a.parentElement;if(!a||e.pointerType==="mouse")return;
+  const x0=e.clientX,y0=e.clientY;let done=false;
+  const move=ev=>{const dx=ev.clientX-x0;if(done||Math.abs(dx)<40||Math.abs(dx)<Math.abs(ev.clientY-y0)*1.5)return;done=true;setOpen(row,dx<0);a.dataset.swiped="1";setTimeout(()=>{delete a.dataset.swiped;},350);};
+  const up=()=>{a.removeEventListener("pointermove",move);a.removeEventListener("pointerup",up);a.removeEventListener("pointercancel",up);};
   a.addEventListener("pointermove",move);a.addEventListener("pointerup",up);a.addEventListener("pointercancel",up);});
-L.body.addEventListener("click",e=>{const a=e.target.closest(".li-main");
-  if(a&&(a.dataset.swiped||a.parentElement.classList.contains("open"))){e.preventDefault();if(!a.dataset.swiped)a.parentElement.classList.remove("open");return;}
-  const b=e.target.closest("[data-act]");if(b)return rowAct(b.closest(".li").dataset.rkey,b.dataset.act);
-  const c=e.target.closest(".li-copy");if(c)copy(c.dataset.share,"Link copied");});
+const setOpen=(li,on)=>{li.classList.toggle("open",on);const m=li.querySelector(".li-more");if(m)m.setAttribute("aria-expanded",String(on));};
+L.body.addEventListener("click",e=>{const a=e.target.closest(".li-main"),at=[...L.body.querySelectorAll(".li")].indexOf(e.target.closest(".li"));
+  if(a&&a.dataset.swiped){e.preventDefault();return;}
+  const more=e.target.closest(".li-more");if(more){const li=more.closest(".li"),on=!li.classList.contains("open");L.body.querySelectorAll(".li.open").forEach(x=>setOpen(x,false));setOpen(li,on);if(on)li.querySelector(".li-acts button").focus();return;}
+  const b=e.target.closest("[data-act]");if(b){const li=b.closest(".li");return li.dataset.rkey?rowAct(li.dataset.rkey,b.dataset.act,at):linkAct(li.dataset.share,b.dataset.act,at);}
+  /* Open a row inside the app, so Back returns to the list. */
+  if(a&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey){const u=new URL(a.href,location.href);if(u.origin===location.origin){e.preventDefault();S.back=true;history.pushState(null,"",u.pathname+u.search+u.hash);route();}}});
 L.body.addEventListener("focusin",e=>{const a=e.target.closest(".li-main");if(a)previewRow(a);if(e.target.closest(".li-acts"))e.target.closest(".li").classList.add("open");});
 L.body.addEventListener("focusout",e=>{const li=e.target.closest(".li");if(li&&!li.contains(e.relatedTarget))li.classList.remove("open");});
 /* Desktop keys: J and K move, D marks done, S re-plans, Enter opens. */
 document.addEventListener("keydown",e=>{if(D.mode!=="lists"||$("#home").hidden||e.metaKey||e.ctrlKey||e.altKey||!RP.el.hidden||!$("#menu").hidden||/^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement||{}).tagName))return;
   const rows=[...L.body.querySelectorAll(".li-main")],i=rows.indexOf(document.activeElement),k=e.key.toLowerCase();
   if(k==="j"||k==="k"){if(!rows.length)return;e.preventDefault();rows[i<0?0:Math.max(0,Math.min(rows.length-1,i+(k==="j"?1:-1)))].focus();}
-  else if((k==="d"||k==="s")&&i>=0){const li=rows[i].closest(".li");if(li.dataset.rkey&&li.querySelector(".li-acts")){e.preventDefault();rowAct(li.dataset.rkey,k==="d"?"done":"replan",i);}}});
+  else if((k==="d"||k==="s")&&i>=0){const li=rows[i].closest(".li");if(li.dataset.rkey&&li.querySelector('[data-act="done"]')){e.preventDefault();rowAct(li.dataset.rkey,k==="d"?"done":"replan",i);}}
+  else if((e.key==="Delete"||e.key==="Backspace")&&i>=0){const li=rows[i].closest(".li");e.preventDefault();if(li.dataset.rkey)rowAct(li.dataset.rkey,"delete",i);else linkAct(li.dataset.share,"delete",i);}
+  else if(e.key==="Escape")L.body.querySelectorAll(".li.open").forEach(x=>setOpen(x,false));});
 loadLists().then(()=>{if(D.mode==="home")setMode("home");});
 
 /* ---------- routing ---------- */
 function showHome(){$("#view").hidden=true;$("#home").hidden=false;C.form.hidden=false;document.body.classList.add("has-cap");setMode(D.mode);document.title="remmynd";renderMaker();}
 function showLists(tab){L.tab=tab;D.base="lists";if(D.mode!=="draft")D.mode="lists";showHome();document.title=(tab==="links"?"My links":"Coming up")+" · remmynd";renderLists();}
-function showView(r,key,priv){if(r.l&&!isHttp(r.l)&&webish(r.l))r={...r,l:"https://"+r.l};S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;S.rec=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.textContent="Make your own";n.href="/";delete n.dataset.act;
+function showView(r,key,priv){if(r.l&&!isHttp(r.l)&&webish(r.l))r={...r,l:"https://"+r.l};S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;S.rec=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.href="/";if(S.back){n.textContent="Back";n.dataset.act="back";S.back=false;}else{n.textContent="Make your own";delete n.dataset.act;}
   renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
 /* /r/<payload> is a shared link, /#<payload> a private one (and every 1.x link), /#<name> a named page. */
 let routed="";
@@ -398,7 +430,7 @@ function fromNew(){const q=new URLSearchParams(location.search);
   D.set=set;D.mode=Object.keys(set).length?"draft":"home";showHome();toast("Add what's missing to make the link");}
 const goHome=e=>{e.preventDefault();if(location.pathname==="/"&&!location.hash)return showHome();history.pushState(null,"","/");route();};
 $("#home-link").addEventListener("click",goHome);$("#make-own").addEventListener("click",goHome);
-$("#nav-right").addEventListener("click",e=>{const n=e.currentTarget;if(n.dataset.act==="cancel"){e.preventDefault();return clearDraft();}if(n.getAttribute("href")==="/")goHome(e);});
+$("#nav-right").addEventListener("click",e=>{const n=e.currentTarget;if(n.dataset.act==="back"){e.preventDefault();return history.back();}if(n.dataset.act==="cancel"){e.preventDefault();return clearDraft();}if(n.getAttribute("href")==="/")goHome(e);});
 window.addEventListener("hashchange",route);window.addEventListener("popstate",route);route();
 
 /* ---------- sound: the Held chime, on unless switched off (rm:sound) ---------- */
