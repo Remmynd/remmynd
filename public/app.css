@@ -363,6 +363,8 @@ button.remind{width:100%;border:0;cursor:pointer}
 .stext b{font-size:15px;font-weight:600}
 .stext span{font-size:12px;line-height:1.35;color:var(--muted)}
 .srow.muted,.srow.muted b{color:var(--muted)}
+button.srow{width:100%;background:none;border:0;border-top:1px solid var(--hairline);font:inherit;text-align:left;cursor:pointer}
+button.srow:hover{background:var(--well)}
 .s-on{width:22px;height:22px;flex:none}
 .s-on circle{fill:var(--ink)}
 .s-on path{stroke:var(--card)}
@@ -383,6 +385,11 @@ button.remind{width:100%;border:0;cursor:pointer}
 .tabs a{display:inline-flex;align-items:center;min-height:var(--tap);padding:0 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--muted);text-decoration:none}
 .tabs a[aria-current="page"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px var(--glass-border)}
 .li-body{display:grid;gap:10px}
+/* Kept N of M this month, beside the tabs (mock-up 08). */
+.lists-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 12px}
+.kept{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:13px;font-weight:600;color:var(--ink-2)}
+.kept .s-on{width:16px;height:16px}
+.kept[hidden]{display:none}
 .li-group{display:grid;gap:8px}
 .li{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-radius:var(--r-row)}
 .li-main{position:relative;z-index:1;flex:1;min-width:0;display:flex;align-items:center;gap:12px;min-height:64px;padding:0 16px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row);color:var(--ink);text-decoration:none;touch-action:pan-y;transition:margin-right .22s var(--spring)}
@@ -495,6 +502,8 @@ pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--card);border:1px solid
 .menu-links a{display:flex;align-items:center;min-height:52px;border-bottom:1px solid var(--hairline);font-size:19px;font-weight:600;letter-spacing:-.02em;text-decoration:none}
 .menu-links a:last-child{border-bottom:0}
 .menu-card .theme{justify-content:space-between}
+#cmd-btn kbd{padding:2px 7px;border-radius:6px;background:var(--well);font:500 12px var(--mono);color:var(--muted)}
+@media (pointer:coarse){#cmd-btn kbd{display:none}}
 
 .toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translate(-50%,16px);width:max-content;background:var(--ink);color:var(--paper);padding:11px 16px;border-radius:999px;font-size:14px;font-weight:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:calc(100vw - 32px);text-align:center;z-index:20}
 .toast.show{opacity:1;transform:translate(-50%,0)}

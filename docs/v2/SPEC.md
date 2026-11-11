@@ -183,7 +183,7 @@ Floating countdown on desktop (Document Picture-in-Picture, with the button hidd
 | "Demo day", "Northwind", fixed dates | Real data. The three "Try one" examples are computed from today so they are never in the past. |
 | "Added to Apple Calendar" | "Sent to Apple Calendar. Confirm there." (and the matching line for Google or Outlook) |
 | A microphone button on the capture bar | Not in 2.0. Leave it out. |
-| "Kept 6 of 7 this month" | Hidden until built (see the end of section 6). |
+| "Kept 6 of 7 this month" | Built: beside the Coming up tabs, counting this month's reminders on this device; shown once one is kept. |
 | A QR pattern | A placeholder. Draw a real code. |
 | `[STARS]`, `[DOWNLOADS]`, `[TESTS]` | Live numbers from the public GitHub and npm addresses, fetched by the page. If a fetch fails, hide the tile. |
 | Light theme only | Both themes, from `tokens.css`. |

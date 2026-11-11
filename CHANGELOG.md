@@ -18,6 +18,9 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - A Test button in the Notification row shows a test alert, so you can see and hear how reminders arrive.
 - The remmynd chime and a buzz when a held reminder starts while the page is open.
 - Back on a reminder opened from inside the app. The Delete key removes the row in focus.
+- Search and commands: press Ctrl K (⌘K on a Mac), or open it from the menu, to find any reminder or link, go to Coming up or My links, switch theme or sound, sign in, install, or open a page. Type something that matches nothing and Enter makes it a new reminder.
+- A floating countdown on a computer: on a held reminder, "Float it above my windows" opens a small window that stays on top of your other windows and counts down to the start (Chrome and Edge; the row isn't shown where the browser can't do it). It closes itself when you mark the reminder done, drop it or remove it, and follows a re-planned time.
+- "Kept 6 of 7 this month" beside the Coming up tabs: of the reminders that came due this month, how many you marked done. It only shows once you've kept one.
 
 ### Changed
 

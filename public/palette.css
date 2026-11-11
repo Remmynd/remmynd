@@ -1,0 +1,16 @@
+/* remmynd command palette (Ctrl or Cmd + K). Loaded by palette.js only when the palette first opens,
+   after app.css, so it uses the same tokens. Token names only, no raw colours (a test checks). */
+.pal{align-items:flex-start;padding-top:max(12px,min(14vh,120px))}
+.pal .pal-card{max-width:580px;margin:0;padding:6px;display:grid}
+.pal-in{width:100%;height:56px;padding:0 14px;border:0;border-bottom:1px solid var(--hairline);border-radius:0;background:none;color:var(--ink);font:500 18px var(--font);letter-spacing:-.01em;outline:none}
+.pal-in::placeholder{color:var(--muted)}
+.pal-list{max-height:min(56vh,440px);overflow-y:auto;overscroll-behavior:contain;padding:4px 0}
+.pal-g{padding:12px 12px 4px;font:var(--label);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pal-o{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px;border-radius:12px;cursor:pointer}
+.pal-o[aria-selected="true"]{background:var(--well)}
+.pal-o span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:500}
+.pal-o i{flex:none;font:400 12px var(--mono);font-style:normal;color:var(--muted)}
+.pal-keys{display:flex;gap:18px;margin:0;padding:10px 12px 6px;border-top:1px solid var(--hairline);font-size:12px;color:var(--muted)}
+.pal-keys span{display:inline-flex;align-items:center;gap:4px}
+.pal-keys kbd{padding:1px 6px;border-radius:6px;background:var(--well);font:500 11px var(--mono);color:var(--ink-2)}
+@media (pointer:coarse){.pal-keys{display:none}}

@@ -70,6 +70,7 @@ const I={
   mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 8l8 6 8-6"/></svg>',
   on:'<svg class="s-on" viewBox="0 0 24 24" fill="none" role="img" aria-label="On"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   out:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 16l8-8M9 8h7v7"/></svg>',
+  float:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="3"/><rect x="11.5" y="10.5" width="6.5" height="5.5" rx="1.5"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   mark:'<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19.947 7.775A9 9 0 1 1 14.781 3.44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 12L15.214 8.17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.24" fill="currentColor"/><circle cx="17.785" cy="5.106" r="2.1" fill="var(--moment)"/></svg>'
 };
@@ -118,12 +119,14 @@ let ACC={signedIn:false};
 function emailRow(c){const priv=String(c.share).includes("/#"),on=ACC.signedIn&&ACC.emailAlerts&&!priv;
   const sub=priv?"Private links stay on this device, so they aren't emailed":!ACC.signedIn?"Sign in to get it by email too":ACC.emailAlerts?"To "+esc(ACC.email)+", 1 hour before and at the start":"Off. Turn it on in your account";
   return'<div class="srow'+(on?'':' muted')+'">'+I.mail+'<span class="stext"><b>Email</b><span>'+sub+'</span></span>'+(on?I.on:priv?'':'<button type="button" class="btn small" id="s-email-b">'+(ACC.signedIn?"Account":"Sign in")+'</button>')+'</div>';}
+/* Desktop Chrome and Edge: the countdown can float above every other window (Document Picture-in-Picture). Elsewhere the row isn't shown. */
+const floatRow=()=>{if(!PIP||FL.no)return"";const on=FL.on&&FL.k===S.rkey;return'<button type="button" class="srow" id="s-float">'+I.float+'<span class="stext"><b>'+(on?"Floating above your windows":"Float it above my windows")+'</b><span>'+(on?"Tap to put it away.":"A small countdown that stays on top until it starts.")+'</span></span>'+(on?I.on:'')+'</button>';};
 function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
   const back=rec.replanAt>Date.now()?"Back at "+whenText(new Date(rec.replanAt))+".":"Held. You\'re set.";
   return'<p class="held-line">'+I.on+esc(back)+'</p><div class="label">Your reminder stack</div><div class="stack">'+
     '<a class="srow" id="s-cal">'+I.cal+'<span class="stext"><b>Calendar</b><span>'+(cal?"Sent to "+CAL_NAME[cal]+". Confirm there.":"Not sent yet. Tap to add it.")+'</span></span>'+(cal?I.on:'')+'</a>'+
     '<div id="s-notify"></div>'+
-    emailRow(c)+'</div>'+
+    emailRow(c)+floatRow()+'</div>'+
     '<label class="opt-row"><span class="opt-text"><b id="nudge-l">Nudge me until I\'m in</b><span id="nudge-d">Up to 3 nudges, 10 minutes apart.</span></span><span class="switch"><input type="checkbox" id="s-nudge" role="switch" aria-labelledby="nudge-l" aria-describedby="nudge-d"'+(rec.nudge?" checked":"")+'><span></span></span></label>'+
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
     '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+
@@ -166,7 +169,8 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#f-open",a=>a.addEventListener("click",()=>{if(!S.rec)return;S.rec.openedAt=Date.now();keepRec();if(window.__rmPush)window.__rmPush.cancel(S.rkey,["nudge"]).catch(()=>{});}));
   on("#f-done",x=>x.addEventListener("click",markDone));
   on("#s-email-b",x=>x.addEventListener("click",openAccount));
-  on("#s-remove",x=>x.addEventListener("click",()=>{const rec=S.rec,k=S.rkey;if(!rec)return;const flip=h=>{S.held=h;S.rec=h?rec:null;if(h)c.el.dataset.held="1";else delete c.el.dataset.held;renderTicket(c.el,c.r,c.o);};
+  on("#s-float",x=>x.addEventListener("click",floatIt));
+  on("#s-remove",x=>x.addEventListener("click",()=>{const rec=S.rec,k=S.rkey;if(!rec)return;unfloat(k);const flip=h=>{S.held=h;S.rec=h?rec:null;if(h)c.el.dataset.held="1";else delete c.el.dataset.held;renderTicket(c.el,c.r,c.o);};
     flip(false);later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.");}));
   on("#f-later",x=>x.addEventListener("click",openReplan));
   on("#s-add-b",x=>x.addEventListener("click",()=>{if(!openSheet())toast("Open remmynd.space in Safari or Chrome to install it");}));
@@ -211,6 +215,13 @@ function renderTicket(el,r,o){
   renderBottom();
 }
 
+/* ---------- floating countdown: loaded the first time it's asked for ---------- */
+const PIP="documentPictureInPicture" in window,FL={on:false,k:""};
+const floatOpts=()=>{const c=S.ctx,r=S.rec||{},st=c.start.getTime(),at=r.replanAt>Date.now()?r.replanAt:st;return{title:c.r.t,at,end:Math.max(at+6e5,st+(c.r.d||60)*6e4),ring:s=>ringFor(c.start,s,56),onclose:()=>{FL.on=false;if(S.held)renderBottom();}};};
+function floatIt(){if(!PIP||!S.ctx)return;const k=S.rkey;if(FL.on&&FL.k===k)return FL.m.close();
+  import("/float.js").then(m=>(FL.m=m).open(floatOpts())).then(()=>{FL.on=true;FL.k=k;renderBottom();}).catch(()=>{FL.no=1;renderBottom();toast("This browser can't float the countdown");});}
+const unfloat=(k,move)=>{if(FL.on&&FL.k===k){if(move)FL.m.open(floatOpts());else FL.m.close();}};
+
 /* ---------- not yet: the re-plan sheet (mock-up 07) ---------- */
 /* In 10 minutes, tonight at 8:00 PM (not after 7:00 PM), tomorrow at 9:00 AM and Monday at 9:00 AM (unless tomorrow is Monday). */
 const replanOptions=(now,tz)=>{const p=parts(now,tz),day=n=>{const t=new Date(Date.UTC(p.y,p.mo-1,p.d+n));return{y:t.getUTCFullYear(),m:t.getUTCMonth()+1,d:t.getUTCDate(),dow:t.getUTCDay()};},at=(d,h)=>zonedToUTC(d.y,d.m,d.d,h,0,tz).getTime(),today=day(0),tom=day(1),mon=day(((8-today.dow)%7)||7),o=[{key:"in10",label:"In 10 minutes",at:Math.ceil((now.getTime()+6e5)/6e4)*6e4}];if(p.h<19)o.push({key:"tonight",label:"Tonight",at:at(today,20)});o.push({key:"tomorrow",label:"Tomorrow morning",at:at(tom,9)});if(mon.d!==tom.d||mon.m!==tom.m)o.push({key:"monday",label:"Monday",at:at(mon,9)});return o;};
@@ -222,10 +233,10 @@ function openReplan(){const c=S.ctx;if(!c||!S.rec)return;const t=fTime(c.start,T
   const p=parts(new Date(Date.now()+36e5),TZ);RP.pick.value=p.y+"-"+pad(p.mo)+"-"+pad(p.d)+"T"+pad(p.h)+":00";
   RP.el.hidden=false;const first=RP.grid.querySelector("button");if(first)first.focus();}
 function closeReplan(){RP.el.hidden=true;}
-function replanTo(at){const c=S.ctx;if(!c||!S.rec||!(at>Date.now()))return;S.rec.replanAt=at;S.rec.state="held";keepRec();closeReplan();renderBottom();tick();
+function replanTo(at){const c=S.ctx;if(!c||!S.rec||!(at>Date.now()))return;S.rec.replanAt=at;S.rec.state="held";keepRec();unfloat(S.rkey,1);closeReplan();renderBottom();tick();
   (window.__rmPush?window.__rmPush.replan(c.nd,at):Promise.resolve(false)).then(ok=>toast("Back at "+whenText(new Date(at))+(ok?".":". Turn on notifications to be reminded then."))).catch(()=>{});}
-function dropIt(){if(!S.rec)return;S.rec.state="dropped";keepRec();closeReplan();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Dropped. No more alerts for this one.");}
-function markDone(){if(!S.rec)return;S.rec.state="kept";S.rec.doneAt=Date.now();keepRec();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Done. You kept it.");}
+function dropIt(){if(!S.rec)return;unfloat(S.rkey);S.rec.state="dropped";keepRec();closeReplan();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Dropped. No more alerts for this one.");}
+function markDone(){if(!S.rec)return;unfloat(S.rkey);S.rec.state="kept";S.rec.doneAt=Date.now();keepRec();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Done. You kept it.");}
 RP.grid.addEventListener("click",e=>{const b=e.target.closest("[data-at]");if(b)replanTo(+b.dataset.at);});
 RP.pick.addEventListener("click",()=>{try{RP.pick.showPicker();}catch(e){}});
 RP.pick.addEventListener("change",()=>{const[dt,tm]=RP.pick.value.split("T");if(!dt||!tm)return;const[y,mo,d]=dt.split("-").map(Number),[h,mi]=tm.split(":").map(Number);const at=zonedToUTC(y,mo,d,h,mi,TZ).getTime();
@@ -354,6 +365,8 @@ const dayNum=(t,tz)=>{const p=parts(new Date(t),tz);return Date.UTC(p.y,p.mo-1,p
 /* Today, This week (the next seven days), Later; links that have passed go under Earlier, kept reminders under Kept. */
 const groupOf=(t,now,tz)=>{const d=dayNum(t,tz)-dayNum(now,tz);return d===0?"today":d<0?"earlier":d<=7?"week":"later";};
 const GROUPS={today:"Today",week:"This week",later:"Later",kept:"Kept",earlier:"Earlier"};
+/* Kept N of M this month: the reminders that came due this month (once over, or marked done this month); kept are the ones marked Done. */
+const keptCount=(recs,now,tz)=>{const p=parts(new Date(now),tz),from=zonedToUTC(p.y,p.mo,1,0,0,tz).getTime();let k=0,n=0;for(const x of recs){const kept=x.state==="kept",t=kept?x.doneAt||x.start:Math.max(x.start+(x.dur||60)*6e4,x.replanAt||0);if(t>=from&&t<=now){n++;if(kept)k++;}}return{k,n};};
 const relText=(t,end,now)=>now>=t&&now<end?"now":now>=end?"ended":(t-now)<36e5?"in "+Math.max(1,Math.round((t-now)/6e4))+" min":"in "+Math.round((t-now)/36e5)+" h";
 const MORE=t=>'<button type="button" class="li-more" aria-label="Actions for '+esc(t)+'" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>';
 const ACTS=a=>'<div class="li-acts">'+a.map(([k,t])=>'<button type="button" data-act="'+k+'">'+t+'</button>').join("")+'</div>';
@@ -377,11 +390,13 @@ async function renderLists(focusAt){await loadLists();const now=Date.now(),up=L.
       return rs.length?'<div class="label">'+GROUPS[g]+'</div><div class="li-group">'+rs.map(r=>r.html).join("")+'</div>':"";}).join(""):
     '<p class="li-empty">'+(up?(L.links.length?"Nothing to remind you of yet. You made "+L.links.length+(L.links.length>1?" reminders":" reminder")+": open one in My links and tap Remind me.":"Nothing coming up yet. Write one in the bar below, then tap Remind me."):"No reminders made yet. Write one in the bar below and press Enter.")+'</p>';
   L.hint.textContent=rows.length?(MOBILE?"Swipe a row left, or tap ⋯, for "+(up?"Re-plan, Done and Delete.":"Copy, Edit and Delete."):"J and K move, "+(up?"D marks done, S re-plans, ":"")+"Delete removes, Enter opens."):"";L.hint.hidden=!L.hint.textContent;
+  /* It only ever celebrates: hidden until one is kept this month. */
+  const kc=keptCount(L.recs,now,TZ);$("#kept-n").textContent="Kept "+kc.k+" of "+kc.n+" this month";$("#kept").hidden=!(up&&kc.k);
   const mains=[...L.body.querySelectorAll(".li-main")];if(focusAt!=null&&mains.length)mains[Math.min(focusAt,mains.length-1)].focus();else if(D.mode==="lists")previewRow(mains[0]);}
 /* From 960 px the pane shows the row in focus (J and K move through them). */
 function previewRow(a){if(!a)return renderTicket(C.prev,{t:EX[0].title,s:pack(EX[0].start),z:TZ},{interactive:false});
   const m=/\/r\/([A-Za-z0-9_-]+)|#(.+)$/.exec(a.getAttribute("href")||""),r=m&&dec(m[1]||m[2]);if(r)renderTicket(C.prev,r,{interactive:false});}
-async function rowAct(rkey,act,at){const x=L.recs.find(r=>r.rkey===rkey);if(!x)return;
+async function rowAct(rkey,act,at){const x=L.recs.find(r=>r.rkey===rkey);if(!x)return;if(act!=="replan")unfloat(rkey);
   if(act==="delete"){renderListsSoon(at);return later("r:"+rkey,()=>forgetRec(rkey),()=>renderLists(at),"Deleted “"+x.title+"”. Delete it from your calendar too.");}
   if(act==="replan"){const u=new URL(x.share,location.origin);u.searchParams.set("act","replan");location.href=u.href;return;}
   await window.remmyndDB.put("reminders",{...x,state:"kept",doneAt:Date.now()}).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(rkey).catch(()=>{});
@@ -521,6 +536,13 @@ function openAccount(){closeMenu();import("/account.js").then(m=>m.open()).catch
 acctBtn.addEventListener("click",openAccount);
 addEventListener("rm:account",e=>{ACC=e.detail||{signedIn:false};acctBtn.textContent=ACC.signedIn?"Your account":"Sign in to sync and get email";if(S.held)renderBottom();});
 try{if(localStorage.getItem("rm:acct")==="1")import("/account.js").then(m=>m.boot()).catch(()=>{});}catch(e){}
+/* ---------- Ctrl or Cmd + K: search and commands, loaded the first time it's asked for ---------- */
+const go=h=>{const u=new URL(h,location.href);if(u.origin!==location.origin||!/^\/(r\/|$)/.test(u.pathname))return location.assign(u.href);S.back=true;history.pushState(null,"",u.pathname+u.search+u.hash);route();};
+const newOne=t=>{if(!$("#view").hidden)go("/");if(t){C.input.value=t;C.input.dispatchEvent(new Event("input"));}C.input.focus();};
+function openPalette(){if(document.querySelector(".sheet:not([hidden]):not(#menu):not(#pal)"))return;closeMenu();Promise.all([import("/palette.js"),loadLists()]).then(([m])=>m.open({recs:L.recs,links:L.links,go,newOne,float:PIP&&!FL.no&&!$("#view").hidden&&S.held&&/before|later/.test(S.phase)?floatIt:null,floating:FL.on&&FL.k===S.rkey}))
+  .catch(()=>toast("Search couldn't load. Check your connection."));}
+document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&!e.altKey&&!e.shiftKey&&(e.key||"").toLowerCase()==="k"){e.preventDefault();openPalette();}});
+$("#cmd-btn").addEventListener("click",openPalette);if(/Macintosh|iPhone|iPad/.test(UA))$("#cmd-k").textContent="⌘K";
 /* Sheets: Tab stays inside an open sheet, and focus goes back where it was when the sheet closes. */
 let lastOut=null;document.addEventListener("focusin",e=>{if(!e.target.closest(".sheet"))lastOut=e.target;});
 document.addEventListener("keydown",e=>{if(e.key!=="Tab")return;const s=[...document.querySelectorAll(".sheet")].find(x=>!x.hidden);if(!s)return;
