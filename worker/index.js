@@ -6,6 +6,7 @@ import { sharedResponse, newResponse, shareResponse } from "./preview.js";
 import { changelogResponse } from "./changelog.js";
 import { statsResponse } from "./stats.js";
 import { handleMcp } from "./mcp.js";
+import { embedResponse } from "./embed.js";
 import { handleAccount, sendDueMails } from "./account.js";
 
 const PRESETS = new Set(["example"]);
@@ -37,6 +38,9 @@ export default {
 
     // Shared links: the shell with preview tags for that reminder. Never stored, logged or cached.
     if (url.pathname.startsWith("/r/")) return sharedResponse(request, env, url);
+
+    // The reminder card other sites show in an iframe. Never stored, logged or cached.
+    if (url.pathname.startsWith("/embed/")) return embedResponse(request, env, url);
 
     // Hand-written links: /new?t=…&at=…&tz=… → the /r/ link.
     if (url.pathname === "/new" || url.pathname === "/new/") return newResponse(request, env, url);

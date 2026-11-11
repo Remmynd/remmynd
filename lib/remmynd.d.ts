@@ -59,11 +59,16 @@ export function outlookUrl(event: ReminderInput, options?: BaseOptions & { offic
 export function badgeSVG(options?: ThemeOptions): string;
 export function badgeHTML(link: string, options?: ThemeOptions): string;
 export function badgeMarkdown(link: string, options?: ThemeOptions): string;
+/** The reminder card's address for a shared link (…/embed/<payload>). Throws for private links. */
+export function embedURL(link: string, options?: { theme?: "light" | "dark" }): string;
+/** An iframe snippet with the reminder card, 112 pixels tall. Throws for private links. */
+export function embedHTML(link: string, options?: { theme?: "light" | "dark" }): string;
 
 declare const remmynd: {
   VERSION: typeof VERSION; DEFAULT_BASE: typeof DEFAULT_BASE; createLink: typeof createLink; toPath: typeof toPath; encode: typeof encode;
   decode: typeof decode; fromQuery: typeof fromQuery; parse: typeof parse; describeWhen: typeof describeWhen; parseStart: typeof parseStart; zonedTime: typeof zonedTime; systemTimeZone: typeof systemTimeZone;
   description: typeof description; toICS: typeof toICS; googleCalendarUrl: typeof googleCalendarUrl; outlookUrl: typeof outlookUrl;
   badgeSVG: typeof badgeSVG; badgeHTML: typeof badgeHTML; badgeMarkdown: typeof badgeMarkdown;
+  embedURL: typeof embedURL; embedHTML: typeof embedHTML;
 };
 export default remmynd;

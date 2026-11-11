@@ -1,0 +1,47 @@
+/* remmynd embed: the reminder card other sites show in an iframe (remmynd.space/embed/<link>).
+   Its own small stylesheet, so a page with a card loads nothing else from the app. The tokens are
+   the 2.0 ones (docs/v2/tokens.css); below the tokens, token names only, no raw colours (a test
+   checks). No color-scheme here: an iframe that declares a different one from its page gets an
+   opaque background, and the card should sit on the host's page with its own rounded corners. */
+@font-face{font-family:"Geist";font-style:normal;font-weight:100 900;font-display:swap;src:url("fonts/geist-5.3-latin.woff2") format("woff2")}
+@font-face{font-family:"Geist Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("fonts/geist-mono-5.3-latin.woff2") format("woff2")}
+:root{--card:#FFFFFF;--well:#F5F6F7;--ink:#0E0F11;--ink-2:#4A4F57;--muted:#666C75;--hairline:#E3E5E8;--moment:#F2A000;--on-moment:#0E0F11;--night-arc:rgba(14,15,17,.10)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--card:#17191D;--well:#0B0C0E;--ink:#F4F5F6;--ink-2:#C9CED6;--muted:#A3A8B0;--hairline:#2A2D33;--moment:#C8F53B;--on-moment:#0B0C0E;--night-arc:rgba(244,245,246,.14)}}
+:root[data-theme="dark"]{--card:#17191D;--well:#0B0C0E;--ink:#F4F5F6;--ink-2:#C9CED6;--muted:#A3A8B0;--hairline:#2A2D33;--moment:#C8F53B;--on-moment:#0B0C0E;--night-arc:rgba(244,245,246,.14)}
+/* ---------- the card ---------- */
+html,body{margin:0;background:transparent}
+body{padding:2px;font:15px/1.4 "Geist",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.em{position:relative;display:flex;align-items:center;gap:14px;min-height:104px;box-sizing:border-box;padding:14px 14px 14px 16px;background:var(--card);border:1px solid var(--hairline);border-radius:22px}
+.em a{color:inherit;text-decoration:none}
+.em-main{flex:1;min-width:0;display:flex;align-items:center;gap:14px}
+.em-main:focus-visible,.em-btn:focus-visible,.em-by:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:12px}
+.em-text{min-width:0;display:grid;gap:3px}
+.em-label{font:600 11px/1 "Geist Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.em-title{font-size:17px;font-weight:650;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.em-when{font:500 13px/1.3 "Geist Mono",ui-monospace,monospace;color:var(--ink-2)}
+.em-btn{flex:none;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:22px;background:var(--moment);color:var(--on-moment);font-weight:650;font-size:15px}
+.em-btn svg{width:18px;height:18px}
+.em-by{position:absolute;right:16px;bottom:6px;display:inline-flex;align-items:center;gap:4px;font:600 10px/1 "Geist Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.em-by svg{width:11px;height:11px}
+@media (max-width:340px){.em{gap:10px;padding:12px}.em-main{gap:10px}.em .ring{width:40px;height:40px}.em-btn{padding:0 12px}}
+/* ---------- the moment ring (as in app.css) ---------- */
+.ring{display:block;flex:none;overflow:visible}
+.ring .r-night{stroke:var(--night-arc)}
+.ring .r-ring{stroke:var(--ink);stroke-dasharray:324 36}
+.ring .r-hand{stroke:var(--ink)}
+.ring .r-pivot{fill:var(--ink)}
+.ring .r-dot{fill:var(--moment)}
+.ring .r-out{fill:var(--card);opacity:0}
+.ring .r-disc,.ring .r-check,.ring .r-halo{display:none}
+.ring-soon .r-ring{stroke-dasharray:360 0}
+.ring-soon .r-out{opacity:1}
+.ring-soon .r-halo{display:block;fill:var(--moment);opacity:.28;transform-box:fill-box;transform-origin:center;animation:halo 1.8s ease-in-out infinite}
+@keyframes halo{50%{transform:scale(1.3);opacity:.1}}
+.ring-now .r-disc{display:block;fill:var(--moment)}
+.ring-now .r-night,.ring-now .r-ring,.ring-now .r-out{display:none}
+.ring-now .r-hand{stroke:var(--on-moment)}
+.ring-now .r-pivot,.ring-now .r-dot{fill:var(--on-moment)}
+.ring-missed .r-ring,.ring-missed .r-hand{stroke:var(--muted)}
+.ring-missed .r-pivot{fill:var(--muted)}
+.ring-missed .r-dot{fill:var(--card);stroke:var(--muted);stroke-width:3}
+@media (prefers-reduced-motion:reduce){.ring-soon .r-halo{animation:none}}
