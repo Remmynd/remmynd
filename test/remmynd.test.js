@@ -1675,5 +1675,5 @@ test("security: crafted input can't make the library or the page slow", () => {
   for (const form of [link, link + "/", link + "?x=1", "r/" + payload, payload, "https://remmynd.space/#" + payload]) assert.equal(R.decode(form)?.title, "Demo", form);
   assert.equal(R.createLink({ title: "x", start: "2026-12-05T18:00Z" }, { base: "https://example.org//#y" }).split("/r/")[0], "https://example.org");
   // The page looks up named examples among its own keys only, so #constructor is just an unknown link.
-  assert.match(readFileSync(join(root, "public/app.js"), "utf8"), /const preset=Object\.prototype\.hasOwnProperty\.call\(PRESETS,h\)\?PRESETS\[h\]:null;if\(typeof preset==="function"\)return showView\(preset\(\),h,false\);/);
+  assert.match(readFileSync(join(root, "public/app.js"), "utf8"), /const PRESETS=new Map\(Object\.entries\(\{[\s\S]*?const preset=PRESETS\.get\(h\);if\(typeof preset==="function"\)return showView\(preset\(\),h,false\);/);
 });
