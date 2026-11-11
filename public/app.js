@@ -127,6 +127,7 @@ function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
     '<a class="srow" id="s-cal">'+I.cal+'<span class="stext"><b>Calendar</b><span>'+(cal?"Sent to "+CAL_NAME[cal]+". Confirm there.":"Not sent yet. Tap to add it.")+'</span></span>'+(cal?I.on:'')+'</a>'+
     '<div id="s-notify"></div>'+
     emailRow(c)+floatRow()+'</div>'+
+    '<label class="plan" for="s-plan"><span class="opt-text"><b>My plan</b><span>Say when and where. Your alerts repeat it back.</span></span><input id="s-plan" type="text" maxlength="120" enterkeyhint="done" autocomplete="off" placeholder="At my desk, 5 minutes early" value="'+esc(rec.plan||"")+'"></label>'+
     '<label class="opt-row"><span class="opt-text"><b id="nudge-l">Nudge me until I\'m in</b><span id="nudge-d">Up to 3 nudges, 10 minutes apart.</span></span><span class="switch"><input type="checkbox" id="s-nudge" role="switch" aria-labelledby="nudge-l" aria-describedby="nudge-d"'+(rec.nudge?" checked":"")+'><span></span></span></label>'+
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
     '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+
@@ -136,8 +137,8 @@ function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
 function phase(c){const now=Date.now(),r=S.rec||{};if(r.state==="kept")return"kept";if(r.state==="dropped")return"dropped";
   if(r.replanAt>now)return"later";if(now>=c.start.getTime()||r.replanAt)return"due";return"before";}
 const mapsUrl=place=>(IOS||MAC_SAFARI?"https://maps.apple.com/?q=":"https://www.google.com/maps/search/?api=1&query=")+encodeURIComponent(place);
-function followHTML(c){const l=c.r.l;
-  return(l?'<a class="remind" id="f-open" href="'+esc(isHttp(l)?l:mapsUrl(l))+'" target="_blank" rel="noopener">'+(isHttp(l)?"Open the link":"Directions")+I.out+'</a>':'')+
+function followHTML(c){const l=c.r.l,plan=S.rec&&S.rec.plan;
+  return(plan?'<p class="plan-say"><span class="label">Your plan</span>'+esc(plan)+'</p>':'')+(l?'<a class="remind" id="f-open" href="'+esc(isHttp(l)?l:mapsUrl(l))+'" target="_blank" rel="noopener">'+(isHttp(l)?"Open the link":"Directions")+I.out+'</a>':'')+
     '<div class="s-actions two"><button type="button" class="btn" id="f-later">Not yet</button><button type="button" class="btn" id="f-done">'+I.check+'Done</button></div>'+
     '<p class="t-sub">We ask once whether you made it. Then we stop.</p>'+VIA();}
 function labelFor(c,ph){const now=Date.now(),end=c.start.getTime()+(c.r.d||60)*6e4;
@@ -170,6 +171,8 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#f-done",x=>x.addEventListener("click",markDone));
   on("#s-email-b",x=>x.addEventListener("click",openAccount));
   on("#s-float",x=>x.addEventListener("click",floatIt));
+  on("#s-plan",x=>{const save=()=>{if(!S.rec)return;const v=x.value.replace(/\s+/g," ").trim().slice(0,120);if(v===(S.rec.plan||""))return;S.rec.plan=v;keepRec();toast(v?"Plan saved. Your alerts will repeat it.":"Plan cleared");};
+    x.addEventListener("change",save);x.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();x.blur();}});});
   on("#s-remove",x=>x.addEventListener("click",()=>{const rec=S.rec,k=S.rkey;if(!rec)return;unfloat(k);const flip=h=>{S.held=h;S.rec=h?rec:null;if(h)c.el.dataset.held="1";else delete c.el.dataset.held;renderTicket(c.el,c.r,c.o);};
     flip(false);later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.");}));
   on("#f-later",x=>x.addEventListener("click",openReplan));
