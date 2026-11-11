@@ -11,7 +11,7 @@
  *     z?: the host's IANA time zone }
  */
 
-export const VERSION = "2.0.1";
+export const VERSION = "2.1.0";
 export const DEFAULT_BASE = "https://remmynd.space/";
 const CREDIT = "Made with remmynd.space · free reminder links, no account needed";
 const te = new TextEncoder();
