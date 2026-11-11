@@ -20,6 +20,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - Back on a reminder opened from inside the app. The Delete key removes the row in focus.
 - Search and commands: press Ctrl K (⌘K on a Mac), or open it from the menu, to find any reminder or link, go to Coming up or My links, switch theme or sound, sign in, install, or open a page. Type something that matches nothing and Enter makes it a new reminder.
 - A floating countdown on a computer: on a held reminder, "Float it above my windows" opens a small window that stays on top of your other windows and counts down to the start (Chrome and Edge; the row isn't shown where the browser can't do it). It closes itself when you mark the reminder done, drop it or remove it, and follows a re-planned time.
+- A connector for AI assistants at remmynd.space/mcp: assistants that take MCP connectors can make a reminder link from a title and time or from one line ("Dentist Tue 4pm"), and read a link back. It speaks MCP 2026-07-28 and earlier versions back to 2025-03-26, needs no account or key, and stores and logs nothing.
 - Share into remmynd from any Android app once it's installed: the shared title, text and link land in the bar as one line, with the live preview, ready for Enter.
 - "Kept 6 of 7 this month" beside the Coming up tabs: of the reminders that came due this month, how many you marked done. It only shows once you've kept one.
 

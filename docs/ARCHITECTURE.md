@@ -178,7 +178,9 @@ flowchart TD
     I -- other method --> M405[405]
     I -- no --> PU{Path starts with /push/?}
     PU -- yes --> PR["/push/key, /push/schedule, /push/cancel<br/>JSON, Cache-Control: no-store"]
-    PU -- no --> SR{Path starts with /r/?}
+    PU -- no --> MC{Path is /mcp?}
+    MC -- "POST" --> MCP["Connector for AI assistants (MCP)<br/>JSON, no-store; stores and logs nothing"]
+    MC -- no --> SR{Path starts with /r/?}
     SR -- "valid payload" --> PV["index.html + preview tags (HTMLRewriter)<br/>no-store, noindex"]
     SR -- "bad payload" --> SH["Plain index.html, no-store"]
     SR -- no --> NW{Path is /new?}
@@ -196,6 +198,8 @@ flowchart TD
     A -- found --> OK[200 + headers from public/_headers]
     A -- not found --> NF[404 page]
 ```
+
+`/mcp` is the connector for AI assistants, a remote MCP server over Streamable HTTP (`worker/mcp.js`). It speaks MCP 2026-07-28, where every request carries its protocol version (checked against the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers), and answers the older `initialize` handshake for clients on 2025-11-25 back to 2025-03-26, without minting sessions. Its three tools (`make_reminder_link`, `make_reminder_from_text`, `read_reminder_link`) call the same library as the site, so the links are identical; the connector gets no bindings, so it can't store anything, and it asks no other host for anything. A browser that opens `/mcp` is sent to `/docs#connector`.
 
 `/share` is where the Android share sheet sends text once remmynd is installed (`share_target` in the manifest). The Worker serves the app, which joins the shared title, text and link into one line in the bar and sets the address back to `/`; nothing is sent anywhere.
 
