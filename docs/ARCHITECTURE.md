@@ -142,6 +142,7 @@ The first visit downloads the app and nothing it might not use. Three parts load
 |---|---|---|
 | Search and commands | `palette.js`, `palette.css` | Ctrl or Cmd + K, or Search and commands in the menu. It lists reminders and links from on-device storage and presses the menu's own buttons for theme, sound, sign in and install, so the two never disagree |
 | Floating countdown | `float.js`, `float.css` | "Float it above my windows" on a held reminder. It opens a Document Picture-in-Picture window (Chrome and Edge on a computer) that uses `app.css` and `float.css`, follows the theme, and runs its timer in the floating window so a background tab doesn't slow it. Where the browser has no such window the row isn't shown |
+| Smart paste | `smartpaste.js`, `smartpaste.css` | A long paste or an image in the bar, and only where the browser has the Prompt API (`LanguageModel`, Chrome's on-device model). It offers to read the paste on the device; the model's answer, constrained by a JSON schema, becomes one line in the bar (a time written in another zone is moved into the reader's), so the app's own parser and live preview take over. Nothing is sent anywhere, and the module never makes a request |
 | Sign-in | `account.js`, `account.css` | See below |
 
 "Kept N of M this month" is part of the app itself: of the reminders whose time came this month (counted once they're over, or when they were marked done), how many were marked done. It only appears once one is kept.
