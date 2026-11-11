@@ -31,9 +31,10 @@ const pad=n=>String(n).padStart(2,"0");
 const isHttp=s=>/^https?:\/\//i.test(s||"");
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 /* Named pages: remmynd.space/<name>. Each returns a reminder object. */
-const PRESETS={
+/* Named examples, by the address after #. A Map, so only these names match (never #constructor). */
+const PRESETS=new Map(Object.entries({
   example:()=>{const p=parts(new Date(Date.now()+3*864e5),TZ);return{t:"Example: launch day",s:pack(zonedToUTC(p.y,p.mo,p.d,18,0,TZ)),d:60,l:"https://remmynd.space",n:"This is a sample reminder. Make your own in a few seconds."};}
-};
+}));
 /* ---------- calendar payloads (credit lives in the description; nothing about the viewer is included) ---------- */
 const stamp=d=>d.toISOString().replace(/[-:]/g,"").replace(/\.\d{3}/,"");
 const iesc=s=>String(s).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
@@ -388,7 +389,7 @@ function route(){if(location.href===routed)return;routed=location.href;const p=l
   if(p.startsWith("/r/")){const r=dec(p.slice(3).replace(/\/+$/,""));return r?showView(r,null,false):showHome();}
   if(p==="/new"||p==="/new/")return fromNew();
   const h=decodeURIComponent(location.hash.slice(1));if(h==="coming-up"||h==="links")return showLists(h==="links"?"links":"coming");
-  if(PRESETS[h])return showView(PRESETS[h](),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
+  const preset=PRESETS.get(h);if(typeof preset==="function")return showView(preset(),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
 /* /new?t=…&at=… lands here only when the time has no zone. Read it in this device's zone with the library itself, then show the /r/ link. */
 function fromNew(){const q=new URLSearchParams(location.search);
   const ev=R.fromQuery(q,{timeZone:TZ});if(ev){history.replaceState(null,"",R.toPath(ev));return route();}
