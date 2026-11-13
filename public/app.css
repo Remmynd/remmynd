@@ -252,6 +252,8 @@ button{font:inherit;color:inherit}
 .copied{position:absolute;right:10px;top:50%;transform:translateY(-50%);font:500 11px var(--mono);letter-spacing:.04em;background:var(--moment-tint);color:var(--on-moment-tint);border-radius:999px;padding:4px 8px;pointer-events:none}
 .row-link{display:flex;align-items:center;justify-content:space-between;min-height:52px;padding:0 12px 0 16px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-row);font-size:15px;font-weight:600;color:var(--ink);text-decoration:none}
 .row-link svg{width:20px;height:20px;color:var(--muted)}
+button.row-link{width:100%;font:inherit;font-size:15px;font-weight:600;text-align:left;cursor:pointer}
+.row-link+.row-link{margin-top:8px}
 /* The capture bar: docked at the bottom on phones, and at the foot of the column on wide screens until the two-pane layout. */
 .capture{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px) + var(--kb,0px));width:min(560px,calc(100% - 24px));display:grid;gap:8px}
 /* Page text scrolls under the bar: fade it out behind the label and the bar so both stay readable. */

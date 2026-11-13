@@ -81,6 +81,16 @@ An iframe of `/embed/` and your shared link's code shows the reminder as a card:
 
 `embedHTML(link)` in the library and `--embed` on the command line write it for you. Private links can't be embedded, because they never reach a server.
 
+### The live badge
+
+A picture that counts down, for READMEs, forums and any page that takes an image: `/b/` and your shared link's code, then `.svg`. It ticks with CSS alone, turns to Live now at the start and Ended at the end, and follows the viewer's light or dark setting unless you add `?theme=dark` or `?theme=light`. `?size=mini` gives a one-line version.
+
+```md
+[![Demo day, Fri 13 Nov, 5:00 PM IST. Tap to get reminded.](https://remmynd.space/b/YOUR-LINK-CODE.svg)](https://remmynd.space/r/YOUR-LINK-CODE)
+```
+
+`liveBadgeHTML(link)` and `liveBadgeMarkdown(link)` in the library, or `--live-badge html` and `--live-badge md` on the command line, write it for you. For Discord, `discordLine(link)` or `--discord` writes `Demo day starts <t:1794569400:R>` and the link: Discord shows the time as a countdown in each reader's own zone. Private links have no live badge, because they never reach a server.
+
 ### From the command line
 
 ```sh
@@ -214,7 +224,7 @@ Free, no account needed, no tracking. Your reminder lives in the link and on you
 
 ## Self-host
 
-remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/share`, `/embed/` (the reminder card), `/mcp` (the connector for AI assistants), `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/share`, `/embed/` (the reminder card), `/b/` (the live badge), `/mcp` (the connector for AI assistants), `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
 
 ```sh
 git clone https://github.com/Remmynd/remmynd.git

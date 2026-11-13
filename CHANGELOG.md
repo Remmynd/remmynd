@@ -6,6 +6,13 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- The live badge: a picture of your reminder that counts down, for READMEs, forums and any page that takes an image. It's `/b/` and your shared link's code, then `.svg`. It ticks with CSS alone and no script, glows in the last hour, says Live now at the start and Ended after the end, even if the page stays open. It follows the reader's light or dark setting (`?theme=` pins one), and `?size=mini` gives a one-line version. Like a shared link, it's drawn from the address and nothing is stored or logged. Private links have no live badge.
+- A line for Discord, `<title> starts <t:UNIX:R> <link>`, which Discord shows as a countdown in each reader's own zone.
+- In the app, The live badge under Share it shows your badge with Copy HTML, Copy Markdown and Copy for Discord. For hosts shows it live with the snippets.
+- Library: `liveBadgeURL`, `liveBadgeHTML`, `liveBadgeMarkdown` and `discordLine`. Command line: `--live-badge html|md`, `--mini` and `--discord`.
+
 ### Changed
 
 - The app code budget is now 70 KB compressed, up from 60 KB, to make room for what's coming next: Talk, the live badge and the count. Each of those loads from its own file on first use; the budget covers only what a first visit downloads. The whole first visit, fonts included, stays under 150 KB. The size test, the principles, the spec, CONTRIBUTING and the For hosts and Open numbers pages all say 70 KB.

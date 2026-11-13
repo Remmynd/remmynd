@@ -32,6 +32,10 @@ The connector only turns words into a link and a link back into words. It stores
 
 An iframe of `https://remmynd.space/embed/<payload>` (the code after `/r/` in a shared link) shows the reminder as a card with a Remind me button. `?theme=light` or `?theme=dark` pins a theme. Private links can't be embedded.
 
+## Live badge
+
+`https://remmynd.space/b/<payload>.svg` is a picture of the reminder that counts down with CSS alone, for READMEs and forums; wrap it in a link to the `/r/` link. `?theme=light` or `?theme=dark` pins a theme, `?size=mini` gives one line. For Discord, write `<title> starts <t:UNIX:R> <link>`, where UNIX is the start in seconds. Private links have no live badge.
+
 ## Links
 
 - Shared links, `https://remmynd.space/r/<payload>`, show the title and time in chat previews. The server reads them only to fill the preview and stores and logs nothing.

@@ -101,6 +101,7 @@ body.site{padding:0;font-size:16px;line-height:1.55}
 /* badges, QR and the chat card on /hosts */
 .badges{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .embed-demo{display:block;width:100%;max-width:440px;height:112px;border:0;justify-self:center}
+.live-demo{display:block;width:100%;max-width:360px;height:auto;justify-self:center}
 .badges img{display:block;height:44px;width:auto}
 .qr-show{display:flex;flex-wrap:wrap;gap:20px;align-items:center}
 .qr-show .qr{display:block;width:168px;height:168px;flex:none;border-radius:12px}

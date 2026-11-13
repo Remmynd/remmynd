@@ -71,6 +71,26 @@
 </section>
 
 <section class="sec wide tight">
+  <div class="card" id="live-badge">
+    <div class="cols center">
+      <div class="flow">
+        <p class="kicker">Counts down</p>
+        <h2 class="h3">The live badge</h2>
+        <p>A picture that ticks down to your event, for READMEs, forums and any page that takes an image. At the start it says Live now, and after the end, Ended. It follows each reader's light or dark setting; add <code>?theme=dark</code> or <code>?theme=light</code> to pin one, or <code>?size=mini</code> for one line.</p>
+        <div class="snippet"><pre aria-label="Live badge HTML"><code>&lt;a href="https://remmynd.space/r/your-link" target="_blank" rel="noopener"&gt;
+  &lt;img src="https://remmynd.space/b/your-link.svg" alt="Demo day, Fri 13 Nov, 5:00 PM IST. Tap to get reminded." width="360" height="96"&gt;
+&lt;/a&gt;</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+        <div class="snippet"><pre class="light" aria-label="Live badge Markdown"><code>[![Demo day, Fri 13 Nov, 5:00 PM IST. Tap to get reminded.](https://remmynd.space/b/your-link.svg)](https://remmynd.space/r/your-link)</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+        <p>On Discord, paste a line instead. Discord shows the time as a countdown in each reader's own time zone.</p>
+        <div class="snippet"><pre class="light" aria-label="Discord line"><code>Demo day starts &lt;t:1794569400:R&gt; https://remmynd.space/r/your-link</code></pre><button type="button" class="copy" data-copy>Copy for Discord</button></div>
+        <p>Put your own link in place of the example, or make your link and tap The live badge under Share it: it has your codes ready. Private links have no live badge, because the picture is drawn by our server and a private link never reaches it.</p>
+      </div>
+      <img class="live-demo" src="/b/example.svg" alt="Example live badge: Demo day, counting down" width="360" height="96">
+    </div>
+  </div>
+</section>
+
+<section class="sec wide tight">
   <div class="card" id="embed">
     <div class="cols center">
       <div class="flow">
@@ -124,7 +144,7 @@
   <div class="tiles">
     <div data-stat="stars" hidden><b>–</b><span>GitHub stars, shown live</span></div>
     <div data-stat="downloads" hidden><b>–</b><span>npm downloads last week, shown live</span></div>
-    <div><b id="tests">68</b><span>tests, all passing before every deploy</span></div>
+    <div><b id="tests">69</b><span>tests, all passing before every deploy</span></div>
     <div><b>&lt; 70 KB</b><span>of app code, compressed. No framework, no tracking.</span></div>
   </div>
   <div class="btns"><a class="btn ink" href="https://github.com/Remmynd/remmynd">Star on GitHub</a><span class="chipcode">npm i remmynd</span></div>

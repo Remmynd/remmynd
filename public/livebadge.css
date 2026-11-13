@@ -1,0 +1,10 @@
+/* remmynd live badge: the sheet behind "The live badge" on the ready screen. Loaded by livebadge.js,
+   after app.css, so it uses the same tokens and sheet. Token names only, no raw colours (a test checks). */
+.lb-card{display:grid;gap:10px}
+.lb-card h2{margin:4px 44px 0 0;font-size:22px;line-height:1.15;letter-spacing:-.02em;font-weight:600}
+.lb-sub{margin:0;font-size:14px;line-height:1.4;color:var(--muted)}
+.lb-img{display:block;justify-self:center;width:100%;max-width:360px;height:auto;margin:4px 0}
+.lb-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.lb-btns .btn{margin-top:0}
+.lb-card .sheet-note{margin:0}
+.lb-more{justify-self:center;padding:6px;font-size:14px;font-weight:600;color:var(--ink)}
