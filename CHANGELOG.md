@@ -6,6 +6,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- The app code budget is now 70 KB compressed, up from 60 KB, to make room for what's coming next: Talk, the live badge and the count. Each of those loads from its own file on first use; the budget covers only what a first visit downloads. The whole first visit, fonts included, stays under 150 KB. The size test, the principles, the spec, CONTRIBUTING and the For hosts and Open numbers pages all say 70 KB.
+
 ## [2.1.0] - 2026-11-11
 
 ### Added

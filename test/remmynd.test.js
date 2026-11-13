@@ -944,7 +944,7 @@ function firstVisit({ cache }) {
   return [...seen].sort();
 }
 
-test("size budgets: app code under 60 KB, first visit under 150 KB", t => {
+test("size budgets: app code under 70 KB, first visit under 150 KB", t => {
   const KB = 1000; // the stricter reading
   const sum = files => files.reduce((n, f) => n + wireSize(f), 0);
   const all = firstVisit({ cache: true }), page = firstVisit({ cache: false });
@@ -953,7 +953,7 @@ test("size budgets: app code under 60 KB, first visit under 150 KB", t => {
   const k = n => (n / KB).toFixed(1) + " KB";
   t.diagnostic("app code " + k(sum(code)) + " (" + code.join(", ") + ")");
   t.diagnostic("first visit " + k(sum(all)) + ": the page " + k(sum(page)) + ", the service worker's cache adds " + k(sum(all) - sum(page)));
-  assert.ok(sum(code) < 60 * KB, "app code is " + k(sum(code)) + ", over the 60 KB budget");
+  assert.ok(sum(code) < 70 * KB, "app code is " + k(sum(code)) + ", over the 70 KB budget");
   assert.ok(sum(all) < 150 * KB, "the first visit is " + k(sum(all)) + ", over the 150 KB budget");
 });
 
@@ -1816,17 +1816,17 @@ test("website: every figure is real and checkable", async () => {
   const tests = readdirSync(join(root, "test")).filter(f => f.endsWith(".test.js")).reduce((n, f) => n + (readFileSync(join(root, "test", f), "utf8").match(/^test\(/gm) || []).length, 0);
   assert.ok(hosts.includes('<b id="tests">' + tests + "</b>"), "the tests tile on /hosts says " + tests + ", the number of tests in test/");
   assert.match(hosts, /<div data-stat="stars" hidden>[\s\S]*<div data-stat="downloads" hidden>/, "live tiles stay hidden until their number arrives");
-  assert.ok(hosts.includes("&lt; 60 KB</b><span>of app code, compressed."), "the size tile matches the budget test above");
+  assert.ok(hosts.includes("&lt; 70 KB</b><span>of app code, compressed."), "the size tile matches the budget test above");
   // /open: every number is one a test or the live data keeps true.
   const open = readPage("open");
   assert.ok(open.includes('<b id="open-tests">' + tests + "</b>"), "/open counts the same tests");
   assert.match(open, /<div data-stat="stars" hidden>[\s\S]*<div data-stat="downloads" hidden>/);
-  assert.ok(open.includes("&lt; 60 KB</b><span>of app code on a first visit, compressed") && open.includes("&lt; 150 KB</b><span>for the whole first visit, fonts included"), "the budgets the size test enforces");
+  assert.ok(open.includes("&lt; 70 KB</b><span>of app code on a first visit, compressed") && open.includes("&lt; 150 KB</b><span>for the whole first visit, fonts included"), "the budgets the size test enforces");
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   assert.ok(!pkg.dependencies || !Object.keys(pkg.dependencies).length, "0 runtime dependencies, as /open says");
   assert.ok(open.includes("<b>0</b><span>runtime dependencies in the npm package</span>"));
   const openNums = visible(open.slice(open.indexOf("<main"), open.indexOf("</main>"))).match(/\d+(?:\.\d+)?/g);
-  assert.deepEqual([...new Set(openNums)].sort(), [String(tests), "60", "150", "0"].sort(), "/open shows no number a test doesn't keep true");
+  assert.deepEqual([...new Set(openNums)].sort(), [String(tests), "70", "150", "0"].sort(), "/open shows no number a test doesn't keep true");
   const { qrSVG } = await import("../public/qr.js");
   assert.ok(hosts.includes(qrSVG("https://remmynd.space/example", { label: "QR code that opens an example reminder" })), "the QR code on /hosts is drawn by qr.js for remmynd.space/example");
 
