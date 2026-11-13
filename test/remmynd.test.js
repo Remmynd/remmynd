@@ -698,6 +698,161 @@ test("embed: the reminder card any site can show, drawn from the link and never 
   assert.ok(docs.includes('<h2 id="embed">Reminder card</h2>'));
 });
 
+test("live badge: a picture that counts down with styles alone, drawn from the link and never stored", async () => {
+  const worker = (await import("../worker/index.js")).default;
+  const B = await import("../worker/badge.js");
+  const env = shellEnv();
+  const get = (path, init) => worker.fetch(new Request("https://remmynd.space" + path, init), env);
+  const now = Date.parse("2026-11-11T14:10:00Z");
+  const at = (secs, extra = {}) => ({ title: "Demo day", start: new Date(now + secs * 1000), durationMinutes: 60, host: "", timeZone: "Asia/Kolkata", ...extra });
+  const bytes = s => Buffer.byteLength(s);
+
+  // The five states, what the clock shows in each, and how long a copy may be kept.
+  for (const [secs, state, clock] of [
+    [12 * 86400, "far", "in 12 days"], [28 * 3600 + 753.4, "near", "1d 04:12:33"], [4 * 3600 + 65, "near", "04:01:04"],
+    [2537.2, "soon", "00:42:17"], [3600, "soon", "00:59:59"], [-600, "now", null], [-7200, "ended", null]
+  ]) {
+    assert.equal(B.badgeState(now + secs * 1000, now + secs * 1000 + 3600000, now), state, secs + " s");
+    if (clock) assert.equal(B.clockText(secs), clock, secs + " s");
+  }
+  // A digit changes the instant its second is used up: 37.4 s left shows :37, 37.0 s shows :36.
+  assert.equal(B.clockText(37.4), "00:00:37");
+  assert.equal(B.clockText(37), "00:00:36");
+
+  // Each column starts on its current digit, with a negative delay for the part of it already used up.
+  const L = 28 * 3600 + 753.4;
+  assert.deepEqual(["h", "mt", "mo", "st", "so"].map(k => B.column(k, L)), [
+    { value: "04", index: 19, delay: -71246.6 }, { value: "1", index: 4, delay: -2846.6 }, { value: "2", index: 7, delay: -446.6 },
+    { value: "3", index: 2, delay: -26.6 }, { value: "3", index: 6, delay: -6.6 }]);
+  // At any moment, the columns read the same as the clock.
+  for (let left = 0.25; left < 2 * 86400; left += 7777.7) {
+    const c = k => B.column(k, left).value;
+    assert.equal(c("h") + ":" + c("mt") + c("mo") + ":" + c("st") + c("so"), B.clockText(left).replace(/^1d /, ""), left + " s");
+  }
+
+  const near = B.liveBadgeSVG(at(L), { now });
+  assert.ok(near.includes("#c0{animation:c24 86400s steps(24) -71246.6s infinite}") && near.includes("#c4{animation:c10 10s steps(10) -6.6s infinite}"));
+  assert.ok(near.includes('<g id="c0" transform="translate(0 -494)">'), "where animations don't run, the first frame is still right");
+  assert.ok(near.includes("@keyframes c10{from{transform:translateY(0)}to{transform:translateY(-260px)}}"));
+  // Every unit moves: "1d" goes at the day mark, then Soon, Live now and Ended arrive on time, so a picture left open stays true.
+  assert.ok(near.includes("#dd{animation:out 1ms 15153.4s forwards}") && near.includes("#hm{animation:sh 1ms 15153.4s forwards}"));
+  assert.ok(near.includes("#s{opacity:0;animation:in 1ms 97953.4s forwards,out 1ms 101553.4s forwards}"), "the last hour: the tint and the glowing dot");
+  assert.ok(near.includes("#n{opacity:0;animation:in 1ms 101553.4s forwards,out 1ms 105153.4s forwards}"), "Live now from the start to the end");
+  assert.ok(near.includes("#e{opacity:0;animation:in 1ms 105153.4s forwards}"), "then Ended");
+  assert.match(near, /@media \(prefers-reduced-motion:reduce\)\{#k,#t\{display:none\}#rd\{display:inline\}/, "a frozen countdown would be wrong: the date takes its place");
+  assert.ok(near.includes(">Thu 12 Nov, 11:52 PM IST</text>") && near.includes(">THU 12 NOV · 11:52 PM IST</text>"));
+  assert.ok(near.includes(">Remind me</text>") && near.includes(">remmynd</text>"), "the mark is always there");
+
+  for (const [secs] of [[12 * 86400], [L], [2537.2], [-600], [-7200]]) for (const size of ["", "mini"]) for (const theme of ["", "light", "dark"]) {
+    const svg = B.liveBadgeSVG(at(secs, { title: "Q&A <night> \"live\" with the whole team and everyone else we know".repeat(3) }), { now, size, theme });
+    assert.ok(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" width="'), "an SVG");
+    assert.ok(bytes(svg) < 8000, "under 8 KB: " + bytes(svg));
+    assert.doesNotMatch(svg, /<script|href|url\(|\son[a-z]+=/i, "no script, no links, nothing to fetch");
+    assert.doesNotMatch(svg.replace('xmlns="http://www.w3.org/2000/svg"', ""), /:\/\//, "no address of another host");
+    assert.ok(svg.includes("Q&amp;A &lt;night&gt; &quot;live&quot;"), "the title is escaped");
+    assert.doesNotMatch(svg, /Q&A|<night>/);
+    assert.equal(svg.includes("prefers-color-scheme"), !theme, "follows the system unless a theme is pinned");
+    if (theme === "dark") assert.ok(svg.includes("--bg:#17191D") && !svg.includes("--bg:#FFFFFF"));
+    assert.ok(svg.includes(size ? ' height="28"' : ' width="360" height="96"'));
+  }
+  const soon = B.liveBadgeSVG(at(2537.2), { now });
+  assert.ok(soon.includes("#k{fill:var(--ot)}") && !soon.includes("#s{opacity:0"), "already in the last hour: tinted from the first frame");
+  assert.ok(B.liveBadgeSVG(at(-600), { now }).includes(">Live now</text>") && B.liveBadgeSVG(at(-600), { now }).includes(">Open</text>"));
+  const ended = B.liveBadgeSVG(at(-7200), { now });
+  assert.ok(ended.includes(">Ended</text>") && ended.includes(">11 NOV 2026</text>") && ended.includes(">Make yours</text>"));
+  assert.doesNotMatch(ended, /Remind me|Live now|@keyframes c10[\s\S]*#c0/, "an ended badge doesn't tick");
+  assert.doesNotMatch(B.liveBadgeSVG(at(12 * 86400), { now }), /#c0|prefers-reduced-motion/, "a far badge shows days and doesn't tick");
+  assert.equal(B.fit("A very long title that goes on and on", 15, 158).text, "A very long title that…");
+
+  // The example is always a little over a day away, so it always ticks.
+  for (const t of ["2026-11-11T16:59:59Z", "2026-11-11T17:00:00Z", "2026-11-11T17:00:01Z", "2026-11-12T03:00:00Z"]) {
+    const n = Date.parse(t), r = B.exampleReminder(n), left = (r.start.getTime() - n) / 1000;
+    assert.ok(left > 86400 && left <= 2 * 86400 && B.badgeState(r.start.getTime(), r.start.getTime() + 3600000, n) === "near", t);
+  }
+
+  // The route: headers per state, 404 and 405, and nothing kept.
+  const link = R.createLink({ title: "Demo <day> & \"night\"", start: "2026-12-05T18:00", timeZone: "Asia/Kolkata" });
+  const code = link.split("/r/")[1];
+  const respond = async (secs, query = "") => B.badgeResponse(new Request("https://remmynd.space/b/" + R.encode(at(secs)) + ".svg" + query), env, new URL("https://remmynd.space/b/" + R.encode(at(secs)) + ".svg" + query), now);
+  for (const [secs, cache] of [[12 * 86400, "public, max-age=600"], [L, "no-cache"], [2537.2, "no-cache"], [-600, "no-cache"], [-7200, "public, max-age=86400"]]) {
+    const res = await respond(secs);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("cache-control"), cache, secs + " s");
+    assert.equal(res.headers.get("content-type"), "image/svg+xml; charset=utf-8");
+    assert.equal(res.headers.get("content-security-policy"), "default-src 'none'; style-src 'unsafe-inline'");
+    assert.equal(B.BADGE_CSP, "default-src 'none'; style-src 'unsafe-inline'");
+    assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(res.headers.get("access-control-allow-origin"), "*");
+    assert.equal(res.headers.get("cross-origin-resource-policy"), "cross-origin");
+    assert.equal(res.headers.get("x-robots-tag"), "noindex");
+    assert.equal(res.headers.get("set-cookie"), null);
+  }
+  assert.ok((await (await respond(L, "?size=mini&theme=dark")).text()).includes(' height="28"'));
+  let res = await get("/b/" + code + ".svg");
+  assert.equal(res.status, 200);
+  assert.ok((await res.text()).includes("Demo &lt;day&gt; &amp; &quot;night&quot;"));
+  res = await get("/b/example.svg");
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-cache");
+  assert.ok((await res.text()).includes(">Demo day</text>"));
+  for (const bad of ["/b/", "/b/zzz.svg", "/b/" + "a".repeat(2100) + ".svg", "/b/" + code, "/b/" + code + ".png", "/b/example"]) assert.equal((await get(bad)).status, 404, bad);
+  assert.equal((await get("/b/" + code + ".svg", { method: "POST" })).status, 405);
+  res = await get("/b/" + code + ".svg", { method: "HEAD" });
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), "");
+  const src = readFileSync(join(root, "worker/badge.js"), "utf8");
+  assert.doesNotMatch(src, /env\.(DB|PUSH|KV)|\.prepare\(|console\.log|fetch\(/, "it reads the address, draws, and keeps nothing");
+
+  // The library and the command line write the snippets; private links have no live badge.
+  assert.equal(R.liveBadgeURL(link), "https://remmynd.space/b/" + code + ".svg");
+  assert.equal(R.liveBadgeURL(link + "/", { theme: "dark", size: "mini" }), "https://remmynd.space/b/" + code + ".svg?theme=dark&size=mini");
+  assert.equal(R.liveBadgeURL("http://localhost:8787/r/" + code), "http://localhost:8787/b/" + code + ".svg", "self-hosted links keep their host");
+  const alt = 'Demo <day> &amp; &quot;night&quot;, Sat 5 Dec, 6:00 PM IST. Tap to get reminded.';
+  assert.equal(R.liveBadgeHTML(link), '<a href="' + link + '" target="_blank" rel="noopener">\n  <img src="https://remmynd.space/b/' + code + '.svg" alt="' + alt + '" width="360" height="96">\n</a>');
+  assert.ok(R.liveBadgeHTML(link, { size: "mini", theme: "light" }).includes('.svg?theme=light&amp;size=mini" alt="') && R.liveBadgeHTML(link, { size: "mini" }).includes('" height="28">'));
+  assert.equal(R.liveBadgeMarkdown(link), '[![Demo <day> & "night", Sat 5 Dec, 6:00 PM IST. Tap to get reminded.](https://remmynd.space/b/' + code + ".svg)](" + link + ")");
+  assert.equal(R.discordLine(link), 'Demo <day> & "night" starts <t:1796473800:R> ' + link);
+  const priv = R.createLink({ title: "x", start: "2026-12-05T18:00Z" }, { private: true });
+  assert.throws(() => R.liveBadgeURL(priv), /Private links have no live badge/);
+  assert.throws(() => R.liveBadgeHTML("https://example.com/hello"), /Not a remmynd shared link/);
+  assert.equal(R.discordLine(priv), "x starts <t:1796493600:R> " + priv, "the Discord line works for any link");
+  for (const f of ["liveBadgeURL", "liveBadgeHTML", "liveBadgeMarkdown", "discordLine"]) {
+    assert.equal(typeof R.default[f], "function", f + " is on the default export");
+    assert.match(readFileSync(join(root, "lib/remmynd.d.ts"), "utf8"), new RegExp("export function " + f + "\\("), f + " has types");
+  }
+  const cli = (...args) => execFileSync(process.execPath, [join(root, "bin/remmynd.js"), ...args], { encoding: "utf8" });
+  const fail = (...args) => assert.throws(() => execFileSync(process.execPath, [join(root, "bin/remmynd.js"), ...args], { stdio: "pipe" }));
+  const base = ["Demo day", "--at", "2026-12-05 18:00", "--tz", "Asia/Kolkata"];
+  assert.ok(cli(...base, "--live-badge", "md").includes("](https://remmynd.space/b/"));
+  const html = cli(...base, "--live-badge", "html", "--mini", "--dark");
+  assert.ok(html.includes(".svg?theme=dark&amp;size=mini") && html.includes('height="28"'));
+  assert.ok(cli(...base, "--discord").includes("Demo day starts <t:1796473800:R> https://remmynd.space/r/"));
+  assert.ok(JSON.parse(cli(...base, "--live-badge", "md", "--discord", "--json")).discord.startsWith("Demo day starts <t:"));
+  fail(...base, "--live-badge", "md", "--private");
+  fail(...base, "--live-badge", "xml");
+  assert.match(cli("--help"), /--live-badge <fmt>[\s\S]*--mini[\s\S]*--discord/);
+
+  // In the app: a row under Share it opens a sheet that loads only when asked for.
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), index = readFileSync(join(root, "public/index.html"), "utf8");
+  const lb = readFileSync(join(root, "public/livebadge.js"), "utf8"), lbcss = readFileSync(join(root, "public/livebadge.css"), "utf8");
+  assert.ok(index.includes('<button type="button" class="row-link" id="f-live">The live badge<svg'));
+  assert.ok(app.includes('import("/livebadge.js").then(x=>x.open(m.link,{copy,from:b}))'));
+  assert.ok(!firstVisit({ cache: true }).some(f => /^livebadge\./.test(f)), "the first visit doesn't download it");
+  assert.match(lb, /^import \{ liveBadgeURL, liveBadgeHTML, liveBadgeMarkdown, discordLine \} from "\/remmynd\.js";$/m);
+  assert.doesNotMatch(lb, /fetch\(|XMLHttpRequest|WebSocket|sendBeacon/, "it sends nothing anywhere");
+  assert.ok(lb.includes("Private links never reach our server, so they have no live badge."), "a private link is told why");
+  assert.doesNotMatch(lbcss.replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "livebadge.css uses token names");
+
+  // For hosts shows it live with three copy buttons; the docs explain it.
+  const hosts = readFileSync(join(root, "public/hosts/index.html"), "utf8"), docs = readFileSync(join(root, "public/docs/index.html"), "utf8");
+  assert.ok(hosts.includes('<div class="card" id="live-badge">') && hosts.includes('<h2 class="h3">The live badge</h2>'));
+  assert.ok(hosts.includes('<img class="live-demo" src="/b/example.svg" alt="Example live badge: Demo day, counting down" width="360" height="96">'));
+  assert.ok(hosts.includes('aria-label="Live badge HTML"') && hosts.includes('aria-label="Live badge Markdown"') && hosts.includes('data-copy>Copy for Discord</button>'));
+  assert.ok(hosts.includes("Demo day starts &lt;t:1794569400:R&gt; https://remmynd.space/r/your-link"), "the Discord line is shown as text");
+  assert.ok(docs.includes('<h2 id="live-badge">Live badge</h2>') && docs.includes('<a href="#live-badge">Live badge</a>'));
+  assert.match(readFileSync(join(root, "public/site.js"), "utf8"), /const label = b\.textContent;[\s\S]*b\.textContent = label;/, "a copy button goes back to its own label");
+});
+
 test("qr: codes drawn on the device follow the standard", async () => {
   const { qrMatrix, qrSVG } = await import("../public/qr.js");
   const size = text => qrMatrix(text).length;
@@ -1022,6 +1177,8 @@ test("words: the maker uses the spec's wording", () => {
   assert.match(app, /CAL_NAME=\{apple:"Apple Calendar",google:"Google Calendar",outlook:"Outlook"\}/, "Sent to Apple Calendar. Confirm there. (and Google or Outlook)");
   assert.doesNotMatch(app, /Added to (Apple|Google)/, "never claim it was added");
   assert.doesNotMatch(html + app, /microphone|Speak it/i, "no microphone in 2.0");
+  // The live badge (ADDENDUM-1, section 5).
+  for (const [f, w] of [["public/index.html", ">The live badge<"], ["public/livebadge.js", "The live badge"], ["public/livebadge.js", "Copy for Discord"], ["lib/remmynd.js", ". Tap to get reminded."], ["public/hosts/index.html", "The live badge"]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
 });
 
 test("privacy and free wording match the approved text", () => {

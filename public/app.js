@@ -358,6 +358,8 @@ function editMade(link){const r=dec(payloadOf(link));if(!r)return;
   if(location.pathname!=="/"||location.hash){history.pushState(null,"","/");routed=location.href;}
   D.base=D.mode==="lists"?"lists":"home";swap(()=>{setMode("draft");showHome();});C.input.focus();toast("Change what you need, then press Enter");}
 F.qr.addEventListener("click",()=>{const m=D.made;if(m)openQR(m.link,m.ev.title);});
+/* The live badge and the Discord line: livebadge.js, loaded only when asked for. */
+$("#f-live").addEventListener("click",e=>{const m=D.made,b=e.currentTarget;if(m)import("/livebadge.js").then(x=>x.open(m.link,{copy,from:b})).catch(()=>toast("Couldn't open it here. Try again."));});
 /* Keep the bar above the on-screen keyboard where the browser doesn't move fixed elements itself. */
 if(window.visualViewport){const vv=window.visualViewport,kb=()=>document.documentElement.style.setProperty("--kb",Math.max(0,Math.round(innerHeight-vv.height-vv.offsetTop))+"px");vv.addEventListener("resize",kb);vv.addEventListener("scroll",kb);}
 /* Try one: three examples worked out from today, so they are never in the past. */

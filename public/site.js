@@ -37,12 +37,12 @@ document.addEventListener("keydown", e => {
 });
 
 /* ---------- copy buttons on code ---------- */
-$$("[data-copy]").forEach(b => b.addEventListener("click", async () => {
+$$("[data-copy]").forEach(b => { const label = b.textContent; b.addEventListener("click", async () => {
   const text = b.parentNode.querySelector("pre").textContent;
   try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; }
   catch (e) { b.textContent = "Select it"; }
-  setTimeout(() => { b.textContent = "Copy"; }, 1600);
-}));
+  setTimeout(() => { b.textContent = label; }, 1600);
+}); });
 
 /* ---------- the example preview card on /hosts: next Friday at 5 PM, in your own zone ---------- */
 const when = $("[data-when]");

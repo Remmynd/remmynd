@@ -189,7 +189,9 @@ flowchart TD
     NW -- "no zone or missing parts" --> SN["Plain index.html, no-store;<br/>the page reads the time in the visitor's zone"]
     NW -- no --> EM{Path starts with /embed/?}
     EM -- "GET / HEAD" --> EMR["The reminder card, drawn from the address<br/>frame-ancestors *, no-store, noindex"]
-    EM -- no --> SHR{Path is /share?}
+    EM -- no --> LB{Path starts with /b/?}
+    LB -- "GET / HEAD" --> LBR["The live badge, an SVG that counts down<br/>drawn from the address; no script, noindex"]
+    LB -- no --> SHR{Path is /share?}
     SHR -- "GET / HEAD" --> SHS["Plain index.html, no-store;<br/>the page puts the shared text in the bar"]
     SHR -- no --> CL{Path is /changelog?}
     CL -- yes --> CR["changelog/index.html with CHANGELOG.md<br/>rendered into it (HTMLRewriter)"]
@@ -205,6 +207,8 @@ flowchart TD
 `/mcp` is the connector for AI assistants, a remote MCP server over Streamable HTTP (`worker/mcp.js`). It speaks MCP 2026-07-28, where every request carries its protocol version (checked against the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers), and answers the older `initialize` handshake for clients on 2025-11-25 back to 2025-03-26, without minting sessions. Its three tools (`make_reminder_link`, `make_reminder_from_text`, `read_reminder_link`) call the same library as the site, so the links are identical; the connector gets no bindings, so it can't store anything, and it asks no other host for anything. A browser that opens `/mcp` is sent to `/docs#connector`.
 
 `/embed/<payload>` is the reminder card other sites show in an iframe (`worker/embed.js`): the moment ring, title, time and a Remind me button that opens the `/r/` link in a new tab. Like `/r/`, the reminder is read from the address only to draw it, and the response is `no-store`. It has its own security policy, which lets any site frame it (`frame-ancestors *`) and allows only this site's `embed.css` and `embed.js` (the time in the visitor's zone). `/embed/example` is the For hosts example. Private links aren't accepted, since they never reach a server.
+
+`/b/<payload>.svg` is the live badge (`worker/badge.js`): a picture that counts down, for READMEs, forums and pages, wrapped in a link to the reminder. A picture shown through an image tag runs CSS animations but no script, so the Worker writes the time left at the moment of the request and CSS animations count down from there: each digit is a column of digits moved by steps and started part-way through with a negative delay, so even the first frame is right. The changes to Soon, Live now and Ended are delayed animations too, so a picture left open stays true. The picture holds no script, no links and no other file, and its security policy allows only its own style. Like `/r/`, the reminder is read from the address only to draw it; nothing is stored or logged. Pictures that tick send `Cache-Control: no-cache` (GitHub shows README pictures through its own proxy and asks for that), a far reminder is cached ten minutes and an ended one a day. `?theme=` pins a theme, `?size=mini` gives one line, and `/b/example.svg` is the For hosts example, always a little over a day away.
 
 `/share` is where the Android share sheet sends text once remmynd is installed (`share_target` in the manifest). The Worker serves the app, which joins the shared title, text and link into one line in the bar and sets the address back to `/`; nothing is sent anywhere.
 

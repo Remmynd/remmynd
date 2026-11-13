@@ -63,6 +63,16 @@ export function badgeMarkdown(link: string, options?: ThemeOptions): string;
 export function embedURL(link: string, options?: { theme?: "light" | "dark" }): string;
 /** An iframe snippet with the reminder card, 112 pixels tall. Throws for private links. */
 export function embedHTML(link: string, options?: { theme?: "light" | "dark" }): string;
+/** Options for the live badge: a pinned theme (otherwise it follows the viewer's system) and the one-line mini size. */
+export interface LiveBadgeOptions { theme?: "light" | "dark"; size?: "mini" }
+/** The live badge's address for a shared link (…/b/<payload>.svg), a picture that counts down. Throws for private links. */
+export function liveBadgeURL(link: string, options?: LiveBadgeOptions): string;
+/** An HTML snippet: the live badge wrapped in a link to the reminder. Throws for private links. */
+export function liveBadgeHTML(link: string, options?: LiveBadgeOptions): string;
+/** A Markdown snippet: the live badge linking to the reminder. Throws for private links. */
+export function liveBadgeMarkdown(link: string, options?: LiveBadgeOptions): string;
+/** "<title> starts <t:UNIX:R> <link>": Discord shows the time as a countdown in each reader's zone. */
+export function discordLine(link: string): string;
 
 declare const remmynd: {
   VERSION: typeof VERSION; DEFAULT_BASE: typeof DEFAULT_BASE; createLink: typeof createLink; toPath: typeof toPath; encode: typeof encode;
@@ -70,5 +80,6 @@ declare const remmynd: {
   description: typeof description; toICS: typeof toICS; googleCalendarUrl: typeof googleCalendarUrl; outlookUrl: typeof outlookUrl;
   badgeSVG: typeof badgeSVG; badgeHTML: typeof badgeHTML; badgeMarkdown: typeof badgeMarkdown;
   embedURL: typeof embedURL; embedHTML: typeof embedHTML;
+  liveBadgeURL: typeof liveBadgeURL; liveBadgeHTML: typeof liveBadgeHTML; liveBadgeMarkdown: typeof liveBadgeMarkdown; discordLine: typeof discordLine;
 };
 export default remmynd;

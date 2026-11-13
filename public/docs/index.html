@@ -49,7 +49,7 @@
   <h1>Make reminders from anywhere.</h1>
   <p class="lede">Everything a remmynd reminder needs travels in its link. Make one from a web address, the command line or your own code. No account, no API key.</p>
   <ul class="toc" aria-label="On this page">
-    <li><a href="#link">The link</a></li><li><a href="#new">Write one by hand</a></li><li><a href="#connector">AI assistants</a></li><li><a href="#library">Library</a></li><li><a href="#cli">Command line</a></li><li><a href="#badges">Badges</a></li><li><a href="#embed">Reminder card</a></li><li><a href="#self-host">Self-host</a></li><li><a href="#more">More</a></li>
+    <li><a href="#link">The link</a></li><li><a href="#new">Write one by hand</a></li><li><a href="#connector">AI assistants</a></li><li><a href="#library">Library</a></li><li><a href="#cli">Command line</a></li><li><a href="#badges">Badges</a></li><li><a href="#embed">Reminder card</a></li><li><a href="#live-badge">Live badge</a></li><li><a href="#self-host">Self-host</a></li><li><a href="#more">More</a></li>
   </ul>
 </section>
 
@@ -143,7 +143,11 @@ parse("Demo day Fri 5pm zoom.us/j/123");  // { title: "Demo day", start: Date, d
   --private, -p  Make a private link (/#…): no preview, never reaches a server
   --ics [file]   Also write an .ics file ("-" prints it)
   --badge &lt;fmt&gt;  Print a Remind me badge snippet: html or md
-  --dark         Use the dark badge
+  --embed        Print an iframe snippet with the reminder card (shared links only)
+  --live-badge &lt;fmt&gt;  Print the live badge, a picture that counts down: html or md (shared links only)
+  --mini         Use the one-line live badge
+  --discord      Print a line for Discord that counts down in each reader's zone
+  --dark         Use the dark badge, card or live badge
   --google       Also print a Google Calendar link
   --json         Print everything as JSON
   --base &lt;url&gt;   Use your own remmynd host
@@ -161,6 +165,11 @@ remmynd read &lt;link&gt;   Show what is inside a remmynd link (shared or privat
     <p>Show a reminder on your own page: the moment ring, the title, the time in the visitor's zone and a Remind me button. It's an iframe of <code>/embed/</code> followed by a shared link's code; <code>?theme=light</code> or <code>?theme=dark</code> pins a theme. <code>embedHTML(link)</code> in the library, or <code>--embed</code> on the command line, writes it for you.</p>
     <div class="snippet"><pre aria-label="Reminder card HTML"><code>&lt;iframe src=&quot;https://remmynd.space/embed/your-link&quot; title=&quot;Reminder: Demo day&quot; width=&quot;440&quot; height=&quot;112&quot; style=&quot;width:100%;max-width:440px;border:0&quot; loading=&quot;lazy&quot;&gt;&lt;/iframe&gt;</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
     <p>Like a shared link, the card's reminder is read from its address only to draw it: never stored, logged or cached. Private links can't be embedded, because they never reach a server.</p>
+
+    <h2 id="live-badge">Live badge</h2>
+    <p>A picture that counts down, for READMEs and forums: <code>/b/</code> followed by a shared link's code and <code>.svg</code>, wrapped in a link to the reminder. It ticks with CSS alone, with no script, and says Live now at the start and Ended after the end. <code>?theme=light</code> or <code>?theme=dark</code> pins a theme and <code>?size=mini</code> gives one line. <code>liveBadgeHTML(link)</code> and <code>liveBadgeMarkdown(link)</code> in the library, or <code>--live-badge html</code> and <code>--live-badge md</code> on the command line, write it for you.</p>
+    <div class="snippet"><pre aria-label="Live badge Markdown"><code>[![Demo day, Fri 13 Nov, 5:00 PM IST. Tap to get reminded.](https://remmynd.space/b/your-link.svg)](https://remmynd.space/r/your-link)</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
+    <p>For Discord, <code>discordLine(link)</code> or <code>--discord</code> writes the title, <code>&lt;t:UNIX:R&gt;</code> and the link. Discord shows the time as a countdown in each reader's own zone. Like a shared link, the badge's reminder is read from its address only to draw it: never stored or logged. Private links have no live badge.</p>
 
     <h2 id="self-host">Self-host</h2>
     <p>remmynd runs on Cloudflare Workers: the files in <code>public/</code> are static assets, and <code>worker/index.js</code> handles shared links and their previews, <code>/new</code>, <code>/ics</code>, <code>/changelog</code>, <code>/stats</code> and phone alerts.</p>
