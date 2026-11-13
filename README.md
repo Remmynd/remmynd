@@ -73,7 +73,7 @@ A dark version is at `https://remmynd.space/badge-dark.svg`.
 
 ### Put the reminder card on your page
 
-An iframe of `/embed/` and your shared link's code shows the reminder as a card: the moment ring, the title, the time in each visitor's own zone, and a Remind me button. Add `?theme=dark` or `?theme=light` to pin a theme.
+An iframe of `/embed/` and your shared link's code shows the reminder as a card: the moment ring, the title, a countdown, the time in each visitor's own zone, and a Remind me button. Add `?theme=dark` or `?theme=light` to pin a theme. For a big screen, a stream or the last slide of a talk, `?screen=1` shows the countdown in large type with a QR code of the link instead of a button.
 
 ```html
 <iframe src="https://remmynd.space/embed/YOUR-LINK-CODE" title="Reminder: Demo day" width="440" height="112" style="width:100%;max-width:440px;border:0" loading="lazy"></iframe>

@@ -30,7 +30,7 @@ The connector only turns words into a link and a link back into words. It stores
 
 ## Reminder card
 
-An iframe of `https://remmynd.space/embed/<payload>` (the code after `/r/` in a shared link) shows the reminder as a card with a Remind me button. `?theme=light` or `?theme=dark` pins a theme. Private links can't be embedded.
+An iframe of `https://remmynd.space/embed/<payload>` (the code after `/r/` in a shared link) shows the reminder as a card with a countdown and a Remind me button; `?screen=1` is a layout for big screens with the countdown in large type and a QR code instead of the button. `?theme=light` or `?theme=dark` pins a theme. Private links can't be embedded.
 
 ## Live badge
 

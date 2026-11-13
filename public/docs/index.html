@@ -162,7 +162,7 @@ remmynd read &lt;link&gt;   Show what is inside a remmynd link (shared or privat
     <p>See the light and dark badges, the QR code and the chat preview <a href="/hosts">for hosts</a>.</p>
 
     <h2 id="embed">Reminder card</h2>
-    <p>Show a reminder on your own page: the moment ring, the title, the time in the visitor's zone and a Remind me button. It's an iframe of <code>/embed/</code> followed by a shared link's code; <code>?theme=light</code> or <code>?theme=dark</code> pins a theme. <code>embedHTML(link)</code> in the library, or <code>--embed</code> on the command line, writes it for you.</p>
+    <p>Show a reminder on your own page: the moment ring, the title, a countdown, the time in the visitor's zone and a Remind me button. <code>?screen=1</code> gives the layout for big screens, streams and slides: the countdown in large type and a QR code of the link instead of a button. It's an iframe of <code>/embed/</code> followed by a shared link's code; <code>?theme=light</code> or <code>?theme=dark</code> pins a theme. <code>embedHTML(link)</code> in the library, or <code>--embed</code> on the command line, writes it for you.</p>
     <div class="snippet"><pre aria-label="Reminder card HTML"><code>&lt;iframe src=&quot;https://remmynd.space/embed/your-link&quot; title=&quot;Reminder: Demo day&quot; width=&quot;440&quot; height=&quot;112&quot; style=&quot;width:100%;max-width:440px;border:0&quot; loading=&quot;lazy&quot;&gt;&lt;/iframe&gt;</code></pre><button type="button" class="copy" data-copy>Copy</button></div>
     <p>Like a shared link, the card's reminder is read from its address only to draw it: never stored, logged or cached. Private links can't be embedded, because they never reach a server.</p>
 

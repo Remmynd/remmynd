@@ -19,10 +19,25 @@ body{padding:2px;font:15px/1.4 "Geist",system-ui,-apple-system,"Segoe UI",Roboto
 .em-label{font:600 11px/1 "Geist Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .em-title{font-size:17px;font-weight:650;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .em-when{font:500 13px/1.3 "Geist Mono",ui-monospace,monospace;color:var(--ink-2)}
+.em-left{font-weight:700;font-size:12px;letter-spacing:0;text-transform:none;color:var(--ink);font-variant-numeric:tabular-nums}
 .em-btn{flex:none;display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:22px;background:var(--moment);color:var(--on-moment);font-weight:650;font-size:15px}
 .em-btn svg{width:18px;height:18px}
 .em-by{position:absolute;right:16px;bottom:6px;display:inline-flex;align-items:center;gap:4px;font:600 10px/1 "Geist Mono",ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .em-by svg{width:11px;height:11px}
+/* ---------- ?screen=1: large screens, streams and the last slide of a talk ---------- */
+body.screen{padding:0}
+.em-screen{min-height:100vh;flex-wrap:wrap;justify-content:center;align-content:center;gap:clamp(24px,6vw,96px);padding:clamp(24px,5vw,72px);border:0;border-radius:0}
+.es-main{flex:1 1 420px;min-width:0;max-width:880px;display:grid;justify-items:start;gap:clamp(8px,1.4vw,18px)}
+.em-screen .ring{width:clamp(88px,12vw,168px);height:auto;margin-bottom:clamp(4px,1vw,12px)}
+.em-screen .em-label{font-size:clamp(12px,1.3vw,16px);white-space:normal}
+.em-screen .em-left{margin:clamp(6px,1.2vw,16px) 0 0;font-size:clamp(44px,9vw,148px);line-height:1;letter-spacing:-.03em}
+.em-screen .em-title{margin:0;font-size:clamp(28px,4.6vw,68px);line-height:1.08;letter-spacing:-.025em;white-space:normal;overflow-wrap:anywhere}
+.em-screen .em-when{margin:0;font-size:clamp(15px,1.8vw,24px)}
+.es-qr{flex:none;margin:0;display:grid;justify-items:center;gap:14px}
+.es-qr .qr{display:block;width:clamp(160px,22vw,300px);height:auto;border-radius:18px}
+.es-qr figcaption{font-weight:650;font-size:clamp(15px,1.7vw,22px);color:var(--ink)}
+.em-screen .em-by{right:clamp(16px,3vw,32px);bottom:clamp(12px,2.5vw,28px);font-size:clamp(10px,1vw,13px)}
+.em-screen .em-by svg{width:1.1em;height:1.1em}
 @media (max-width:340px){.em{gap:10px;padding:12px}.em-main{gap:10px}.em .ring{width:40px;height:40px}.em-btn{padding:0 12px}}
 /* ---------- the moment ring (as in app.css) ---------- */
 .ring{display:block;flex:none;overflow:visible}

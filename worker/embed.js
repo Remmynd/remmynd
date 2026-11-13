@@ -4,11 +4,18 @@
 //                       Remind me button that opens the reminder on remmynd.space in a new tab.
 // GET /embed/example    The example card For hosts shows: Demo day, next Friday at 5 PM.
 //
+// The card's first line is a countdown ("in 12 days", "1d 04:12:09", "Live now", "Ended"). The
+// Worker writes its first value, so the card is right before its script runs; embed.js keeps it
+// current. ?screen=1 is the layout for large screens, streams and the last slide of a talk: the
+// ring, the title, the countdown in large type and a QR code of the link, with no button.
+//
 // Like /r/, the reminder is read from the address only to draw the card. Nothing is stored, logged
 // or cached. ?theme=light or ?theme=dark pins a theme; without it the card follows the system.
 // Private links (/#…) never reach a server, so they can't be embedded.
 import { decode, describeWhen } from "../lib/remmynd.js";
 import { ringSVG, ringLabel } from "../public/ring.js";
+import { countdown } from "../public/clock.js";
+import { qrSVG } from "../public/qr.js";
 import { escapeHTML } from "./preview.js";
 
 const MAX_PAYLOAD = 2000;
@@ -36,26 +43,35 @@ function nextFriday(now = new Date()) {
   return d;
 }
 
-export function embedHTML(r, { link, origin, theme = "", example = false, now = Date.now() }) {
+export function embedHTML(r, { link, origin, theme = "", example = false, now = Date.now(), screen = false }) {
   const zone = r.timeZone || "UTC", start = r.start.getTime(), end = start + r.durationMinutes * 60000;
   const state = now >= end ? "missed" : now >= start ? "now" : start - now <= 36e5 ? "soon" : "open";
   const [h, m] = clock(r.start, zone);
-  const when = (state === "now" ? "Live now · " : state === "missed" ? "Ended · " : "") + describeWhen(r.start, zone);
-  const title = escapeHTML(r.title), href = escapeHTML(link);
-  return '<!doctype html>\n<html lang="en"' + (theme ? ' data-theme="' + theme + '"' : "") + '>\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
-    '<meta name="robots" content="noindex">\n<title>' + title + ' · remmynd</title>\n<link rel="stylesheet" href="/embed.css">\n</head>\n<body>\n' +
-    '<main class="em" data-start="' + start + '" data-end="' + end + '"' + (example ? " data-example" : "") + '>\n' +
+  const title = escapeHTML(r.title), href = escapeHTML(link), when = escapeHTML(describeWhen(r.start, zone));
+  const left = '<b class="em-left">' + countdown(start, end, now) + "</b>", from = r.host ? '<span class="em-host"> · from ' + escapeHTML(r.host) + "</span>" : "";
+  const head = '<!doctype html>\n<html lang="en"' + (theme ? ' data-theme="' + theme + '"' : "") + '>\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+    '<meta name="robots" content="noindex">\n<title>' + title + ' · remmynd</title>\n<link rel="stylesheet" href="/embed.css">\n</head>\n<body' + (screen ? ' class="screen"' : "") + '>\n' +
+    '<main class="em' + (screen ? " em-screen" : "") + '" data-start="' + start + '" data-end="' + end + '"' + (example ? " data-example" : "") + '>\n';
+  const tail = '<script type="module" src="/embed.js"></script>\n</body>\n</html>\n';
+  if (screen) {
+    // For a big screen: nothing to tap, so the link is a QR code instead of a button.
+    return head + '<div class="es-main">' + ringSVG({ h, m, state, size: 160, label: ringLabel(h, m, state) }) +
+      '<span class="em-label">Reminder' + (r.host ? " · from " + escapeHTML(r.host) : "") + '</span><h1 class="em-title">' + title + "</h1>" +
+      '<p class="em-left">' + countdown(start, end, now) + '</p><p class="em-when">' + when + "</p></div>\n" +
+      '<figure class="es-qr">' + qrSVG(link, { label: "QR code that opens the reminder for " + r.title }) + "<figcaption>Scan to get reminded</figcaption></figure>\n" +
+      '<span class="em-by">' + MARK + "remmynd</span>\n</main>\n" + tail;
+  }
+  return head +
     '<a class="em-main" href="' + href + '" target="_blank" rel="noopener">' + ringSVG({ h, m, state, size: 52, label: ringLabel(h, m, state) }) +
-    '<span class="em-text"><span class="em-label">Reminder' + (r.host ? " · from " + escapeHTML(r.host) : "") + '</span><b class="em-title">' + title + '</b><span class="em-when">' + escapeHTML(when) + '</span></span></a>\n' +
+    '<span class="em-text"><span class="em-label">' + left + from + '</span><b class="em-title">' + title + '</b><span class="em-when">' + when + '</span></span></a>\n' +
     '<a class="em-btn" href="' + href + '" target="_blank" rel="noopener" aria-label="Remind me about ' + title + '">' + BELL + 'Remind me</a>\n' +
-    '<a class="em-by" href="' + escapeHTML(origin) + '/" target="_blank" rel="noopener">' + MARK + 'remmynd</a>\n</main>\n' +
-    '<script type="module" src="/embed.js"></script>\n</body>\n</html>\n';
+    '<a class="em-by" href="' + escapeHTML(origin) + '/" target="_blank" rel="noopener">' + MARK + 'remmynd</a>\n</main>\n' + tail;
 }
 
 export async function embedResponse(request, env, url) {
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   const p = url.pathname.slice("/embed/".length).replace(/\/+$/, "");
-  const t = url.searchParams.get("theme"), theme = t === "light" || t === "dark" ? t : "";
+  const t = url.searchParams.get("theme"), theme = t === "light" || t === "dark" ? t : "", screen = url.searchParams.get("screen") === "1";
   let r, link, example = false;
   if (p === "example") {
     example = true; link = url.origin + "/example";
@@ -65,5 +81,5 @@ export async function embedResponse(request, env, url) {
     link = url.origin + "/r/" + p;
   }
   if (!r) return new Response("Not a remmynd reminder", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
-  return new Response(request.method === "HEAD" ? null : embedHTML(r, { link, origin: url.origin, theme, example }), { headers: HEADERS });
+  return new Response(request.method === "HEAD" ? null : embedHTML(r, { link, origin: url.origin, theme, example, screen }), { headers: HEADERS });
 }
