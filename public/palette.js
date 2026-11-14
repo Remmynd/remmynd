@@ -32,6 +32,7 @@ export function commands(a, now = Date.now()) {
   };
   add("Do", "New reminder", () => a.newOne(), "", "make create add write");
   if (a.float) add("Do", a.floating ? "Put the floating countdown away" : "Float the countdown above my windows", a.float, "", "picture in picture timer pip");
+  if (a.importCal) add("Do", "Import a calendar file", a.importCal, "", "ics calendar events meetings");
   add("Go to", "Coming up", () => a.go("/#coming-up"), "", "reminders upcoming list kept");
   add("Go to", "My links", () => a.go("/#links"), "", "made shared list");
   // Reminders: what's next first, then what's passed or kept, most recent first.

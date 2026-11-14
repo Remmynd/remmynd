@@ -151,7 +151,16 @@ test("parse: one typed line becomes a reminder", () => {
     ["Webinar 10am UTC", "Webinar", "2026-11-11T10:00:00.000Z", null],
     ["Fri 5pm", "", at(13, 17), null],
     ["Sat 5pm chores", "chores", at(14, 17), null],
-    ["sat 5pm chores", "sat chores", at(11, 17), null]
+    ["sat 5pm chores", "sat chores", at(11, 17), null],
+    // A bare length, the "for" left out, as people write a short call (Short call).
+    ["Call with Sam Tue 4pm 5 min", "Call with Sam", at(17, 16), 5],
+    ["Standup tomorrow 9am 10 mins https://meet.google.com/abc-defg-hij", "Standup", at(12, 9), 10, "https://meet.google.com/abc-defg-hij"],
+    ["Review 2 hours Fri 3pm", "Review", at(13, 15), 120],
+    ["Yoga 1.5 hours Sat 7am", "Yoga", at(14, 7), 90],
+    ["Webinar 17:00 90 minutes", "Webinar", at(11, 17), 90],
+    ["Train 5 min late tomorrow 9am", "Train 5 min late", at(12, 9), null],
+    ["Run 8m Sat 7am", "Run 8m", at(14, 7), null],
+    ["Sync Fri 3pm for 30 min 10 min", "Sync 10 min", at(13, 15), 30]
   ];
   for (const [line, title, start, dur, place = ""] of cases) {
     const r = R.parse(line, { now, timeZone });
@@ -3242,4 +3251,107 @@ test("account: the app loads sign-in only when needed and keeps private links on
   assert.match(ac, /\.ac-key \.btn\{width:auto;flex:none;/);
   assert.match(ac, /\.ac-card \.btn\{margin:0\}/);
   assert.match(appCss, /\.toast\{[^}]*transform:translate\(-50%,16px\);width:max-content;/);
+});
+
+test("short call: a bare length in the line, and the 2, 5, 8 and 10 minute chips for a call (Phase 1)", () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8"), css = readFileSync(join(root, "public/app.css"), "utf8");
+  // The row, hidden until the line is a call; four lengths, each a pressed state, in a named group.
+  assert.ok(html.includes('<div class="lens" id="lens" role="group" aria-labelledby="len-l" hidden><span class="label" id="len-l">Short call</span>'));
+  assert.deepEqual([...html.matchAll(/class="len" data-min="(\d+)" aria-pressed="false">(\d+ min)</g)].map(m => [m[1], m[2]]), [["2", "2 min"], ["5", "5 min"], ["8", "8 min"], ["10", "10 min"]]);
+  assert.match(css, /\.len\{min-height:var\(--tap\);/, "44 px to tap");
+  assert.match(css, /\.len\[aria-pressed="true"\]\{background:var\(--ink\);color:var\(--paper\)/, "the pressed one is the length");
+  assert.doesNotMatch(app + html, /guilt|shame|too long/i, "the lengths are an offer, not a lecture");
+  // When it shows: a meeting link, or a line that reads like a call.
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+  const CALL_HOST = new Function(line("const CALL_HOST=") + "; return CALL_HOST;")();
+  const callish = new Function("CALL_HOST", line("const callish=") + "; return callish;")(CALL_HOST);
+  for (const l of ["https://meet.google.com/abc-defg-hij", "https://zoom.us/j/123", "https://teams.microsoft.com/l/meetup-join/x", "https://us02web.zoom.us/j/9", "https://whereby.com/room", "https://meet.jit.si/Room", "https://discord.gg/abc"])
+    assert.equal(callish({ title: "Chat", place: l }), true, l);
+  for (const t of ["Call with Sam", "Sync", "Standup", "Stand-up", "Catch up", "Check-in", "1:1 with Ana", "Intro call", "Interview"]) assert.equal(callish({ title: t, place: "" }), true, t);
+  for (const [t, p] of [["Demo day", "https://lu.ma/demo"], ["Dentist", ""], ["Rent due", ""], ["Call Mum", "Blue Tokai"]]) assert.equal(callish({ title: t, place: p }), t === "Call Mum", t);
+  // A tap sets the length, a second tap clears it, and the pressed chip is the length the line has.
+  assert.ok(app.includes('LEN.el.addEventListener("click",e=>{const b=e.target.closest(".len");if(!b)return;const n=+b.dataset.min;if(D.set.dur===n)delete D.set.dur;else D.set.dur=n;renderDraft();});'));
+  assert.ok(app.includes('LEN.el.hidden=!callish(d);LEN.el.querySelectorAll(".len").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.min===d.dur)));'));
+  // The check-in comes when the call ends: push.js plans it at start plus the length.
+  assert.match(readFileSync(join(root, "public/push.js"), "utf8"), /at: start \+ \(d\.r\.d \|\| 30\) \* 60e3, kind: "check"/);
+  const r = R.parse("Call with Sam Tue 4pm 5 min https://meet.google.com/abc-defg-hij", { now: new Date("2026-11-11T04:30:00Z"), timeZone: "Asia/Kolkata" });
+  assert.deepEqual([r.title, r.dur, r.place], ["Call with Sam", 5, "https://meet.google.com/abc-defg-hij"]);
+  assert.equal(R.decode(R.createLink({ title: r.title, start: r.start, durationMinutes: r.dur, location: r.place })).durationMinutes, 5, "the length travels in the link");
+});
+
+test("calendar import: an .ics file read on the device, its upcoming events held as private reminders (Phase 1)", async () => {
+  const src = readFileSync(join(root, "public/calimport.js"), "utf8"), css = readFileSync(join(root, "public/calimport.css"), "utf8");
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  // Loaded only when a file arrives. It never makes a request, and its styles use token names only.
+  assert.ok(!firstVisit({ cache: true }).some(f => /^calimport\./.test(f)), "the first visit doesn't download it");
+  assert.doesNotMatch(src, /fetch\(|XMLHttpRequest|sendBeacon|WebSocket|navigator\.share/);
+  assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "calimport.css uses token names");
+  // Three ways in: the menu, Search and commands, and a drop anywhere on the page. Only calendar files count.
+  assert.ok(html.includes('<button type="button" class="btn" id="import-btn">Import a calendar file</button><input type="file" id="import-in" accept=".ics,text/calendar" multiple hidden aria-label="Calendar file">'));
+  assert.ok(readFileSync(join(root, "public/palette.js"), "utf8").includes('if (a.importCal) add("Do", "Import a calendar file", a.importCal, "", "ics calendar events meetings");'));
+  assert.ok(app.includes("importCal:()=>impBtn.click()"));
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+  const ICS_FILE = new Function(line("const ICS_FILE=") + "; return ICS_FILE;")();
+  assert.deepEqual([{ name: "work.ics", type: "" }, { name: "x", type: "text/calendar" }, { name: "photo.png", type: "image/png" }, null].map(ICS_FILE), [true, true, false, false]);
+  assert.match(app, /document\.addEventListener\("drop",e=>\{C\.form\.classList\.remove\("dropping"\);const fs=\[\.\.\.\(e\.dataTransfer&&e\.dataTransfer\.files\)\|\|\[\]\]\.filter\(ICS_FILE\);if\(!fs\.length\)return;e\.preventDefault\(\);openImport\(fs,C\.input\);\}\);/);
+  // Holding: a private link made with the library, the reminder and the link kept on the device, and the same alerts as Remind me.
+  assert.match(app, /share=R\.createLink\(ev,\{base:BASE,private:true\}\)/);
+  assert.match(app, /DB\.put\("reminders",\{rkey,title:ev\.title,start:ev\.start\.getTime\(\),dur:x\.dur\|\|60,place:ev\.location,host:"",z:TZ,share,state:"held",nudge:false/);
+  assert.match(app, /window\.__rmPush\.remind\(\{el:null,r,key:null,start:ev\.start,share,morningAt:null\},false\)/);
+  assert.ok(app.includes('if(have&&have.state!=="dropped")return"have";'), "an event already held isn't held twice");
+
+  // The reader. Wednesday 11 November 2026, 10:00 in Kolkata.
+  const M = await import("../public/calimport.js");
+  const now = new Date("2026-11-11T04:30:00Z").getTime(), timeZone = "Asia/Kolkata";
+  const at = (d, h, mi = 0, mo = 11, y = 2026) => R.zonedTime(y, mo, d, h, mi, timeZone).toISOString();
+  const ics = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Example//EN",
+    "BEGIN:VTIMEZONE", "TZID:Asia/Kolkata", "BEGIN:STANDARD", "DTSTART:19700101T000000", "TZOFFSETFROM:+0530", "TZOFFSETTO:+0530", "END:STANDARD", "END:VTIMEZONE",
+    // A meeting with a Google Meet link, a 25 minute length, a folded summary and escaped text.
+    "BEGIN:VEVENT", "UID:1", "SUMMARY:Weekly sync with Sam\\, Ana", "  and the team", "DTSTART;TZID=Asia/Kolkata:20261112T160000", "DTEND;TZID=Asia/Kolkata:20261112T162500",
+    "LOCATION:Room 4", "X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij", "DESCRIPTION:Agenda\\nNotes", "BEGIN:VALARM", "TRIGGER:-PT10M", "SUMMARY:ignored", "END:VALARM", "END:VEVENT",
+    // UTC, with a DURATION; the Zoom link sits in the description.
+    "BEGIN:VEVENT", "UID:2", "SUMMARY:Board call", "DTSTART:20261113T093000Z", "DURATION:PT1H", "DESCRIPTION:Join https://zoom.us/j/123?pwd=x before 3", "END:VEVENT",
+    // A whole day: 9:00 that day, no length.
+    "BEGIN:VEVENT", "UID:3", "SUMMARY:Holiday", "DTSTART;VALUE=DATE:20261120", "DTEND;VALUE=DATE:20261121", "END:VEVENT",
+    // A floating time, read in the reader's zone; Outlook's zone name is unknown here and reads the same way.
+    "BEGIN:VEVENT", "UID:4", "SUMMARY:Dentist", "DTSTART:20261114T110000", "DTEND:20261114T113000", "LOCATION:Smile Clinic", "END:VEVENT",
+    "BEGIN:VEVENT", "UID:5", "SUMMARY:Payroll", "DTSTART;TZID=India Standard Time:20261116T100000", "DTEND;TZID=India Standard Time:20261116T101500", "END:VEVENT",
+    // Over already, cancelled, and a weekly standup that started in October and is held once, at its next time.
+    "BEGIN:VEVENT", "UID:6", "SUMMARY:Gone", "DTSTART;TZID=Asia/Kolkata:20261110T090000", "DTEND;TZID=Asia/Kolkata:20261110T100000", "END:VEVENT",
+    "BEGIN:VEVENT", "UID:7", "SUMMARY:Cancelled thing", "STATUS:CANCELLED", "DTSTART;TZID=Asia/Kolkata:20261118T090000", "END:VEVENT",
+    "BEGIN:VEVENT", "UID:8", "SUMMARY:Standup", "DTSTART;TZID=Asia/Kolkata:20261007T093000", "DTEND;TZID=Asia/Kolkata:20261007T094500", "RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=WE", "END:VEVENT",
+    // A daily rule that ended, and the same event twice.
+    "BEGIN:VEVENT", "UID:9", "SUMMARY:Old daily", "DTSTART;TZID=Asia/Kolkata:20261001T080000", "DTEND;TZID=Asia/Kolkata:20261001T081000", "RRULE:FREQ=DAILY;UNTIL=20261031T000000Z", "END:VEVENT",
+    "BEGIN:VEVENT", "UID:10", "SUMMARY:Dentist", "DTSTART:20261114T110000", "DTEND:20261114T113000", "END:VEVENT",
+    "END:VCALENDAR", ""].join("\r\n");
+  const got = M.readICS(ics, { now, timeZone }).map(e => [e.title, e.start.toISOString(), e.dur, e.place, e.repeats]);
+  assert.deepEqual(got, [
+    ["Weekly sync with Sam, Ana and the team", at(12, 16), 25, "https://meet.google.com/abc-defg-hij", false],
+    ["Board call", "2026-11-13T09:30:00.000Z", 60, "https://zoom.us/j/123?pwd=x", false],
+    ["Dentist", at(14, 11), 30, "Smile Clinic", false],
+    ["Payroll", at(16, 10), 15, "", false],
+    ["Standup", at(18, 9, 30), 15, "", true], // this morning's 9:30 ended at 9:45; the next is held
+    ["Holiday", at(20, 9), null, "", false]
+  ]);
+  // The pieces: content lines, durations, dates and repeats.
+  assert.deepEqual(M.contentLine('DTSTART;TZID="America/New_York":20261112T160000'), { name: "DTSTART", params: { TZID: "America/New_York" }, value: "20261112T160000" });
+  assert.deepEqual(["PT30M", "PT1H30M", "P1D", "P1W", "PT0M", "x"].map(M.durationMinutes), [30, 90, 1440, 10080, null, null]);
+  assert.equal(M.whenOf("20261112T160000Z").toISOString(), "2026-11-12T16:00:00.000Z");
+  assert.equal(M.whenOf("20261112", { VALUE: "DATE" }, timeZone).toISOString(), at(12, 9));
+  assert.equal(M.whenOf("20261332", {}, timeZone), null);
+  assert.equal(M.nextStart(new Date(at(7, 9, 30, 10)), "FREQ=WEEKLY", now).toISOString(), at(11, 9, 30), "a weekly rule lands on this Wednesday: at 10:00 the hour-long 9:30 is still on");
+  assert.equal(M.nextStart(new Date(at(7, 9, 30, 10)), "FREQ=WEEKLY", now, 15).toISOString(), at(18, 9, 30), "a 15 minute one ended at 9:45, so next week's is held");
+  assert.equal(M.nextStart(new Date(at(7, 9, 30, 10)), "FREQ=MONTHLY", now).toISOString(), at(7, 9, 30, 12), "monthly keeps the day of the month");
+  assert.equal(M.nextStart(new Date(at(1, 8, 0, 10)), "FREQ=DAILY;COUNT=3", now).toISOString(), at(1, 8, 0, 10), "a rule that ran out gives the first start, which is then left out");
+  assert.equal(M.unescape("a\\, b\\; c\\nd\\\\e"), "a, b; c\nd\\e");
+  assert.equal(M.readICS("", { now, timeZone }).length, 0);
+  assert.equal(M.readICS("not a calendar", { now, timeZone }).length, 0);
+  // Big files stay quick: 5,000 events read in well under a second.
+  const many = "BEGIN:VCALENDAR\r\n" + Array.from({ length: 5000 }, (_, i) => "BEGIN:VEVENT\r\nSUMMARY:E" + i + "\r\nDTSTART:2026" + String(11 + (i % 2)).padStart(2, "0") + String(1 + (i % 28)).padStart(2, "0") + "T120000Z\r\nEND:VEVENT").join("\r\n") + "\r\nEND:VCALENDAR";
+  const t0 = performance.now(); const big = M.readICS(many, { now, timeZone }); assert.ok(performance.now() - t0 < 1000, "quick");
+  assert.equal(big.length, 100, "at most 100 shown");
+  // The sheet's words.
+  for (const w of ["Your calendar file", ", read on this device. Nothing is uploaded.", ">Hold<", "Hold all ", "Each one becomes a private reminder in Coming up, with the same alerts as Remind me.", "No upcoming events in this file."]) assert.ok(src.includes(w), "calimport.js says: " + w);
+  assert.match(src, /el\.setAttribute\("role", "dialog"\); el\.setAttribute\("aria-modal", "true"\); el\.setAttribute\("aria-labelledby", "ci-t"\)/, "a named modal dialog");
 });

@@ -1,0 +1,13 @@
+/* remmynd calendar import: the sheet that lists a calendar file's upcoming events. Loaded by calimport.js,
+   after app.css, so it uses the same tokens and sheet. Token names only, no raw colours (a test checks). */
+.ci-card{display:grid;gap:10px}
+.ci-card h2{margin:4px 44px 0 0;font-size:22px;line-height:1.15;letter-spacing:-.02em;font-weight:600}
+.ci-sub{margin:0;font-size:14px;line-height:1.4;color:var(--muted)}
+.ci-list{display:grid;gap:8px;max-height:min(46vh,420px);overflow:auto;padding:2px;scrollbar-width:thin}
+.ci-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;padding:6px 6px 6px 14px;background:var(--well);border-radius:var(--r-row)}
+.ci-row span{display:grid;min-width:0}
+.ci-row b{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ci-row i{font:400 12px var(--mono);font-style:normal;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ci-card .btn.small{flex:none;width:auto;margin:0}
+.ci-card .btn[aria-disabled="true"]{opacity:.6}
+.ci-card .sheet-note{margin:0}

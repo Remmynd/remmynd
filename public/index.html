@@ -87,6 +87,8 @@
         <button type="button" class="fchip" id="c-where"><span>Where</span><b></b></button>
         <button type="button" class="fchip add" id="c-note">+ Note</button>
       </div>
+      <!-- A call: pick how long. The check-in comes when it ends. -->
+      <div class="lens" id="lens" role="group" aria-labelledby="len-l" hidden><span class="label" id="len-l">Short call</span><button type="button" class="len" data-min="2" aria-pressed="false">2 min</button><button type="button" class="len" data-min="5" aria-pressed="false">5 min</button><button type="button" class="len" data-min="8" aria-pressed="false">8 min</button><button type="button" class="len" data-min="10" aria-pressed="false">10 min</button></div>
       <div class="edit" id="edit" hidden>
         <label class="label" for="edit-in" id="edit-l">What</label>
         <div class="edit-row"><input id="edit-in" maxlength="300" enterkeyhint="done"><button type="button" class="btn ink small" id="edit-ok">Done</button></div>
@@ -197,6 +199,7 @@
     <div class="theme" role="group" aria-labelledby="theme-m"><span class="label" id="theme-m">Theme</span><div class="seg"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div></div>
     <div class="theme" role="group" aria-labelledby="sound-m"><span class="label" id="sound-m">Sound</span><div class="seg"><button type="button" data-sound="on" aria-pressed="true">On</button><button type="button" data-sound="off" aria-pressed="false">Off</button></div></div>
     <button type="button" class="btn" id="cmd-btn">Search and commands<kbd id="cmd-k">Ctrl K</kbd></button>
+    <button type="button" class="btn" id="import-btn">Import a calendar file</button><input type="file" id="import-in" accept=".ics,text/calendar" multiple hidden aria-label="Calendar file">
     <button type="button" class="btn" id="acct-btn">Sign in to sync and get email</button>
     <button type="button" class="btn" id="install" hidden>Install app</button>
   </div>

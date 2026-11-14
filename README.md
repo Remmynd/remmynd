@@ -49,7 +49,9 @@ Most "add to calendar" tools want an account, a dashboard and your visitors' dat
 
 ### On the web
 
-Go to [remmynd.space](https://remmynd.space) and write it in one line, like `Demo day Fri 5pm zoom.us/j/123`. The ticket fills in as you type, and the What, When and Where chips let you fix any part. Press Enter: the link is made and copied, ready to share. Pasting an invitation works too.
+Go to [remmynd.space](https://remmynd.space) and write it in one line, like `Demo day Fri 5pm zoom.us/j/123` or `Call with Sam Tue 4pm 5 min`. The ticket fills in as you type, and the What, When and Where chips let you fix any part. A line with a meeting link, or one that reads like a call, gets a Short call row: 2, 5, 8 or 10 minutes, and the check-in comes when it ends. Press Enter: the link is made and copied, ready to share. Pasting an invitation works too.
+
+Already have the meetings in a calendar? Export them as an `.ics` file and drop it on the page (or pick **Import a calendar file** from the menu). The file is read on your device, and each event you hold becomes a private reminder in Coming up. Nothing is uploaded.
 
 Whoever opens the link taps **Remind me** once: the event goes to their calendar (they confirm it there), notifications turn on where their device allows, and the ticket shows their reminder stack. **Coming up** lists the reminders held on that device and **My links** the links made on it; both stay on the device.
 

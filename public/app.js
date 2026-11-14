@@ -330,7 +330,14 @@ function renderDraft(){const d=draft();
   chip(C.what,d.title||"Add what",!d.title);chip(C.when,d.start?whenText(d.start):"Pick a time",!d.start);chip(C.where,d.place?short(d.place):"Add a place",!d.place);
   C.note.textContent=d.notes?"Note: "+(d.notes.length>24?d.notes.slice(0,24)+"…":d.notes):"+ Note";C.note.classList.toggle("add",!d.notes);
   const s=d.start||nextHour(),p=parts(s,TZ);C.whenIn.value=p.y+"-"+pad(p.mo)+"-"+pad(p.d)+"T"+pad(p.h)+":"+pad(p.mi);
-  C.hint.textContent=!d.title?"Add what it is to make the link.":!d.start?"Add a time to make the link.":"Not a link yet. Press Enter to make it.";}
+  C.hint.textContent=!d.title?"Add what it is to make the link.":!d.start?"Add a time to make the link.":"Not a link yet. Press Enter to make it.";
+  /* Short call: with a meeting link, or a line that reads like a call, offer 2, 5, 8 and 10 minutes. The check-in comes when it ends. */
+  LEN.el.hidden=!callish(d);LEN.el.querySelectorAll(".len").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.min===d.dur)));}
+/* Where calls happen, and what people call them. */
+const CALL_HOST=/(^|\/\/|\.)(meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com|whereby\.com|meet\.jit\.si|webex\.com|around\.co|discord\.gg|discord\.com|facetime\.apple\.com|gather\.town|slack\.com\/huddle)\b/i;
+const callish=d=>CALL_HOST.test(d.place||"")||/\b(call|sync|stand[ -]?up|catch[ -]?up|check[ -]?in|huddle|1:1|one-on-one|interview|intro)\b/i.test(d.title||"");
+const LEN={el:$("#lens")};
+LEN.el.addEventListener("click",e=>{const b=e.target.closest(".len");if(!b)return;const n=+b.dataset.min;if(D.set.dur===n)delete D.set.dur;else D.set.dur=n;renderDraft();});
 /* The pane: the live preview while typing; otherwise the link just made, or an example (seen beside the maker from 960 px). */
 function renderPane(){if(D.mode==="draft")return renderDraft();if(D.mode==="lists")return previewRow(L.body.querySelector(".li-main"));
   const x=D.mode==="ready"&&D.made?D.made.ev:EX[0];if(!x)return;
@@ -608,10 +615,30 @@ function openAccount(){closeMenu();import("/account.js").then(m=>m.open()).catch
 acctBtn.addEventListener("click",openAccount);
 addEventListener("rm:account",e=>{ACC=e.detail||{signedIn:false};acctBtn.textContent=ACC.signedIn?"Your account":"Sign in to sync and get email";if(S.held)renderBottom();});
 try{if(localStorage.getItem("rm:acct")==="1")import("/account.js").then(m=>m.boot()).catch(()=>{});}catch(e){}
+/* ---------- calendar import: an .ics file read on this device (calimport.js, loaded only then) ---------- */
+const ICS_FILE=f=>!!f&&(/\.ics$/i.test(f.name||"")||/^text\/calendar\b/i.test(f.type||""));
+function openImport(files,from){closeMenu();import("/calimport.js").then(m=>m.open({files,timeZone:TZ,hold:holdImported,toast,from,refresh:()=>loadLists().then(()=>{if(D.mode==="lists"&&!$("#home").hidden)renderLists();else if(D.mode==="home")setMode("home");})}))
+  .catch(()=>toast("Couldn't open it here. Try again."));}
+/* Hold an imported event, as Remind me would: a private link (it never reaches a server), kept in Coming up and My links, with the same alerts. */
+async function holdImported(x){const DB=window.remmyndDB;if(!DB)return false;
+  const ev={title:x.title,start:x.start,durationMinutes:x.dur||undefined,location:x.place||"",notes:"",timeZone:TZ};
+  let share;try{share=R.createLink(ev,{base:BASE,private:true});}catch(e){return false;}
+  const rkey=rkeyOf(ev.title,ev.start),have=(await DB.getAll("reminders").catch(()=>[])).find(r=>r.rkey===rkey);if(have&&have.state!=="dropped")return"have";
+  await DB.put("reminders",{rkey,title:ev.title,start:ev.start.getTime(),dur:x.dur||60,place:ev.location,host:"",z:TZ,share,state:"held",nudge:false,cal:null,heldAt:Date.now(),doneAt:null,replanAt:null});
+  await DB.put("links",{share,title:ev.title,start:ev.start.getTime(),createdAt:Date.now(),private:true}).catch(()=>{});
+  const r={t:ev.title,...(x.dur?{d:x.dur}:{}),...(ev.location?{l:ev.location}:{})};
+  if(window.__rmPush)await Promise.resolve(window.__rmPush.remind({el:null,r,key:null,start:ev.start,share,morningAt:null},false)).catch(()=>{});return true;}
+const impBtn=$("#import-btn"),impIn=$("#import-in");
+impBtn.addEventListener("click",()=>impIn.click());
+impIn.addEventListener("change",()=>{const fs=[...impIn.files].filter(ICS_FILE);impIn.value="";if(fs.length)openImport(fs,impBtn);else toast("That isn't a calendar file. Export one as .ics first.");});
+/* Drop a calendar file anywhere on the page. */
+document.addEventListener("dragover",e=>{if(![...(e.dataTransfer&&e.dataTransfer.items)||[]].some(i=>i.kind==="file"))return;e.preventDefault();C.form.classList.add("dropping");});
+document.addEventListener("dragleave",e=>{if(!e.relatedTarget)C.form.classList.remove("dropping");});
+document.addEventListener("drop",e=>{C.form.classList.remove("dropping");const fs=[...(e.dataTransfer&&e.dataTransfer.files)||[]].filter(ICS_FILE);if(!fs.length)return;e.preventDefault();openImport(fs,C.input);});
 /* ---------- Ctrl or Cmd + K: search and commands, loaded the first time it's asked for ---------- */
 const go=h=>{const u=new URL(h,location.href);if(u.origin!==location.origin||!/^\/(r\/|$)/.test(u.pathname))return location.assign(u.href);S.back=true;history.pushState(null,"",u.pathname+u.search+u.hash);route();};
 const newOne=t=>{if(!$("#view").hidden)go("/");if(t){C.input.value=t;C.input.dispatchEvent(new Event("input"));}C.input.focus();};
-function openPalette(){if(document.querySelector(".sheet:not([hidden]):not(#menu):not(#pal)"))return;closeMenu();Promise.all([import("/palette.js"),loadLists()]).then(([m])=>m.open({recs:L.recs,links:L.links,go,newOne,float:PIP&&!FL.no&&!$("#view").hidden&&S.held&&/before|later/.test(S.phase)?floatIt:null,floating:FL.on&&FL.k===S.rkey}))
+function openPalette(){if(document.querySelector(".sheet:not([hidden]):not(#menu):not(#pal)"))return;closeMenu();Promise.all([import("/palette.js"),loadLists()]).then(([m])=>m.open({recs:L.recs,links:L.links,go,newOne,importCal:()=>impBtn.click(),float:PIP&&!FL.no&&!$("#view").hidden&&S.held&&/before|later/.test(S.phase)?floatIt:null,floating:FL.on&&FL.k===S.rkey}))
   .catch(()=>toast("Search couldn't load. Check your connection."));}
 document.addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&!e.altKey&&!e.shiftKey&&(e.key||"").toLowerCase()==="k"){e.preventDefault();openPalette();}});
 $("#cmd-btn").addEventListener("click",openPalette);if(/Macintosh|iPhone|iPad/.test(UA))$("#cmd-k").textContent="⌘K";

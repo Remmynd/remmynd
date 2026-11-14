@@ -6,6 +6,15 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- Short call: write the length the way you'd say it, "Call with Sam Tue 4pm 5 min", and the reminder is 5 minutes long, so the "did you make it?" check comes at 4:05. When the line has a meeting link (Meet, Zoom, Teams, Whereby, Jitsi, Webex, Discord and the like) or reads like a call, a Short call row under the chips offers 2, 5, 8 and 10 minutes; tap one to set it, tap it again to clear it. The length shows on the ticket as it always has.
+- Import a calendar file: drop an .ics file on the page, pick one from the menu, or ask for it in Search and commands, and a sheet lists the file's upcoming events, read on your device. Hold one, or Hold all, and each becomes a private reminder in Coming up and My links, with the same alerts as Remind me. Whole-day events are set for 9:00, a repeating event is held once at its next time, cancelled and finished events are left out, and a meeting link in the event becomes the place. Nothing is uploaded; the module never makes a request. Export the file from Google Calendar, Apple Calendar or Outlook first; a live feed isn't read.
+
+### Changed
+
+- The bar reads a bare length too: "5 min", "10 mins", "2 hours" and "1.5 hours" set how long, with or without "for". "5 min late" stays in the title, and so does "8m".
+
 ## [2.2.0] - 2026-11-14
 
 ### Added
