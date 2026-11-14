@@ -11,6 +11,8 @@ export interface ReminderInput {
   location?: string;
   notes?: string;
   host?: string;
+  /** The host turns on a public count for this reminder (`c` in the link). Shared links only: a private link never carries it. */
+  count?: boolean;
 }
 
 export interface Reminder {
@@ -22,6 +24,8 @@ export interface Reminder {
   host: string;
   /** The host's IANA time zone, or "" when the link doesn't carry one. */
   timeZone: string;
+  /** Present, and true, when the host turned on a public count. */
+  count?: true;
 }
 
 export interface BaseOptions {
@@ -74,6 +78,13 @@ export function liveBadgeMarkdown(link: string, options?: LiveBadgeOptions): str
 /** "<title> starts <t:UNIX:R> <link>": Discord shows the time as a countdown in each reader's zone. */
 export function discordLine(link: string): string;
 
+/** "128 in", "1.2k in" from 1,000 (rounded down), or "" under 10, when the count stays hidden. */
+export function countLabel(n: number): string;
+/** Outer rings for a count: 0 under 10, 1 from 10, 2 from 100, 3 from 1,000. */
+export function countRings(n: number): 0 | 1 | 2 | 3;
+/** Your place in a count: "#129", or "#3 · First ten" for 1 to 10; "" for none. */
+export function placeLabel(you: number): string;
+
 declare const remmynd: {
   VERSION: typeof VERSION; DEFAULT_BASE: typeof DEFAULT_BASE; createLink: typeof createLink; toPath: typeof toPath; encode: typeof encode;
   decode: typeof decode; fromQuery: typeof fromQuery; parse: typeof parse; describeWhen: typeof describeWhen; parseStart: typeof parseStart; zonedTime: typeof zonedTime; systemTimeZone: typeof systemTimeZone;
@@ -81,5 +92,6 @@ declare const remmynd: {
   badgeSVG: typeof badgeSVG; badgeHTML: typeof badgeHTML; badgeMarkdown: typeof badgeMarkdown;
   embedURL: typeof embedURL; embedHTML: typeof embedHTML;
   liveBadgeURL: typeof liveBadgeURL; liveBadgeHTML: typeof liveBadgeHTML; liveBadgeMarkdown: typeof liveBadgeMarkdown; discordLine: typeof discordLine;
+  countLabel: typeof countLabel; countRings: typeof countRings; placeLabel: typeof placeLabel;
 };
 export default remmynd;

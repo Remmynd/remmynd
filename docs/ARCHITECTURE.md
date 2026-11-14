@@ -26,6 +26,7 @@ https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and ev
 | Shared `/r/<payload>` | Yes, in passing: the Worker reads it to fill the preview tags, then forgets it. Never stored, logged or cached. | Links meant to be shared in chat |
 | Private `/#<payload>` | No. Browsers never send what follows `#`. | The **Private link** switch, and every 1.x link |
 | Written by hand `/new?t=…&at=…` | Yes, in passing | Scripts, spreadsheets and AI assistants. Redirects to the shared form. |
+| Public count `/count/<payload>` | Yes: one number per reminder, only when its host switched the count on (`c: 1`) | GET reads it; POST adds one on Remind me, once per device, only from this site, never after the end, at most 600 a minute per reminder and 20 a minute per network (Cloudflare's rate limiter, no address kept). The row is deleted 30 days after the end. |
 | One line `/new?q=…` | Yes, in passing | The Siri shortcut and any link. Opens the app with the line in the bar; with a time in it, the link is made. |
 
 | Key | Meaning | Notes |

@@ -1302,7 +1302,8 @@ test("words: the maker uses the spec's wording", () => {
   for (const [f, w] of [["public/index.html", "</svg>Story\n"], ["public/story.js", "Card ready. The link is copied."], ["public/story.js", "Share the card"], ["public/story.js", "Save picture"],
     ["public/story.js", "Tap the link to get reminded"], ["public/story.js", "I'm in."], ["public/story.js", "1. In your Story, add the Link sticker and paste."],
     ["public/story.js", "2. If you like, add the Countdown sticker and set it to "], ["public/story.js", "In Snapchat, attach the link with the paperclip."], ["public/story.js", " It is copied."],
-    ["public/app.js", "Add to story"], ["public/app.js", "Pass it on"]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
+    ["public/app.js", "Add to story"], ["public/app.js", "Pass it on"],
+    ["public/index.html", ">Show how many are in<"], ["public/index.html", ">Adds a public count to this reminder. One number, nothing about who.<"], ["lib/remmynd.js", 'n + " in"'], ["lib/remmynd.js", '" · First ten"']]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
   // The live badge (ADDENDUM-1, section 5).
   for (const [f, w] of [["public/index.html", ">The live badge<"], ["public/livebadge.js", "The live badge"], ["public/livebadge.js", "Copy for Discord"], ["lib/remmynd.js", ". Tap to get reminded."], ["public/hosts/index.html", "The live badge"], ["worker/embed.js", "Scan to get reminded"], ["public/clock.js", '"Live now"'], ["public/clock.js", '"Ended"']]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
 });
@@ -1318,6 +1319,11 @@ test("privacy and free wording match the approved text", () => {
   const signin = "If you sign in, we keep your email address and your reminders so they sync across your devices and can be emailed to you. Private links stay on your device. Delete it all any time.";
   for (const f of ["README.md", "docs/PRINCIPLES.md", "public/privacy/index.html"]) assert.ok(readFileSync(join(root, f), "utf8").includes(signin), f + " explains what signing in keeps");
   assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes("delivered by <a href=\"https://resend.com/legal/privacy-policy\">Resend</a>"), "the privacy page names who delivers the emails");
+  // The count, in the owner's words (ADDENDUM-1, sentences 1 and 2).
+  const counts = "If the host turns on the counter, we also keep one number for that reminder: how many people tapped Remind me. No names, no devices. It is deleted 30 days after the event.";
+  assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes('<h2 id="counts">Counts</h2>\n    <p>' + counts + "</p>"), "the privacy page has Counts");
+  for (const f of ["README.md", "docs/PRINCIPLES.md", "public/open/index.html"]) assert.ok(readFileSync(join(root, f), "utf8").includes(signin + " " + counts), f + " says what a count keeps, with the rest");
+  assert.ok(principles.includes('| Analytics or click tracking. One exception: a host can switch on a public count for one reminder. It is one number, shown to everyone, with nothing about who. | Breaks "no tracking" |'), "PRINCIPLES: the one exception");
   // Talk, in the owner's words (ADDENDUM-1, sentence 3): on the privacy page, and under the bar the first time.
   const talking = "If you use the mic, your browser turns your speech into text, and it may send the sound to its maker to do that. remmynd never receives your voice.";
   assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes('<h2 id="talking">Talking</h2>\n    <p>' + talking + "</p>"), "the privacy page has Talking");
@@ -2149,7 +2155,7 @@ test("story card: a picture for Stories, drawn on the device, with the link copi
   const tz = "Asia/Kolkata", now = Date.now();
   for (const ms of [5 * 60e3, 3 * 3600e3, 20 * 3600e3, 26 * 3600e3, 3 * 864e5, 40 * 864e5, 400 * 864e5]) {
     const start = new Date(now + ms), L = S.lines({ title: "  Demo   day ", start }, { timeZone: tz });
-    assert.deepEqual(L, { kicker: "REMINDER", top: "", title: "Demo day", when: R.describeWhen(start, tz), cta: "Tap the link to get reminded" });
+    assert.deepEqual(L, { kicker: "REMINDER", top: "", place: "", title: "Demo day", when: R.describeWhen(start, tz), cta: "Tap the link to get reminded" });
     assert.deepEqual(S.lines({ title: "  Demo   day ", start }, { timeZone: tz }), L, "pure: the same reminder, the same lines");
     assert.doesNotMatch(Object.values(L).join(" "), /\b(?:today|tonight|tomorrow|yesterday|now|soon|ago|left|in \d+|\d+ ?(?:min|mins|minutes?|hours?|hrs?|days?|weeks?))\b/i, "no relative time: " + L.when);
   }
@@ -2223,7 +2229,7 @@ test("held ticket: Add to story and Pass it on (ADDENDUM-1, slice 4)", async () 
 
   // Add to story: the joiner's card ("I'm in."), with the link copied inside the tap.
   assert.ok(app.includes('on("#s-story",x=>x.addEventListener("click",()=>{const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(c.share).then(()=>true,()=>false):Promise.resolve(false);'));
-  assert.ok(app.includes('import("/story.js").then(m=>m.open({ev:{title:c.r.t,start:c.start},link:c.share,timeZone:TZ,joiner:true,copied,copy,toast,from:x}))'));
+  assert.ok(app.includes('import("/story.js").then(m=>m.open({ev:{title:c.r.t,start:c.start},link:c.share,timeZone:TZ,joiner:true,you:S.rec&&S.rec.you,copied,copy,toast,from:x}))'));
 
   // Pass it on, run with stand-ins: the share sheet with the title and the link; "Link copied" where there is no sheet.
   const pass = line('  on("#s-pass",');
@@ -2242,6 +2248,158 @@ test("held ticket: Add to story and Pass it on (ADDENDUM-1, slice 4)", async () 
   assert.deepEqual(await run({ share: async () => { throw Object.assign(new Error("x"), { name: "NotAllowedError" }); } }), [["https://remmynd.space/#private-payload", "Link copied"]], "the sheet failed: copied");
   // The link a ticket shares is the one it was opened with: shared, or private for a private link.
   assert.ok(app.includes("const share=linkFor(r,S.key,S.priv);"));
+});
+
+test("the count: how many tapped Remind me, only when the host turns it on (ADDENDUM-1, slice 5)", async () => {
+  // The link: `c` round-trips, old links read as before, a private link never carries it.
+  const ev = { title: "Demo day", start: "2026-12-05 18:00", timeZone: "Asia/Kolkata" };
+  const on = R.createLink({ ...ev, count: true }), off = R.createLink(ev);
+  const raw = l => JSON.parse(Buffer.from(l.split(/\/r\/|#/).pop(), "base64url").toString());
+  assert.equal(raw(on).c, 1);
+  assert.equal(R.decode(on).count, true);
+  assert.equal("c" in raw(off), false, "an old link is byte for byte the same");
+  assert.equal("count" in R.decode(off), false);
+  assert.equal("c" in raw(R.createLink({ ...ev, count: true }, { private: true })), false, "a private link never carries it");
+  assert.equal(R.fromQuery("t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&count=1").count, true, "/new: count=1");
+  assert.equal("count" in R.fromQuery("t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata"), false);
+  const cli = (...args) => execFileSync(process.execPath, [join(root, "bin/remmynd.js"), ...args], { encoding: "utf8" });
+  assert.equal(R.decode(cli("Demo day", "--at", "2026-12-05 18:00", "--tz", "Asia/Kolkata", "--count").trim()).count, true, "--count");
+
+  // Hidden under 10. Exact to 999, then rounded down, never up. Rings from 10, 100 and 1,000. Your place, and the first ten.
+  assert.deepEqual([0, 9, 10, 128, 999, 1000, 1250, 1999, 12345, 123456].map(R.countLabel), ["", "", "10 in", "128 in", "999 in", "1k in", "1.2k in", "1.9k in", "12.3k in", "123k in"]);
+  assert.deepEqual([0, 9, 10, 99, 100, 999, 1000, 50000].map(R.countRings), [0, 0, 1, 1, 2, 2, 3, 3]);
+  assert.deepEqual([0, 1, 3, 10, 11, 129].map(R.placeLabel), ["", "#1 · First ten", "#3 · First ten", "#10 · First ten", "#11", "#129"]);
+
+  // The routes, with an in-memory store that keeps D1's rules.
+  const C = await import("../worker/count.js");
+  const memory = () => {
+    const rows = new Map();
+    return { rows, ready: async () => {}, get: async k => (rows.get(k) || { n: 0 }).n,
+      join: async (k, ends, minute, cap) => { const r = rows.get(k); if (!r) { rows.set(k, { n: 1, ends, win: minute, win_n: 1 }); return 1; }
+        if (r.win === minute && r.win_n >= cap) return null; r.n++; r.win_n = r.win === minute ? r.win_n + 1 : 1; r.win = minute; return r.n; },
+      clean: async before => { for (const [k, r] of rows) if (r.ends < before) rows.delete(k); } };
+  };
+  const start = Date.parse("2026-12-05T12:30:00Z"), payload = on.split("/r/")[1], url = "https://remmynd.space/count/" + payload;
+  const store = memory(), at = start - 864e5, site = { origin: "https://remmynd.space" };
+  const go = (method, { u = url, headers = site, now = at, limiter } = {}) => C.handleCount(new Request(u, { method, headers }), {}, new URL(u), { store, now, limiter });
+  let res = await go("GET");
+  assert.deepEqual([res.status, await res.json(), res.headers.get("cache-control")], [200, { n: 0 }, "no-store"]);
+  assert.equal((await go("POST", { headers: {} })).status, 403, "only this site's pages add one");
+  assert.equal((await go("POST", { headers: { origin: "https://elsewhere.example" } })).status, 403);
+  res = await go("POST");
+  assert.deepEqual([res.status, await res.json(), res.headers.get("cache-control")], [200, { n: 1, you: 1 }, "no-store"]);
+  assert.deepEqual(await (await go("POST")).json(), { n: 2, you: 2 });
+  assert.deepEqual(await (await go("GET")).json(), { n: 2 });
+  assert.equal((await go("GET", { u: "https://remmynd.space/count/" + off.split("/r/")[1] })).status, 404, "no count unless the host turned it on");
+  assert.equal((await go("GET", { u: "https://remmynd.space/count/not-a-link" })).status, 404);
+  assert.equal((await go("PUT")).status, 405);
+  assert.equal((await go("DELETE")).status, 405, "nothing ever takes one away");
+  assert.equal((await go("POST", { now: start + 60 * 60e3 })).status, 410, "refused after the end");
+  // What is kept: the SHA-256 of the payload, and four numbers.
+  const [key, row] = [...store.rows][0];
+  assert.match(key, /^[0-9a-f]{64}$/);
+  assert.equal(key, await C.countKey(payload));
+  assert.deepEqual(Object.keys(row).sort(), ["ends", "n", "win", "win_n"]);
+  assert.equal(row.ends, start + 60 * 60e3);
+  // 600 joins a minute for one reminder, then 429 until the next minute.
+  const busy = memory(), minute = Math.floor(at / 60000) * 60000;
+  for (let i = 0; i < C.PER_MINUTE; i++) await C.handleCount(new Request(url, { method: "POST", headers: site }), {}, new URL(url), { store: busy, now: minute + 10 });
+  assert.equal((await C.handleCount(new Request(url, { method: "POST", headers: site }), {}, new URL(url), { store: busy, now: minute + 20 })).status, 429);
+  assert.deepEqual(await (await C.handleCount(new Request(url, { method: "POST", headers: site }), {}, new URL(url), { store: busy, now: minute + 60e3 })).json(), { n: 601, you: 601 });
+  // 20 a minute from one network: Cloudflare's rate limiter, keyed in passing by the address and the count, never stored.
+  let asked = null;
+  res = await go("POST", { headers: { ...site, "cf-connecting-ip": "203.0.113.9" }, limiter: { limit: async q => { asked = q; return { success: false }; } } });
+  assert.equal(res.status, 429);
+  assert.equal(asked.key, "203.0.113.9|" + key);
+  assert.equal(store.rows.get(key).n, 2, "refused taps add nothing");
+  assert.equal((await go("POST", { limiter: { limit: async () => { throw new Error("down"); } } })).status, 200, "if the limiter is down, the minute cap still holds");
+  const toml = readFileSync(join(root, "wrangler.toml"), "utf8");
+  assert.match(toml, /\[\[ratelimits\]\]\nname = "COUNT_LIMIT"\nnamespace_id = "\d+"\n\n  \[ratelimits\.simple\]\n  limit = 20\n  period = 60\n/);
+  // Cleanup: 30 days after the end.
+  const ends = store.rows.get(key).ends;
+  await C.cleanCounts({}, { store, now: ends + 29 * 864e5 });
+  assert.ok(store.rows.has(key), "kept for 30 days");
+  await C.cleanCounts({}, { store, now: ends + 31 * 864e5 });
+  assert.ok(!store.rows.has(key), "then deleted");
+  const index = readFileSync(join(root, "worker/index.js"), "utf8");
+  assert.ok(index.includes('if (url.pathname.startsWith("/count/")) return handleCount(request, env, url);'));
+  assert.ok(index.includes("if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 17) ctx.waitUntil(cleanCounts(env));"), "the cron cleans once an hour");
+  const schema = readFileSync(join(root, "worker/schema.sql"), "utf8");
+  for (const sql of C.SCHEMA) assert.ok(schema.replace(/\s+/g, " ").includes(sql.replace(/\(key TEXT.*/, "(")), "schema.sql has: " + sql.slice(0, 40));
+
+  // The D1 statements themselves, in a real SQLite where this Node has one.
+  let sqlite = null;
+  try { sqlite = await import("node:sqlite"); } catch (e) { /* Node 20: the in-memory store above stands in */ }
+  if (sqlite && sqlite.DatabaseSync) {
+    const db = new sqlite.DatabaseSync(":memory:");
+    // Like D1, a statement is compiled when it runs, so a batch can make a table and then its index.
+    const d1 = { prepare: sql => { let args = []; const o = { bind: (...a) => { args = a; return o; }, first: async () => db.prepare(sql).get(...args) ?? null, run: async () => db.prepare(sql).run(...args), go: () => db.prepare(sql).run(...args) }; return o; },
+      batch: async list => list.map(x => x.go()) };
+    const D = C.d1Counts(d1);
+    await D.ready();
+    assert.equal(await D.get("k"), 0);
+    assert.equal(await D.join("k", 5000, 7, 3), 1);
+    assert.equal(await D.join("k", 5000, 7, 3), 2);
+    assert.equal(await D.join("k", 5000, 7, 3), 3);
+    assert.equal(await D.join("k", 5000, 7, 3), null, "the minute's cap");
+    assert.equal(await D.join("k", 5000, 8, 3), 4, "a new minute");
+    assert.equal(await D.get("k"), 4);
+    await D.clean(5001);
+    assert.equal(await D.get("k"), 0, "cleaned");
+  }
+
+  // The badge and the card: "128 in" and rings from 10, the count read at most once a minute.
+  const B = await import("../worker/badge.js"), E = await import("../worker/embed.js");
+  const r = R.decode(R.createLink({ title: "Demo day", start: new Date(at + 30 * 3600e3), timeZone: "Asia/Kolkata", host: "Northwind", count: true }));
+  const svg = n => B.liveBadgeSVG(r, { now: at, theme: "dark", count: n });
+  assert.doesNotMatch(svg(9), /class="cn"|stroke-opacity/, "hidden under 10");
+  assert.match(svg(10), /<text class="cn"[^>]*>10 in<\/text>/);
+  assert.equal((svg(10).match(/stroke-opacity/g) || []).length, 1);
+  assert.equal((svg(128).match(/stroke-opacity/g) || []).length, 2);
+  assert.match(svg(1500), />1\.5k in</);
+  assert.equal((svg(1500).match(/stroke-opacity/g) || []).length, 3);
+  assert.ok(Buffer.byteLength(svg(1500)) < 8192, "still under 8 KB");
+  assert.doesNotMatch(B.liveBadgeSVG(r, { now: at, size: "mini", count: 500 }), /class="cn"/, "the one-line badge has no room for it");
+  const card = n => E.embedHTML(r, { link: "https://remmynd.space/r/x", origin: "https://remmynd.space", now: at, count: n });
+  assert.doesNotMatch(card(9), /em-count|r-count/);
+  assert.ok(card(128).includes('<span class="em-count">128 in</span>'));
+  assert.equal((card(128).match(/class="r-count"/g) || []).length, 2);
+  assert.equal((E.embedHTML(r, { link: "https://remmynd.space/r/x", origin: "https://remmynd.space", now: at, count: 1000, screen: true }).match(/class="r-count"/g) || []).length, 3, "and on a screen");
+  const badge = readFileSync(join(root, "worker/badge.js"), "utf8"), embed = readFileSync(join(root, "worker/embed.js"), "utf8");
+  assert.ok(badge.includes('const count = r.count && p !== "example" ? await readCount(env, p, { now }) : 0;'));
+  assert.ok(badge.includes('"Cache-Control": r.count && state === "far" ? "public, max-age=60" : CACHE[state],'));
+  assert.ok(embed.includes("const count = r.count && !example ? await readCount(env, p) : 0;"));
+  const ejs = readFileSync(join(root, "public/embed.js"), "utf8"), ecss = readFileSync(join(root, "public/embed.css"), "utf8");
+  assert.ok(ejs.includes('box.firstElementChild.append(...old.querySelectorAll(".r-count"));'), "the card's script keeps the rings when it redraws the ring");
+  assert.ok(ecss.includes(".em-label:has(.em-count){display:flex;align-items:center}") && ecss.includes("@media (max-width:399px){.em-label .em-count{display:none}}"), "the count beside the countdown from 400 px; the rings below that");
+  let reads = 0;
+  const counter = { ready: async () => {}, get: async () => { reads++; return 42; } };
+  assert.equal(await C.readCount({}, "p1", { store: counter, now: 1e6 }), 42);
+  assert.equal(await C.readCount({}, "p1", { store: counter, now: 1e6 + 59e3 }), 42);
+  assert.equal(reads, 1, "one read a minute");
+  await C.readCount({}, "p1", { store: counter, now: 1e6 + 61e3 });
+  assert.equal(reads, 2);
+
+  // The maker: the switch sits under Private link, and the two exclude each other.
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  assert.ok(html.indexOf('id="f-count"') > html.indexOf('id="f-private"'));
+  assert.ok(app.includes('const syncCount=()=>{F.count.disabled=F.priv.checked;if(F.priv.checked)F.count.checked=false;};syncCount();'));
+  assert.ok(app.includes("count:F.count.checked&&!F.priv.checked};"), "made with the count only on a shared link");
+  assert.ok(app.includes('F.priv.addEventListener("change",()=>{syncCount();'));
+  assert.ok(app.includes('F.count.addEventListener("change",()=>{const m=D.made;if(!m||F.priv.checked)return;'));
+  // The device: one POST, kept with the reminder and remembered past a removal. Never for a private link.
+  assert.ok(app.includes("const counted=r=>!!r&&r.c===1&&!S.priv&&!S.key;"));
+  assert.ok(app.includes('if(done[k]){S.rec.you=done[k];keepRec();return;}'), "counted once on this device");
+  assert.ok(app.includes('fetch("/count/"+payloadOf(linkFor(r,null,false)),{method:"POST"})'));
+  assert.ok(app.includes("keepRec();c.nd.nudge=false;countMe();"), "on Remind me");
+  assert.equal((app.match(/method:"POST"\}\)\.then\(x=>x\.ok\?x\.json\(\):null\)\.then\(j=>\{if\(!j\|\|!j\.you\)/g) || []).length, 1, "one POST, nowhere else");
+  // Showing it: "128 in" on the ticket, your place on the held ticket and on your own Story card.
+  assert.ok(app.includes("'<span class=\"t-count\"'+(R.countLabel(S.count)?'':' hidden')+'>'+esc(R.countLabel(S.count))+'</span>'"));
+  assert.ok(app.includes("(rec.you?'<p class=\"s-you\">'+esc(R.placeLabel(rec.you))+'</p>':'')"));
+  const S = await import("../public/story.js");
+  assert.equal(S.lines({ title: "Demo day", start: new Date(start) }, { timeZone: "Asia/Kolkata", joiner: true, you: 3 }).place, "#3 · First ten");
+  assert.equal(S.lines({ title: "Demo day", start: new Date(start) }, { timeZone: "Asia/Kolkata", joiner: true, you: 129 }).place, "#129");
+  assert.equal(S.lines({ title: "Demo day", start: new Date(start) }, { timeZone: "Asia/Kolkata", you: 129 }).place, "", "only on the joiner's card");
 });
 
 test("follow through: the re-plan sheet's choices", () => {
@@ -2400,7 +2558,8 @@ test("website: every figure is real and checkable", async () => {
   assert.ok(!pkg.dependencies || !Object.keys(pkg.dependencies).length, "0 runtime dependencies, as /open says");
   assert.ok(open.includes("<b>0</b><span>runtime dependencies in the npm package</span>"));
   const openNums = visible(open.slice(open.indexOf("<main"), open.indexOf("</main>"))).match(/\d+(?:\.\d+)?/g);
-  assert.deepEqual([...new Set(openNums)].sort(), [...new Set([String(tests), "70", "150", "0"])].sort(), "/open shows no number a test doesn't keep true");
+  assert.equal((await import("../worker/count.js")).KEEP_MS, 30 * 864e5, "the 30 days /open quotes: a count is deleted 30 days after the event");
+  assert.deepEqual([...new Set(openNums)].sort(), [...new Set([String(tests), "70", "150", "0", "30"])].sort(), "/open shows no number a test doesn't keep true");
   const { qrSVG } = await import("../public/qr.js");
   assert.ok(hosts.includes(qrSVG("https://remmynd.space/example", { label: "QR code that opens an example reminder" })), "the QR code on /hosts is drawn by qr.js for remmynd.space/example");
 

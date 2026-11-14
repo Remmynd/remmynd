@@ -136,6 +136,8 @@ https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&l=https
 
 With `tz`, or a `Z` or offset in `at`, the address redirects to the shared link straight away. Without one, the time is read in the visitor's own time zone. If the title or time is missing, the maker opens with what was given.
 
+Add `count=1` for a public count of how many tap Remind me (shared links only).
+
 Or write the whole reminder as one line in `q`, the way you'd type it in the bar: `https://remmynd.space/new?q=Dentist+tomorrow+4pm`. The app opens with the line in the bar, and makes the link when the line has a time in it.
 
 ### As a connector for AI assistants
@@ -216,7 +218,7 @@ The full picture, including how requests are routed, how the `/ics` fallback wor
 
 ## Privacy
 
-Free, no account needed, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent. If you sign in, we keep your email address and your reminders so they sync across your devices and can be emailed to you. Private links stay on your device. Delete it all any time.
+Free, no account needed, no tracking. Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent. If you sign in, we keep your email address and your reminders so they sync across your devices and can be emailed to you. Private links stay on your device. Delete it all any time. If the host turns on the counter, we also keep one number for that reminder: how many people tapped Remind me. No names, no devices. It is deleted 30 days after the event.
 
 - No account needed, no analytics, no tracking. No cookies, except one that keeps you signed in if you choose to sign in.
 - The reminder lives in the link. A shared link (`/r/…`) passes through remmynd.space so chat apps can show its title and time; the Worker reads it only to fill those preview tags, and stores and logs nothing. A private link (`/#…`) keeps everything after `#`, which browsers never send to a server.
@@ -226,7 +228,7 @@ Free, no account needed, no tracking. Your reminder lives in the link and on you
 
 ## Self-host
 
-remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/share`, `/embed/` (the reminder card), `/b/` (the live badge), `/mcp` (the connector for AI assistants), `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
+remmynd runs on Cloudflare Workers: the files in `public/` are served as static assets, and `worker/index.js` handles shared `/r/` links and their previews, `/new`, `/share`, `/embed/` (the reminder card), `/b/` (the live badge), `/count/` (public counts, when a host turns one on), `/mcp` (the connector for AI assistants), `/ics`, `/changelog`, `/stats`, the `www` redirect, named pages like `/example`, and the `/push/` routes with a cron that sends due alerts.
 
 ```sh
 git clone https://github.com/Remmynd/remmynd.git

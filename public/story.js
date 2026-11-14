@@ -3,17 +3,18 @@
  * link inside that tap. The card prints the date and time, never time left, because a picture can't
  * tick. The lower third stays empty, for Instagram's Link and Countdown stickers: no outside app can
  * place a link or a ticking countdown in a Story, so the sheet says how to add them. */
-import { describeWhen } from "./remmynd.js";
+import { describeWhen, placeLabel } from "./remmynd.js";
 import { angle, arc, point, GEOMETRY as G } from "./ring.js";
 
 export const W = 1080, H = 1920;
 const SANS = ", system-ui, -apple-system, sans-serif";
 
-/** The card's words. Pure: the same reminder always gives the same lines, and `when` is a date and time, never "tomorrow" or "in 3 days". */
-export function lines({ title, start }, { timeZone, joiner = false } = {}) {
+/** The card's words. Pure: the same reminder always gives the same lines, and `when` is a date and time, never "tomorrow" or "in 3 days". `you`: the joiner's place in a public count. */
+export function lines({ title, start }, { timeZone, joiner = false, you = 0 } = {}) {
   return {
     kicker: "REMINDER",
     top: joiner ? "I'm in." : "",
+    place: joiner ? placeLabel(you) : "",
     title: String(title || "").replace(/\s+/g, " ").trim(),
     when: describeWhen(start, timeZone),
     cta: "Tap the link to get reminded"
@@ -97,8 +98,8 @@ function mark(ctx, cx, y, c) {
 }
 
 /** Draw the card and give back the PNG. */
-export async function draw(ev, { timeZone, joiner = false } = {}) {
-  const L = lines(ev, { timeZone, joiner });
+export async function draw(ev, { timeZone, joiner = false, you = 0 } = {}) {
+  const L = lines(ev, { timeZone, joiner, you });
   try { await Promise.all([document.fonts.load('700 100px "Geist"'), document.fonts.load('500 34px "Geist Mono"')]); } catch (e) { /* the fallback fonts */ }
   await document.fonts.ready;
   const cv = document.createElement("canvas");
@@ -115,10 +116,11 @@ export async function draw(ev, { timeZone, joiner = false } = {}) {
 
   let y = 640;
   if (L.top) { ctx.font = "600 72px Geist" + SANS; ctx.fillStyle = c.accent; y += 110; ctx.fillText(L.top, cx, y); }
+  if (L.place) { ctx.font = "600 40px 'Geist Mono', ui-monospace, monospace"; ctx.fillStyle = c.muted; y += 56; ctx.fillText(L.place, cx, y); }
   // The title, as large as fits above the when and the line under it.
   const room = 1010 - y;
   let set = null;
-  for (const [size, max] of [[112, 2], [96, 2], [84, 3], [72, 3], [64, 3]]) {
+  for (const [size, max] of [[112, 2], [96, 2], [84, 3], [72, 3], [64, 3], [56, 3], [52, 3]]) {
     ctx.font = "700 " + size + "px Geist" + SANS;
     const t = wrap(L.title, width, s => ctx.measureText(s).width);
     const lh = Math.round(size * 1.08);
@@ -154,11 +156,11 @@ function close() {
  * The Story sheet. copied is the promise from copying the link inside the tap (true once it's on the
  * clipboard); copy(text, message) is the app's own, for the Copy link button when it wasn't.
  */
-export async function open({ ev, link, timeZone, joiner = false, copied, copy, toast, from } = {}) {
+export async function open({ ev, link, timeZone, joiner = false, you = 0, copied, copy, toast, from } = {}) {
   if (!$('link[href="/story.css"]')) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = "/story.css"; document.head.append(l); }
   close();
   back = from || document.activeElement;
-  const L = lines(ev, { timeZone, joiner }), name = "remmynd-" + (L.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "story") + ".png";
+  const L = lines(ev, { timeZone, joiner, you }), name = "remmynd-" + (L.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "story") + ".png";
   const share = canShareFile(navigator, new File([""], name, { type: "image/png" }));
   const el = document.createElement("div");
   el.className = "sheet"; el.id = "st-sheet";
@@ -198,7 +200,7 @@ export async function open({ ev, link, timeZone, joiner = false, copied, copy, t
   });
 
   try {
-    const png = await draw(ev, { timeZone, joiner });
+    const png = await draw(ev, { timeZone, joiner, you });
     if (!el.isConnected) return;
     file = new File([png], name, { type: "image/png" });
     url = URL.createObjectURL(png);

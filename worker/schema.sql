@@ -24,3 +24,14 @@ CREATE TABLE IF NOT EXISTS mails (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, ke
 CREATE INDEX IF NOT EXISTS mails_at ON mails (at);
 CREATE INDEX IF NOT EXISTS mails_user_key ON mails (user_id, key);
 CREATE TABLE IF NOT EXISTS sends (hour INTEGER PRIMARY KEY, n INTEGER NOT NULL);
+
+-- Public counts, only for reminders whose host switched them on. One number per reminder.
+-- worker/count.js creates this on first use too. No names, no addresses, no device ids.
+CREATE TABLE IF NOT EXISTS counts (
+  key   TEXT PRIMARY KEY,   -- SHA-256 of the link's payload, in hex
+  n     INTEGER NOT NULL,   -- how many people tapped Remind me
+  ends  INTEGER NOT NULL,   -- when the reminder ends, ms since 1970 UTC
+  win   INTEGER NOT NULL,   -- the minute of the latest join
+  win_n INTEGER NOT NULL    -- joins in that minute
+);
+CREATE INDEX IF NOT EXISTS counts_ends ON counts (ends);
