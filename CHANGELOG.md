@@ -6,6 +6,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-11-14
+
 ### Added
 
 - Short call: write the length the way you'd say it, "Call with Sam Tue 4pm 5 min", and the reminder is 5 minutes long, so the "did you make it?" check comes at 4:05. When the line has a meeting link (Meet, Zoom, Teams, Whereby, Jitsi, Webex, Discord and the like) or reads like a call, a Short call row under the chips offers 2, 5, 8 and 10 minutes; tap one to set it, tap it again to clear it. The length shows on the ticket as it always has.
@@ -199,7 +201,8 @@ remmynd 2.0: reminders that make sure it happens. Write a reminder in one line, 
 - Brand kit in `brand/`: logo, mark, wordmark, avatars, social banners and a brand guide.
 - Favicon set, maskable app icon and link-preview image.
 
-[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.3.0...HEAD
+[2.3.0]: https://github.com/Remmynd/remmynd/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/Remmynd/remmynd/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Remmynd/remmynd/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/Remmynd/remmynd/compare/v2.0.0...v2.0.1
