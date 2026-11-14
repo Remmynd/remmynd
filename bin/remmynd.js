@@ -17,6 +17,7 @@ Options
   --host         Who is hosting
   --length, -l   Minutes (default 60)
   --private, -p  Make a private link (/#…): no preview, never reaches a server
+  --count        Show a public count on the reminder: how many tapped Remind me (shared links only)
   --ics [file]   Also write an .ics file ("-" prints it)
   --badge <fmt>  Print a Remind me badge snippet: html or md
   --embed        Print an iframe snippet with the reminder card (shared links only)
@@ -47,7 +48,7 @@ try {
       notes: { type: "string", short: "n" }, host: { type: "string" }, length: { type: "string", short: "l" },
       ics: { type: "string" }, badge: { type: "string" }, embed: { type: "boolean" }, "live-badge": { type: "string" }, mini: { type: "boolean" }, discord: { type: "boolean" },
       dark: { type: "boolean" }, google: { type: "boolean" },
-      json: { type: "boolean" }, base: { type: "string" }, private: { type: "boolean", short: "p" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" }
+      json: { type: "boolean" }, base: { type: "string" }, private: { type: "boolean", short: "p" }, count: { type: "boolean" }, help: { type: "boolean", short: "h" }, version: { type: "boolean", short: "v" }
     }
   });
 } catch (e) { fail(e.message + "\nRun remmynd --help"); }
@@ -66,7 +67,7 @@ if (pos[0] === "read") {
 if (!o.at) fail('Add a time with --at "YYYY-MM-DD HH:mm"');
 const event = {
   title: pos.join(" "), start: o.at, timeZone: o.tz, location: o.where, notes: o.notes, host: o.host,
-  durationMinutes: o.length ? Number(o.length) : undefined
+  durationMinutes: o.length ? Number(o.length) : undefined, ...(o.count ? { count: true } : {})
 };
 const opts = { ...(o.base ? { base: o.base } : {}), private: !!o.private };
 const theme = o.dark ? "dark" : "light";

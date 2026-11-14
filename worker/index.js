@@ -9,6 +9,7 @@ import { handleMcp } from "./mcp.js";
 import { embedResponse } from "./embed.js";
 import { badgeResponse } from "./badge.js";
 import { handleAccount, sendDueMails } from "./account.js";
+import { handleCount, cleanCounts } from "./count.js";
 
 const PRESETS = new Set(["example"]);
 
@@ -33,6 +34,9 @@ export default {
 
     // Connector for AI assistants (MCP): makes and reads reminder links, stores nothing.
     if (url.pathname === "/mcp" || url.pathname === "/mcp/") return handleMcp(request, url);
+
+    // Public counts, only for reminders whose host switched one on: one number per reminder.
+    if (url.pathname.startsWith("/count/")) return handleCount(request, env, url);
 
     // Push notifications: public key, schedule and cancel anonymous pings.
     if (url.pathname.startsWith("/push/")) return handlePush(request, env, url);
@@ -69,5 +73,7 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(sendDuePings(env));
     ctx.waitUntil(sendDueMails(env));
+    // Once an hour: forget counts 30 days after their reminder ended.
+    if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 17) ctx.waitUntil(cleanCounts(env));
   }
 };

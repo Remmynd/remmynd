@@ -5,9 +5,9 @@
    opaque background, and the card should sit on the host's page with its own rounded corners. */
 @font-face{font-family:"Geist";font-style:normal;font-weight:100 900;font-display:swap;src:url("fonts/geist-5.3-latin.woff2") format("woff2")}
 @font-face{font-family:"Geist Mono";font-style:normal;font-weight:100 900;font-display:swap;src:url("fonts/geist-mono-5.3-latin.woff2") format("woff2")}
-:root{--card:#FFFFFF;--well:#F5F6F7;--ink:#0E0F11;--ink-2:#4A4F57;--muted:#666C75;--hairline:#E3E5E8;--moment:#F2A000;--on-moment:#0E0F11;--night-arc:rgba(14,15,17,.10)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--card:#17191D;--well:#0B0C0E;--ink:#F4F5F6;--ink-2:#C9CED6;--muted:#A3A8B0;--hairline:#2A2D33;--moment:#C8F53B;--on-moment:#0B0C0E;--night-arc:rgba(244,245,246,.14)}}
-:root[data-theme="dark"]{--card:#17191D;--well:#0B0C0E;--ink:#F4F5F6;--ink-2:#C9CED6;--muted:#A3A8B0;--hairline:#2A2D33;--moment:#C8F53B;--on-moment:#0B0C0E;--night-arc:rgba(244,245,246,.14)}
+:root{--tint:#FFF4D9;--on-tint:#5A4300;--card:#FFFFFF;--well:#F5F6F7;--ink:#0E0F11;--ink-2:#4A4F57;--muted:#666C75;--hairline:#E3E5E8;--moment:#F2A000;--on-moment:#0E0F11;--night-arc:rgba(14,15,17,.10)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--tint:rgba(200,245,59,.16);--on-tint:#C8F53B;--card:#17191D;--well:#0B0C0E;--ink:#F4F5F6;--ink-2:#C9CED6;--muted:#A3A8B0;--hairline:#2A2D33;--moment:#C8F53B;--on-moment:#0B0C0E;--night-arc:rgba(244,245,246,.14)}}
+:root[data-theme="dark"]{--tint:rgba(200,245,59,.16);--on-tint:#C8F53B;--card:#17191D;--well:#0B0C0E;--ink:#F4F5F6;--ink-2:#C9CED6;--muted:#A3A8B0;--hairline:#2A2D33;--moment:#C8F53B;--on-moment:#0B0C0E;--night-arc:rgba(244,245,246,.14)}
 /* ---------- the card ---------- */
 html,body{margin:0;background:transparent}
 body{padding:2px;font:15px/1.4 "Geist",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
@@ -60,3 +60,12 @@ body.screen{padding:0}
 .ring-missed .r-pivot{fill:var(--muted)}
 .ring-missed .r-dot{fill:var(--card);stroke:var(--muted);stroke-width:3}
 @media (prefers-reduced-motion:reduce){.ring-soon .r-halo{animation:none}}
+/* The public count, from 10: "128 in", and outer rings round the ring. */
+.em-count{display:inline-block;margin-left:8px;padding:2px 6px;border-radius:8px;background:var(--tint);color:var(--on-tint);text-transform:none;letter-spacing:0;vertical-align:1px}
+.ring .r-count{fill:none;stroke:var(--moment);stroke-width:2.4}
+/* With a count the label is a row: the countdown and the count always show, the host's name gives way. */
+.em-label:has(.em-count){display:flex;align-items:center}
+.em-label .em-left,.em-label .em-count{flex:none}
+.em-label:has(.em-count) .em-host{min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* Under 400 px the countdown and the button fill the row: the outer rings still show the count. */
+@media (max-width:399px){.em-label .em-count{display:none}}

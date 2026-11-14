@@ -8,18 +8,6 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
-- The live badge: a picture of your reminder that counts down, for READMEs, forums and any page that takes an image. It's `/b/` and your shared link's code, then `.svg`. It ticks with CSS alone and no script, glows in the last hour, says Live now at the start and Ended after the end, even if the page stays open. It follows the reader's light or dark setting (`?theme=` pins one), and `?size=mini` gives a one-line version. Like a shared link, it's drawn from the address and nothing is stored or logged. Private links have no live badge.
-- A line for Discord, `<title> starts <t:UNIX:R> <link>`, which Discord shows as a countdown in each reader's own zone.
-- In the app, The live badge under Share it shows your badge with Copy HTML, Copy Markdown and Copy for Discord. For hosts shows it live with the snippets.
-- Library: `liveBadgeURL`, `liveBadgeHTML`, `liveBadgeMarkdown` and `discordLine`. Command line: `--live-badge html|md`, `--mini` and `--discord`.
-- The reminder card counts down. Its first line says "in 12 days", then "1d 04:12:09" inside 48 hours, ticking every second, then "Live now" and "Ended". The Worker writes the first value, so the card is right before its script runs. The badge and the card share one clock.
-- `?screen=1` on the reminder card: a layout for big screens, streams and the last slide of a talk, with the countdown in large type and a QR code of the link, "Scan to get reminded", in place of the button.
-
-- Talk: tap the mic in the bar, say the reminder, and pause. What you say goes into the bar as you speak, so the live preview follows along. If you said a time, like "Friday 5 pm" or "in 20 minutes", the link is made, and the ready screen shows what it heard with a Fix button. A day alone, like "Dentist tomorrow", stays in the bar until you say a time or press Enter. Tap the mic again to finish early; Esc or Cancel stops without making anything. Where the browser can recognise speech on the device, it does. The mic shows only where the browser can listen: not in Firefox, and not in the iPhone Home Screen app, where the keyboard's own mic works instead.
-- `/new?q=<line>` opens the app with one line in the bar, and makes the link when the line has a time in it.
-- A Talk shortcut on the installed app's icon (`/?talk=1`): it opens the bar with the mic marked.
-- The Story card: Story under Share it copies your link and draws a 9:16 picture of the reminder on your device, ready for Instagram, WhatsApp Status and other Stories. It shows the ring, the title, the date and time with the time zone, and "Tap the link to get reminded", and leaves the lower third free. The sheet says how to add Instagram's Link sticker (paste the copied link) and, if you like, its Countdown sticker. Share the card opens the share sheet where the browser can share pictures; elsewhere Save picture saves it. Snapchat gets a plain link to its own share page. Nothing is uploaded.
-- Two buttons on a reminder you hold, under the reminder stack: Add to story makes your own card, "I'm in." with the ring held, and Pass it on opens the share sheet with the title and the link (or copies the link where there's no share sheet). A private link stays private: it's the one passed on.
 - Short call: write the length the way you'd say it, "Call with Sam Tue 4pm 5 min", and the reminder is 5 minutes long, so the "did you make it?" check comes at 4:05. When the line has a meeting link (Meet, Zoom, Teams, Whereby, Jitsi, Webex, Discord and the like) or reads like a call, a Short call row under the chips offers 2, 5, 8 and 10 minutes; tap one to set it, tap it again to clear it. The length shows on the ticket as it always has.
 - Import a calendar file: drop an .ics file on the page, pick one from the menu, or ask for it in Search and commands, and a sheet lists the file's upcoming events, read on your device. Hold one, or Hold all, and each becomes a private reminder in Coming up and My links, with the same alerts as Remind me. Whole-day events are set for 9:00, a repeating event is held once at its next time, cancelled and finished events are left out, and a meeting link in the event becomes the place. Nothing is uploaded; the module never makes a request. Export the file from Google Calendar, Apple Calendar or Outlook first; a live feed isn't read.
 
@@ -27,10 +15,35 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 - The bar reads a bare length too: "5 min", "10 mins", "2 hours" and "1.5 hours" set how long, with or without "for". "5 min late" stays in the title, and so does "8m".
 
+## [2.2.0] - 2026-11-14
+
+### Added
+
+- The live badge: a picture of your reminder that counts down, for READMEs, forums and any page that takes an image. It's `/b/` and your shared link's code, then `.svg`. It ticks with CSS alone and no script, glows in the last hour, says Live now at the start and Ended after the end, even if the page stays open. It follows the reader's light or dark setting (`?theme=` pins one), and `?size=mini` gives a one-line version. Like a shared link, it's drawn from the address and nothing is stored or logged. Private links have no live badge.
+- A line for Discord, `<title> starts <t:UNIX:R> <link>`, which Discord shows as a countdown in each reader's own zone.
+- In the app, The live badge under Share it shows your badge with Copy HTML, Copy Markdown and Copy for Discord. For hosts shows it live with the snippets.
+- Library: `liveBadgeURL`, `liveBadgeHTML`, `liveBadgeMarkdown` and `discordLine`. Command line: `--live-badge html|md`, `--mini` and `--discord`.
+- The reminder card counts down. Its first line says "in 12 days", then "1d 04:12:09" inside 48 hours, ticking every second, then "Live now" and "Ended". The Worker writes the first value, so the card is right before its script runs. The badge and the card share one clock.
+- `?screen=1` on the reminder card: a layout for big screens, streams and the last slide of a talk, with the countdown in large type and a QR code of the link, "Scan to get reminded", in place of the button.
+- Talk: tap the mic in the bar, say the reminder, and pause. What you say goes into the bar as you speak, so the live preview follows along. If you said a time, like "Friday 5 pm" or "in 20 minutes", the link is made, and the ready screen shows what it heard with a Fix button. A day alone, like "Dentist tomorrow", stays in the bar until you say a time or press Enter. Tap the mic again to finish early; Esc or Cancel stops without making anything. Where the browser can recognise speech on the device, it does. The mic shows only where the browser can listen: not in Firefox, and not in the iPhone Home Screen app, where the keyboard's own mic works instead.
+- `/new?q=<line>` opens the app with one line in the bar, and makes the link when the line has a time in it.
+- A Talk shortcut on the installed app's icon (`/?talk=1`): it opens the bar with the mic marked.
+- The Story card: Story under Share it copies your link and draws a 9:16 picture of the reminder on your device, ready for Instagram, WhatsApp Status and other Stories. It shows the ring, the title, the date and time with the time zone, and "Tap the link to get reminded", and leaves the lower third free. The sheet says how to add Instagram's Link sticker (paste the copied link) and, if you like, its Countdown sticker. Share the card opens the share sheet where the browser can share pictures; elsewhere Save picture saves it. Snapchat gets a plain link to its own share page. Nothing is uploaded.
+- The count, the host's choice: "Show how many are in" under Private link adds a public count to a shared link (`c: 1`). From 10, the reminder, the card and the live badge show "128 in" ("1.2k in" from 1,000, never rounded up), and the ring wears an outer ring from 10, a second from 100 and a third from 1,000. Each person who taps Remind me adds one, once per device, and sees their place, "#129", with "First ten" for the first ten; it's on their own Story card too. The server keeps one number per reminder and deletes it 30 days after the event. Taps count only from remmynd.space, never after the end, at most 600 a minute per reminder and 20 a minute from one network. Library: `count` in `createLink()` and `decode()`, `countLabel`, `countRings` and `placeLabel`. Command line: `--count`. `/new`: `count=1`.
+- Last call, for links you made: from 24 hours before the start, the reminder and its row in My links offer "Starts tomorrow. Post a card?", then "Starts today." on the day and "Starts in an hour." in the last hour. It opens the Story sheet with a card that says "Last call" above the title, with the date and time, never "tomorrow", because a Story stays up for a day. No new notifications.
+- Share your year: tap the kept line on Coming up for a card that says, for example, "Kept 41 of 47 in 2026", counted from this device's own reminders. No streaks.
+- Two buttons on a reminder you hold, under the reminder stack: Add to story makes your own card, "I'm in." with the ring held, and Pass it on opens the share sheet with the title and the link (or copies the link where there's no share sheet). A private link stays private: it's the one passed on.
+
+### Changed
+
 - The site now lets itself use the microphone (`Permissions-Policy: microphone=(self)`), for Talk. The reminder card and the live badge still don't.
 - "Copied" beside a new link shows only once the link really is copied. When a link is made without a tap on Copy (Talk, `/new?q=`) and the browser won't copy without one, the app says nothing and leaves Copy link to you.
 - The bar reads lines the way people say them. "remind me to", "set a reminder for" and similar lead-ins are dropped at the start of a line. It also reads "5 o'clock", "half past six", "quarter past 4", "quarter to 5" and "five pm", and a part of the day sets am or pm, so "5 o'clock in the evening" is 17:00. "movie night … 8 p.m." keeps "night" in the title. All 26 spoken lines in the Talk plan now come out right, up from 18. This is groundwork for Talk, and it helps typing too.
-- The app code budget is now 70 KB compressed, up from 60 KB, to make room for what's coming next: Talk, the live badge and the count. Each of those loads from its own file on first use; the budget covers only what a first visit downloads. The whole first visit, fonts included, stays under 150 KB. The size test, the principles, the spec, CONTRIBUTING and the For hosts and Open numbers pages all say 70 KB.
+- The app code budget is now 70 KB compressed, up from 60 KB, to make room for Talk, the live badge and the count. Each of those loads from its own file on first use; the budget covers only what a first visit downloads. The whole first visit, fonts included, stays under 150 KB. The size test, the principles, the spec, CONTRIBUTING and the For hosts and Open numbers pages all say 70 KB.
+
+### Fixed
+
+- Removing a reminder and tapping Remind me again within 5 seconds, instead of Undo, no longer deletes it anyway. The removal is called off, so the reminder, its alerts and its stack stay.
 
 ## [2.1.0] - 2026-11-11
 
@@ -186,7 +199,8 @@ remmynd 2.0: reminders that make sure it happens. Write a reminder in one line, 
 - Brand kit in `brand/`: logo, mark, wordmark, avatars, social banners and a brand guide.
 - Favicon set, maskable app icon and link-preview image.
 
-[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/Remmynd/remmynd/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/Remmynd/remmynd/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/Remmynd/remmynd/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/Remmynd/remmynd/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/Remmynd/remmynd/compare/v1.0.0...v2.0.0
