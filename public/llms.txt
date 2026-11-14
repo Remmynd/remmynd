@@ -18,6 +18,12 @@ https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&l=https
 
 With `tz`, or a `Z` or offset in `at`, the address redirects to a shared link (`https://remmynd.space/r/…`) at once. Without one, the time is read in the visitor's own time zone. URL-encode each value.
 
+Or write the whole reminder as one line in `q`, the way a person types it in the bar:
+
+https://remmynd.space/new?q=Dentist+tomorrow+4pm
+
+The app opens with the line in the bar. When the line has a time in it, the link is made at once; otherwise the line waits in the bar for Enter.
+
 ## Connector (MCP)
 
 Assistants that take MCP connectors (remote MCP servers) can add remmynd at https://remmynd.space/mcp (Streamable HTTP, MCP 2026-07-28 and earlier versions back to 2025-03-26). No account and no key. Tools:

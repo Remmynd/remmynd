@@ -61,8 +61,10 @@
       <label for="cap" class="label" id="cap-l">New reminder</label>
       <div class="cap-bar">
         <input id="cap" type="text" placeholder="Demo day Fri 5pm zoom.us/j/123" enterkeyhint="go" autocapitalize="sentences" spellcheck="false" maxlength="600">
+        <button type="button" class="cap-talk" id="talk" aria-label="Talk" aria-pressed="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg></button>
         <button type="submit" class="cap-go" aria-label="Make the link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
       </div>
+      <p class="cap-hint" id="cap-hint" role="status" hidden></p>
     </form>
 
     <section class="lists" id="lists" hidden>
@@ -94,6 +96,7 @@
     <!-- After Enter: the link, already copied -->
     <section class="ready" id="ready" hidden>
       <a class="mini" id="ready-card" href="/"></a>
+      <p class="heard" id="heard" hidden><span>Heard: “<span id="heard-t"></span>”</span><button type="button" class="linkish" id="f-fix">Fix</button></p>
       <div class="ready-do">
         <button type="button" class="remind" id="f-remind">Remind me</button>
         <p class="t-sub">Calendar and a notification on this device, in one tap.</p>

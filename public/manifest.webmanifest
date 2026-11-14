@@ -81,6 +81,16 @@
           "sizes": "192x192"
         }
       ]
+    },
+    {
+      "name": "Talk",
+      "url": "/?talk=1",
+      "icons": [
+        {
+          "src": "icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }

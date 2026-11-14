@@ -136,6 +136,8 @@ https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&l=https
 
 With `tz`, or a `Z` or offset in `at`, the address redirects to the shared link straight away. Without one, the time is read in the visitor's own time zone. If the title or time is missing, the maker opens with what was given.
 
+Or write the whole reminder as one line in `q`, the way you'd type it in the bar: `https://remmynd.space/new?q=Dentist+tomorrow+4pm`. The app opens with the line in the bar, and makes the link when the line has a time in it.
+
 ### As a connector for AI assistants
 
 Assistants that take MCP connectors (remote MCP servers) can add remmynd at `https://remmynd.space/mcp`, then make a reminder link from what you ask in your own words. No account and no key.

@@ -26,6 +26,7 @@ https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and ev
 | Shared `/r/<payload>` | Yes, in passing: the Worker reads it to fill the preview tags, then forgets it. Never stored, logged or cached. | Links meant to be shared in chat |
 | Private `/#<payload>` | No. Browsers never send what follows `#`. | The **Private link** switch, and every 1.x link |
 | Written by hand `/new?t=…&at=…` | Yes, in passing | Scripts, spreadsheets and AI assistants. Redirects to the shared form. |
+| One line `/new?q=…` | Yes, in passing | The Siri shortcut and any link. Opens the app with the line in the bar; with a time in it, the link is made. |
 
 | Key | Meaning | Notes |
 |---|---|---|
@@ -136,13 +137,15 @@ Every ring is an image with a label that says the time and the state in words, f
 
 ### Loaded only when asked for
 
-The first visit downloads the app and nothing it might not use. Three parts load the first time they're needed, through `import()`, and the service worker keeps them for offline use after that:
+The first visit downloads the app and nothing it might not use. These parts load the first time they're needed, through `import()`, and the service worker keeps them for offline use after that:
 
 | Part | Files | Loads when |
 |---|---|---|
 | Search and commands | `palette.js`, `palette.css` | Ctrl or Cmd + K, or Search and commands in the menu. It lists reminders and links from on-device storage and presses the menu's own buttons for theme, sound, sign in and install, so the two never disagree |
 | Floating countdown | `float.js`, `float.css` | "Float it above my windows" on a held reminder. It opens a Document Picture-in-Picture window (Chrome and Edge on a computer) that uses `app.css` and `float.css`, follows the theme, and runs its timer in the floating window so a background tab doesn't slow it. Where the browser has no such window the row isn't shown |
 | Smart paste | `smartpaste.js`, `smartpaste.css` | A long paste or an image in the bar, and only where the browser has the Prompt API (`LanguageModel`, Chrome's on-device model). It offers to read the paste on the device; the model's answer, constrained by a JSON schema, becomes one line in the bar (a time written in another zone is moved into the reader's), so the app's own parser and live preview take over. Nothing is sent anywhere, and the module never makes a request |
+| Talk | `talk.js`, `talk.css` | The first tap of the mic in the bar. The mic shows only where the browser has speech recognition (`SpeechRecognition`), on https, and not in the iPhone Home Screen app, where it doesn't work. What's said goes into the bar as if typed, so the parser and the live preview take over. When speech ends, a line with a clock time or "in 20 minutes" is made into the link as Enter makes it; a day alone, or nothing, stays in the bar with a hint. Where the browser can recognise speech on the device (`processLocally`), it's asked to. The module never makes a request and never measures the sound. `Permissions-Policy` grants the mic to this site only; the card and the badge don't get it |
+| The live badge | `livebadge.js`, `livebadge.css` | The live badge on the ready screen |
 | Sign-in | `account.js`, `account.css` | See below |
 
 "Kept N of M this month" is part of the app itself: of the reminders whose time came this month (counted once they're over, or when they were marked done), how many were marked done. It only appears once one is kept.

@@ -265,6 +265,15 @@ button.row-link{width:100%;font:inherit;font-size:15px;font-weight:600;text-alig
 #cap::placeholder{color:var(--muted)}
 .cap-go{flex:none;display:grid;place-items:center;width:var(--tap);height:var(--tap);border:0;border-radius:50%;background:var(--moment);color:var(--on-moment);cursor:pointer}
 .cap-go svg{width:22px;height:22px}
+/* Talk: the mic beside Enter, shown only where the browser can listen. */
+.cap-talk{flex:none;display:grid;place-items:center;width:var(--tap);height:var(--tap);border:0;border-radius:50%;background:transparent;color:var(--ink);cursor:pointer}
+.cap-talk svg{width:22px;height:22px}
+.cap-talk.mark{box-shadow:inset 0 0 0 2px var(--moment)}
+.cap-hint{margin:0;padding-left:18px;font-size:13px;line-height:1.4;color:var(--muted)}
+.cap-hint.idle{display:none}
+.capture:focus-within:not(.typing) .cap-hint.idle{display:block}
+.heard{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:0 10px;margin:-4px 0 0;font-size:14px;color:var(--muted);text-align:center}
+.heard>span{min-width:0;overflow-wrap:anywhere}
 body.has-cap .app{padding-bottom:150px}
 body.has-cap .toast{bottom:calc(112px + env(safe-area-inset-bottom,0px))}
 /* The ticket pane: under the line on phones while typing; on the right, always, from 960 px (desktop mock-up). */
