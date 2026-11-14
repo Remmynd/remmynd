@@ -2555,7 +2555,7 @@ test("sleep-safe: the 9 AM alert reads as already started", async () => {
 
 /* ---------- step 8: the website ---------- */
 
-const PAGES = ["why", "hosts", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog"];
+const PAGES = ["why", "hosts", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/whats-new-in-2-2", "blog/since-2-0", "changelog"];
 const pageFile = p => p === "404" ? "public/404.html" : "public/" + p + "/index.html";
 const readPage = p => readFileSync(join(root, pageFile(p)), "utf8");
 const squash = s => s.replace(/\s+/g, " ").replace(/> </g, "><").trim();
