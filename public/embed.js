@@ -1,7 +1,9 @@
 /* remmynd embed: the reminder card other sites show in an iframe. The Worker draws the card in
- * the host's time zone; this shows the time in the visitor's own zone instead, and keeps the moment
- * ring's state current (Soon in the last hour, Now while it runs, then Ended). */
+ * the host's time zone, with the countdown's first value; this shows the time in the visitor's own
+ * zone instead, keeps the countdown current (every second inside 48 hours, every 30 seconds before)
+ * and keeps the moment ring's state current (Soon in the last hour, Now while it runs, then Ended). */
 import { ringSVG, ringLabel } from "/ring.js";
+import { countdown, nextTick } from "/clock.js";
 
 const card = document.querySelector(".em");
 if (card) {
@@ -13,18 +15,22 @@ if (card) {
   }
   const day = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
   const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+  const left = card.querySelector(".em-left");
   let shown = "";
   const paint = () => {
     const now = Date.now(), d = new Date(start);
     const state = now >= end ? "missed" : now >= start ? "now" : start - now <= 36e5 ? "soon" : "open";
-    card.querySelector(".em-when").textContent = (state === "now" ? "Live now · " : state === "missed" ? "Ended · " : "") + day.format(d) + ", " + time.format(d);
+    if (left) left.textContent = countdown(start, end, now);
+    card.querySelector(".em-when").textContent = day.format(d) + ", " + time.format(d);
     const key = state + d.getHours() + ":" + d.getMinutes();
-    if (key === shown) return;
-    shown = key;
-    const old = card.querySelector(".ring"), box = document.createElement("span");
-    box.innerHTML = ringSVG({ h: d.getHours(), m: d.getMinutes(), state, size: 52, label: ringLabel(d.getHours(), d.getMinutes(), state) });
-    if (old && box.firstElementChild) old.replaceWith(box.firstElementChild);
+    if (key !== shown) {
+      shown = key;
+      const old = card.querySelector(".ring"), box = document.createElement("span");
+      const size = old ? +old.getAttribute("width") || 52 : 52;
+      box.innerHTML = ringSVG({ h: d.getHours(), m: d.getMinutes(), state, size, label: ringLabel(d.getHours(), d.getMinutes(), state) });
+      if (old && box.firstElementChild) old.replaceWith(box.firstElementChild);
+    }
+    setTimeout(paint, nextTick(start, end, Date.now()));
   };
   paint();
-  setInterval(paint, 30000);
 }

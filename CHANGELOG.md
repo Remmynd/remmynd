@@ -12,6 +12,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - A line for Discord, `<title> starts <t:UNIX:R> <link>`, which Discord shows as a countdown in each reader's own zone.
 - In the app, The live badge under Share it shows your badge with Copy HTML, Copy Markdown and Copy for Discord. For hosts shows it live with the snippets.
 - Library: `liveBadgeURL`, `liveBadgeHTML`, `liveBadgeMarkdown` and `discordLine`. Command line: `--live-badge html|md`, `--mini` and `--discord`.
+- The reminder card counts down. Its first line says "in 12 days", then "1d 04:12:09" inside 48 hours, ticking every second, then "Live now" and "Ended". The Worker writes the first value, so the card is right before its script runs. The badge and the card share one clock.
+- `?screen=1` on the reminder card: a layout for big screens, streams and the last slide of a talk, with the countdown in large type and a QR code of the link, "Scan to get reminded", in place of the button.
 
 ### Changed
 

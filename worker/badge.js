@@ -17,6 +17,7 @@
 // no badge.
 import { decode, describeWhen } from "../lib/remmynd.js";
 import { angle, point, arc } from "../public/ring.js";
+import { clockText } from "../public/clock.js";
 import { escapeHTML } from "./preview.js";
 
 const MAX_PAYLOAD = 2000;
@@ -44,13 +45,8 @@ export function badgeState(start, end, now) {
   return left <= HOUR ? "soon" : left <= 2 * DAY ? "near" : "far";
 }
 
-/** What the clock shows with `left` seconds to go: "1d 04:12:09", "04:12:09", or "in 12 days" when far. */
-export function clockText(left) {
-  if (left > 2 * DAY) return "in " + Math.round(left / DAY) + " days";
-  // A digit changes the instant its second is used up, so 37.4 s left shows :37 and 37.0 s shows :36.
-  const t = Math.max(0, Math.ceil(left) - 1), d = Math.floor(t / DAY);
-  return (d ? d + "d " : "") + two(Math.floor(t % DAY / HOUR)) + ":" + two(Math.floor(t % HOUR / 60)) + ":" + two(t % 60);
-}
+// What the clock shows ("in 12 days", "1d 04:12:09", "04:12:09") is shared with the card: public/clock.js.
+export { clockText };
 
 // The clock's columns, each a list of the values it shows from top to bottom, each for `per` seconds.
 export const COLUMNS = {

@@ -653,7 +653,7 @@ test("embed: the reminder card any site can show, drawn from the link and never 
   const html = await res.text();
   assert.match(html, /<html lang="en" data-theme="dark">/);
   assert.ok(html.includes('<b class="em-title">Demo &lt;day&gt; &amp; &quot;night&quot;</b>'), "the title is escaped");
-  assert.ok(html.includes("Reminder · from North&lt;wind&gt;"), "so is the host");
+  assert.ok(html.includes('<span class="em-host"> · from North&lt;wind&gt;</span>'), "so is the host");
   assert.ok(html.includes('href="https://remmynd.space/r/' + code + '" target="_blank" rel="noopener"'), "Remind me opens the shared link in a new tab");
   assert.ok(html.includes("Sat 5 Dec, 6:00 PM IST"), "without script, the time in the host's zone");
   assert.match(html, /<svg class="ring ring-(open|soon|now|missed)"/);
@@ -696,6 +696,49 @@ test("embed: the reminder card any site can show, drawn from the link and never 
   assert.ok(hosts.includes('<iframe class="embed-demo" src="/embed/example" title="Example reminder card" width="440" height="112" loading="lazy"></iframe>'));
   for (const page of [hosts, docs]) assert.ok(page.includes("&lt;iframe src=&quot;https://remmynd.space/embed/your-link&quot;"), "the snippet is shown as text");
   assert.ok(docs.includes('<h2 id="embed">Reminder card</h2>'));
+
+  // The countdown line (ADDENDUM-1, slice 6). The Worker writes the first value, so the card is right before its script runs.
+  const { embedHTML, EMBED_CSP: csp } = await import("../worker/embed.js");
+  const C = await import("../public/clock.js");
+  const t0 = Date.parse("2026-11-11T14:10:00Z");
+  const rem = secs => ({ title: "Demo day", start: new Date(t0 + secs * 1000), durationMinutes: 60, host: "", timeZone: "Asia/Kolkata" });
+  for (const [secs, first] of [[12 * 86400, "in 12 days"], [28 * 3600 + 753.4, "1d 04:12:33"], [2537.2, "00:42:17"], [-600, "Live now"], [-7200, "Ended"]]) {
+    assert.ok(embedHTML(rem(secs), { link, origin: "https://remmynd.space", now: t0 }).includes('<b class="em-left">' + first + "</b>"), first);
+    assert.ok(embedHTML(rem(secs), { link, origin: "https://remmynd.space", now: t0, screen: true }).includes('<p class="em-left">' + first + "</p>"), "screen: " + first);
+    assert.equal(C.countdown(t0 + secs * 1000, t0 + secs * 1000 + 36e5, t0), first);
+  }
+  // The one-second timer runs only inside 48 hours; before that every 30 seconds, waking for the 48-hour mark, the start and the end.
+  const S = t0 + 3 * 86400e3, E = S + 36e5;
+  assert.equal(C.nextTick(S, E, t0), 30000, "three days away: every 30 seconds");
+  assert.equal(C.nextTick(S, E, S - 2 * 86400e3 - 10000), 10005, "wakes at the 48-hour mark");
+  assert.equal(C.nextTick(S, E, S - 2 * 86400e3 + 400), 605, "inside 48 hours: at the next second");
+  assert.equal(C.nextTick(S, E, S - 5000), 1005);
+  assert.equal(C.nextTick(S, E, S + 1000), 30000, "live: every 30 seconds");
+  assert.equal(C.nextTick(S, E, E - 2000), 2005, "and right at the end");
+  assert.equal(C.nextTick(S, E, E + 1), 30000, "ended");
+  for (let n = t0; n < E + 7200e3; n += 3 * 3600e3 + 1234) assert.equal(C.nextTick(S, E, n) <= 1005, S - n > 0 && S - n <= 2 * 86400e3, "one second only inside 48 hours, at " + (S - n) / 1000 + " s");
+  assert.match(js, /^import \{ countdown, nextTick \} from "\/clock\.js";$/m);
+  assert.ok(js.includes("setTimeout(paint, nextTick(start, end, Date.now()));") && !js.includes("setInterval"), "one timer, set from nextTick");
+  assert.ok(readFileSync(join(root, "worker/badge.js"), "utf8").includes('import { clockText } from "../public/clock.js";'), "the badge and the card share one clock");
+  assert.ok(!firstVisit({ cache: true }).includes("clock.js"), "not part of the app's first visit");
+
+  // ?screen=1: the ring, the title, the countdown in large type and a QR code of the link. No button, and the same security policy.
+  assert.equal(csp, "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors *", "the card's security policy is unchanged");
+  res = await get("/embed/" + code + "?screen=1");
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-security-policy"), csp);
+  const screen = await res.text();
+  const { qrSVG } = await import("../public/qr.js");
+  assert.ok(screen.includes('<main class="em em-screen"') && screen.includes('<body class="screen">'));
+  assert.ok(screen.includes(qrSVG(link, { label: 'QR code that opens the reminder for Demo <day> & "night"' })), "a QR code of the shared link");
+  assert.ok(screen.includes("<figcaption>Scan to get reminded</figcaption>"));
+  assert.ok(screen.includes('<h1 class="em-title">Demo &lt;day&gt; &amp; &quot;night&quot;</h1>') && screen.includes('width="160" height="160"'));
+  assert.ok(screen.includes("Reminder · from North&lt;wind&gt;"));
+  assert.doesNotMatch(screen, /<a |em-btn|Remind me/, "nothing to tap on a screen");
+  assert.doesNotMatch(screen, /\son[a-z]+="|\sstyle="|<script>/, "nothing the card's policy would block");
+  assert.ok((await (await get("/embed/example?screen=1")).text()).includes(qrSVG("https://remmynd.space/example", { label: "QR code that opens the reminder for Demo day" })));
+  assert.doesNotMatch(await (await get("/embed/" + code + "?screen=0")).text(), /em-screen/);
+  assert.ok(hosts.includes("<code>?screen=1</code>") && hosts.includes('href="/embed/example?screen=1"') && docs.includes("<code>?screen=1</code>"), "For hosts and the docs explain it");
 });
 
 test("live badge: a picture that counts down with styles alone, drawn from the link and never stored", async () => {
@@ -1178,7 +1221,7 @@ test("words: the maker uses the spec's wording", () => {
   assert.doesNotMatch(app, /Added to (Apple|Google)/, "never claim it was added");
   assert.doesNotMatch(html + app, /microphone|Speak it/i, "no microphone in 2.0");
   // The live badge (ADDENDUM-1, section 5).
-  for (const [f, w] of [["public/index.html", ">The live badge<"], ["public/livebadge.js", "The live badge"], ["public/livebadge.js", "Copy for Discord"], ["lib/remmynd.js", ". Tap to get reminded."], ["public/hosts/index.html", "The live badge"]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
+  for (const [f, w] of [["public/index.html", ">The live badge<"], ["public/livebadge.js", "The live badge"], ["public/livebadge.js", "Copy for Discord"], ["lib/remmynd.js", ". Tap to get reminded."], ["public/hosts/index.html", "The live badge"], ["worker/embed.js", "Scan to get reminded"], ["public/clock.js", '"Live now"'], ["public/clock.js", '"Ended"']]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
 });
 
 test("privacy and free wording match the approved text", () => {
@@ -1898,7 +1941,8 @@ test("website: every page shares one header, footer and menu", () => {
     assert.ok(!/\sstyle="|<style[\s>]/.test(html), p + ": no inline styles");
     // Every address on remmynd.space that a page links to exists.
     for (const [, href] of html.matchAll(/\shref="(\/[^"#]*)[^"]*"/g)) {
-      if (href === "/" || /^\/(changelog|stats|new|example)$/.test(href)) continue;
+      // Addresses the Worker answers rather than a file; their own tests check them.
+      if (href === "/" || /^\/(changelog|stats|new|example)$/.test(href) || /^\/(embed\/example|b\/example\.svg)(\?|$)/.test(href)) continue;
       const f = href.slice(1);
       assert.ok(existsSync(join(root, "public", f)) && statSync(join(root, "public", f)).isFile() || existsSync(join(root, "public", f, "index.html")), p + " links to " + href + ", which doesn't exist");
     }
