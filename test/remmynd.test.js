@@ -2402,6 +2402,35 @@ test("the count: how many tapped Remind me, only when the host turns it on (ADDE
   assert.equal(S.lines({ title: "Demo day", start: new Date(start) }, { timeZone: "Asia/Kolkata", you: 129 }).place, "", "only on the joiner's card");
 });
 
+test("remove, then Remind me again before the 5 seconds are up: the reminder stays", () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), lines = app.split("\n");
+  const at = p => lines.findIndex(l => l.startsWith(p));
+  // The real later() (two lines) and keep(), with stand-in timers and toast.
+  const src = [lines[at("const PEND=")], lines[at("function later(")], lines[at("function later(") + 1], lines[at("function keep(")]].join("\n");
+  const timers = new Map(); let id = 0;
+  const toast = { classList: { set: new Set(["show", "act"]), remove(...c) { c.forEach(x => this.set.delete(x)); } } };
+  const { PEND, later, keep } = new Function("$", "toastUndo", "setTimeout", "clearTimeout", src + "; return { PEND, later, keep };")(
+    () => toast, () => {}, (fn) => { timers.set(++id, fn); return id; }, t => timers.delete(t));
+  const flush = () => { for (const [t, fn] of [...timers]) { timers.delete(t); fn(); } };
+  // Removed, then held again: the removal never runs, and its Undo toast goes.
+  let removed = 0;
+  later("r:abc", () => removed++, () => {}, "Removed. Delete it from your calendar too.");
+  assert.ok(PEND.has("r:abc"));
+  keep("r:abc");
+  flush();
+  assert.equal(removed, 0, "the removal was called off");
+  assert.ok(!PEND.has("r:abc"));
+  assert.equal(toast.classList.set.size, 0, "the Undo toast is put away");
+  // Not held again: the removal goes through, as before.
+  later("r:def", () => removed++, () => {}, "Removed.");
+  keep("r:other");
+  flush();
+  assert.equal(removed, 1);
+  // hold() calls it off before it holds, for this reminder's own key.
+  assert.ok(app.includes('function hold(cal){const c=S.ctx;if(S.held||!c)return;keep("r:"+S.rkey);S.held=true;'));
+  assert.ok(app.includes('later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.")'), "Remove waits under the same key");
+});
+
 test("follow through: the re-plan sheet's choices", () => {
   const app = readFileSync(join(root, "public/app.js"), "utf8");
   const line = p => app.split("\n").find(l => l.startsWith(p));
