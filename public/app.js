@@ -103,7 +103,7 @@ const CAL_NAME={apple:"Apple Calendar",google:"Google Calendar",outlook:"Outlook
 const MOBILE=IOS||/Mobi|Android/.test(UA),DEVICE=MOBILE?"phone":"computer";
 const PUSH_OK="serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&OWN;
 const keepRec=()=>{const DB=window.remmyndDB;if(DB&&S.rec)DB.put("reminders",S.rec).catch(()=>{});};
-function hold(cal){const c=S.ctx;if(S.held||!c)return;S.held=true;c.el.dataset.held="1";tick();setTimeout(chime,320);try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.isActive))navigator.vibrate(20);}catch(e){}
+function hold(cal){const c=S.ctx;if(S.held||!c)return;keep("r:"+S.rkey);S.held=true;c.el.dataset.held="1";tick();setTimeout(chime,320);try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.isActive))navigator.vibrate(20);}catch(e){}
   S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null};
   keepRec();c.nd.nudge=false;countMe();
   /* Notifications where they are allowed: push.js asks inside this same tap, then fills the stack's row. */
@@ -285,6 +285,9 @@ function toastUndo(m,undo){const t=$("#toast"),b=document.createElement("button"
 const PEND=new Map();
 function later(key,run,undo,msg){PEND.set(key,{run,t:setTimeout(()=>{PEND.delete(key);run();},5000)});
   toastUndo(msg,()=>{const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);undo();});}
+/* Held again before its removal went through (Remind me within the 5 seconds, instead of Undo): the removal is called off,
+ * so the new hold, its alerts and its stack stay, and the Undo toast goes with it. */
+function keep(key){const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);$("#toast").classList.remove("show","act");}
 addEventListener("pagehide",()=>{for(const[k,p]of PEND){clearTimeout(p.t);PEND.delete(k);p.run();}});
 const forgetRec=k=>{if(window.remmyndDB)window.remmyndDB.del("reminders",k).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(k).catch(()=>{});};
 /* copy(): done runs only once it has really copied. quiet: nobody pressed Copy (Talk, /new?q=), so a browser that refuses without a tap gets no fallback and no message. */

@@ -29,6 +29,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - The bar reads lines the way people say them. "remind me to", "set a reminder for" and similar lead-ins are dropped at the start of a line. It also reads "5 o'clock", "half past six", "quarter past 4", "quarter to 5" and "five pm", and a part of the day sets am or pm, so "5 o'clock in the evening" is 17:00. "movie night … 8 p.m." keeps "night" in the title. All 26 spoken lines in the Talk plan now come out right, up from 18. This is groundwork for Talk, and it helps typing too.
 - The app code budget is now 70 KB compressed, up from 60 KB, to make room for what's coming next: Talk, the live badge and the count. Each of those loads from its own file on first use; the budget covers only what a first visit downloads. The whole first visit, fonts included, stays under 150 KB. The size test, the principles, the spec, CONTRIBUTING and the For hosts and Open numbers pages all say 70 KB.
 
+### Fixed
+
+- Removing a reminder and tapping Remind me again within 5 seconds, instead of Undo, no longer deletes it anyway. The removal is called off, so the reminder, its alerts and its stack stay.
+
 ## [2.1.0] - 2026-11-11
 
 ### Added
