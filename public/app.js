@@ -89,6 +89,7 @@ function ringState(start,end,held,rs,replan){const now=Date.now();if(rs==="kept"
   if(held&&replan>now)return replan-now<=36e5?"soon":"held";if(now>=end)return"missed";if(now>=start)return"now";if(held&&start-now<=36e5)return"soon";return held?"held":"open";}
 function ringFor(start,state,size){const p=parts(start,TZ);return ringSVG({h:p.h,m:p.mi,state,size});}
 function tick(){if(S.ctx&&S.held&&S.ctx.el.isConnected&&phase(S.ctx)!==S.phase)renderBottom();
+  else if(S.ctx&&S.mine&&S.ctx.el.isConnected&&(!S.held||S.phase==="before")&&lastCall(S.ctx.start.getTime(),Date.now(),TZ)!==S.lc)renderBottom();
   document.querySelectorAll(".ticket[data-start]").forEach(el=>{const start=+el.dataset.start,end=+el.dataset.end,st=ringState(start,end,el.dataset.held==="1",el.dataset.rstate,+el.dataset.replan||0);
   const svg=el.querySelector(".t-when .ring");if(svg&&!svg.classList.contains("ring-"+st)){svg.setAttribute("class","ring ring-"+st);const p=parts(new Date(start),TZ);svg.setAttribute("aria-label",ringLabel(p.h,p.mi,st));}
   const soon=el.querySelector(".t-soon");if(!soon)return;const ms=start-Date.now();
@@ -159,8 +160,9 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   const ph=S.held?phase(c):"open",was=S.phase;S.phase=ph;
   /* It has started and the page is open: the remmynd chime and a buzz, once. */
   if(S.held&&was&&was!=="due"&&ph==="due"&&document.visibilityState==="visible"){chime();try{if(navigator.vibrate)navigator.vibrate([30,60,30]);}catch(e){}}c.el.dataset.rstate=(S.rec&&S.rec.state)||"";c.el.dataset.replan=(S.rec&&S.rec.replanAt)||0;
-  b.innerHTML=!S.held?remindHTML(c):ph==="due"?followHTML(c):ph==="kept"?'<p class="held-line">'+I.on+'Done. You kept it.</p>'+VIA():
-    ph==="dropped"?'<p class="held-line muted">Dropped. No more alerts for this one.</p><button type="button" class="btn" id="f-later">Pick a new time</button>'+VIA():stackHTML(c);
+  const lc=S.mine&&(!S.held||ph==="before")?lastCall(c.start.getTime(),Date.now(),TZ):"";S.lc=lc;
+  b.innerHTML=(lc?'<button type="button" class="lastcall" id="t-last">'+esc(lc)+'</button>':'')+(!S.held?remindHTML(c):ph==="due"?followHTML(c):ph==="kept"?'<p class="held-line">'+I.on+'Done. You kept it.</p>'+VIA():
+    ph==="dropped"?'<p class="held-line muted">Dropped. No more alerts for this one.</p><button type="button" class="btn" id="f-later">Pick a new time</button>'+VIA():stackHTML(c));
   c.el.querySelector(".t-head .label").textContent=labelFor(c,ph);
   if(S.held){const n=$("#nav-right");n.textContent="Coming up";n.href="/#coming-up";}
   const on=(sel,fn)=>{const x=b.querySelector(sel);if(x)fn(x);};
@@ -188,6 +190,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#s-remove",x=>x.addEventListener("click",()=>{const rec=S.rec,k=S.rkey;if(!rec)return;unfloat(k);const flip=h=>{S.held=h;S.rec=h?rec:null;if(h)c.el.dataset.held="1";else delete c.el.dataset.held;renderTicket(c.el,c.r,c.o);};
     flip(false);later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.");}));
   on("#f-later",x=>x.addEventListener("click",openReplan));
+  on("#t-last",x=>x.addEventListener("click",()=>lastCard(c.share,{title:c.r.t,start:c.start},x)));
   /* Add to story: the joiner's card ("I'm in."), with the link copied inside this tap. Pass it on: the share sheet, or the link copied where there is none. A private link stays private: it's the one shared. */
   on("#s-story",x=>x.addEventListener("click",()=>{const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(c.share).then(()=>true,()=>false):Promise.resolve(false);
     import("/story.js").then(m=>m.open({ev:{title:c.r.t,start:c.start},link:c.share,timeZone:TZ,joiner:true,you:S.rec&&S.rec.you,copied,copy,toast,from:x})).catch(()=>toast("Couldn't open it here. Try again."));}));
@@ -217,6 +220,7 @@ function renderTicket(el,r,o){
   tick();
   if(!o.interactive)return;
   S.rkey=rkeyOf(r.t,start);
+  if(!S.key&&S.mine==null&&window.remmyndDB){S.mine=false;const me=payloadOf(linkFor(r,null,S.priv));window.remmyndDB.getAll("links").then(ls=>{if(S.r===r&&ls.some(x=>payloadOf(x.share)===me)){S.mine=true;renderBottom();}}).catch(()=>{});}
   if(counted(r)&&S.count==null){S.count=0;fetch("/count/"+payloadOf(linkFor(r,null,false))).then(x=>x.ok?x.json():null).then(j=>{if(j&&S.r===r){S.count=j.n;showCount();}}).catch(()=>{});}
   /* Held already, from an earlier visit: show it and its stack without the animation. */
   if(!S.held&&window.remmyndDB)window.remmyndDB.getAll("reminders").then(list=>{const rec=list.find(x=>x.rkey===S.rkey&&!PEND.has("r:"+x.rkey));
@@ -390,6 +394,11 @@ function editMade(link){const r=dec(payloadOf(link));if(!r)return;
   if(location.pathname!=="/"||location.hash){history.pushState(null,"","/");routed=location.href;}
   D.base=D.mode==="lists"?"lists":"home";swap(()=>{setMode("draft");showHome();});C.input.focus();toast("Change what you need, then press Enter");}
 F.qr.addEventListener("click",()=>{const m=D.made;if(m)openQR(m.link,m.ev.title);});
+/* Last call: the host's card near the start, with the link copied inside the tap. */
+function lastCard(link,ev,from){const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(link).then(()=>true,()=>false):Promise.resolve(false);
+  import("/story.js").then(m=>m.open({ev,link,timeZone:TZ,lastCall:true,copied,copy,toast,from})).catch(()=>toast("Couldn't open it here. Try again."));}
+/* The kept line opens Share your year. */
+$("#kept").addEventListener("click",e=>{const b=e.currentTarget,yc=yearCount(L.recs,Date.now(),TZ);import("/story.js").then(m=>m.openYear({...yc,toast,from:b})).catch(()=>toast("Couldn't open it here. Try again."));});
 /* Story: copy the link inside this tap, where every browser allows it, then draw the card (story.js, loaded on the first tap). */
 $("#f-story").addEventListener("click",e=>{const m=D.made,b=e.currentTarget;if(!m)return;const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(m.link).then(()=>true,()=>false):Promise.resolve(false);
   import("/story.js").then(x=>x.open({ev:m.ev,link:m.link,timeZone:TZ,copied,copy,toast,from:b})).catch(()=>toast("Couldn't open it here. Try again."));});
@@ -411,6 +420,11 @@ const EX=["Demo day Fri 5pm","Rent due 1st","Call Mum Sun 7:30pm"].map(line=>{co
 /* ---------- lists: Coming up and My links (mock-up 08) ---------- */
 const L={el:$("#lists"),body:$("#list-body"),hint:$("#list-hint"),tab:"coming",recs:[],links:[],has:false};
 const dayNum=(t,tz)=>{const p=parts(new Date(t),tz);return Date.UTC(p.y,p.mo-1,p.d)/864e5;};
+/* Last call (ADDENDUM-1, slice 7), for the host: from 24 hours before the start, a prompt to post a card. It says tomorrow or today
+ * only when that's the day, and "in an hour" for the last hour; the card itself prints the date and time. No notifications. */
+const lastCall=(start,now,tz)=>{const ms=start-now;if(ms<=0||ms>864e5)return"";if(ms<=36e5)return"Starts in an hour. Post a card?";const d=dayNum(start,tz)-dayNum(now,tz);return d===0?"Starts today. Post a card?":d===1?"Starts tomorrow. Post a card?":"";};
+/* Share your year: kept of due this year, counted as the kept line counts the month, from this device's own list. No streaks. */
+const yearCount=(recs,now,tz)=>{const p=parts(new Date(now),tz),from=zonedToUTC(p.y,1,1,0,0,tz).getTime();let k=0,n=0;for(const x of recs){const kept=x.state==="kept",t=kept?x.doneAt||x.start:Math.max(x.start+(x.dur||60)*6e4,x.replanAt||0);if(t>=from&&t<=now){n++;if(kept)k++;}}return{k,n,y:p.y};};
 /* Today, This week (the next seven days), Later; links that have passed go under Earlier, kept reminders under Kept. */
 const groupOf=(t,now,tz)=>{const d=dayNum(t,tz)-dayNum(now,tz);return d===0?"today":d<0?"earlier":d<=7?"week":"later";};
 const GROUPS={today:"Today",week:"This week",later:"Later",kept:"Kept",earlier:"Earlier"};
@@ -428,7 +442,8 @@ function upRow(x,now){const later=x.replanAt>now,t=later?x.replanAt:x.start,end=
     '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub)+'</i></span>'+chip+'</a>'+MORE(x.title)+'</div>'};}
 function linkRow(x,now){const d=new Date(x.start);
   return{g:groupOf(x.start,now,TZ),t:x.start,html:'<div class="li n3" data-share="'+esc(x.share)+'">'+ACTS([["copy","Copy"],["edit","Edit"],["delete","Delete"]])+
-    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(d,x.start<now?"missed":"open",28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(fDate(d,TZ)+" · "+fShort(d,TZ)+(x.private?" · private":""))+'</i></span></a>'+MORE(x.title)+'</div>'};}
+    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(d,x.start<now?"missed":"open",28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(fDate(d,TZ)+" · "+fShort(d,TZ)+(x.private?" · private":""))+'</i></span></a>'+MORE(x.title)+
+    (lastCall(x.start,now,TZ)?'<button type="button" class="li-last" data-act="last">'+esc(lastCall(x.start,now,TZ))+'</button>':'')+'</div>'};}
 async function loadLists(){const DB=window.remmyndDB;if(!DB)return;try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}
   L.recs=L.recs.filter(x=>!PEND.has("r:"+x.rkey));L.links=L.links.filter(x=>!PEND.has("l:"+x.share));L.has=!!(L.recs.length||L.links.length);}
 async function renderLists(focusAt){await loadLists();const now=Date.now(),up=L.tab==="coming";
@@ -440,7 +455,7 @@ async function renderLists(focusAt){await loadLists();const now=Date.now(),up=L.
     '<p class="li-empty">'+(up?(L.links.length?"Nothing to remind you of yet. You made "+L.links.length+(L.links.length>1?" reminders":" reminder")+": open one in My links and tap Remind me.":"Nothing coming up yet. Write one in the bar below, then tap Remind me."):"No reminders made yet. Write one in the bar below and press Enter.")+'</p>';
   L.hint.textContent=rows.length?(MOBILE?"Swipe a row left, or tap ⋯, for "+(up?"Re-plan, Done and Delete.":"Copy, Edit and Delete."):"J and K move, "+(up?"D marks done, S re-plans, ":"")+"Delete removes, Enter opens."):"";L.hint.hidden=!L.hint.textContent;
   /* It only ever celebrates: hidden until one is kept this month. */
-  const kc=keptCount(L.recs,now,TZ);$("#kept-n").textContent="Kept "+kc.k+" of "+kc.n+" this month";$("#kept").hidden=!(up&&kc.k);
+  const kc=keptCount(L.recs,now,TZ);$("#kept-n").textContent="Kept "+kc.k+" of "+kc.n+" this month";$("#kept").hidden=!(up&&kc.k);$("#kept").setAttribute("aria-label",$("#kept-n").textContent+". Share your year");
   const mains=[...L.body.querySelectorAll(".li-main")];if(focusAt!=null&&mains.length)mains[Math.min(focusAt,mains.length-1)].focus();else if(D.mode==="lists")previewRow(mains[0]);}
 /* From 960 px the pane shows the row in focus (J and K move through them). */
 function previewRow(a){if(!a)return renderTicket(C.prev,{t:EX[0].title,s:pack(EX[0].start),z:TZ},{interactive:false});
@@ -451,6 +466,7 @@ async function rowAct(rkey,act,at){const x=L.recs.find(r=>r.rkey===rkey);if(!x)r
   await window.remmyndDB.put("reminders",{...x,state:"kept",doneAt:Date.now()}).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(rkey).catch(()=>{});
   toast("Done. You kept it.");renderLists(at);}
 function linkAct(share,act,at){const x=L.links.find(l=>l.share===share);if(!x)return;
+  if(act==="last")return lastCard(share,{title:x.title,start:new Date(x.start)},document.activeElement);
   if(act==="copy")return copy(share,"Link copied");
   if(act==="edit")return editMade(share);
   if(act==="delete"){renderListsSoon(at);later("l:"+share,()=>{if(window.remmyndDB)window.remmyndDB.del("links",share).catch(()=>{});},()=>renderLists(at),"Deleted “"+x.title+"”");}}
@@ -483,7 +499,7 @@ loadLists().then(()=>{if(D.mode==="home")setMode("home");});
 /* ---------- routing ---------- */
 function showHome(){$("#view").hidden=true;$("#home").hidden=false;C.form.hidden=false;document.body.classList.add("has-cap");setMode(D.mode);document.title="remmynd";renderMaker();}
 function showLists(tab){L.tab=tab;D.base="lists";if(D.mode!=="draft")D.mode="lists";showHome();document.title=(tab==="links"?"My links":"Coming up")+" · remmynd";renderLists();}
-function showView(r,key,priv){if(r.l&&!isHttp(r.l)&&webish(r.l))r={...r,l:"https://"+r.l};S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;S.rec=null;S.count=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.href="/";if(S.back){n.textContent="Back";n.dataset.act="back";S.back=false;}else{n.textContent="Make your own";delete n.dataset.act;}
+function showView(r,key,priv){if(r.l&&!isHttp(r.l)&&webish(r.l))r={...r,l:"https://"+r.l};S.r=r;S.key=key;S.priv=!!priv;S.morning=null;S.held=false;S.rec=null;S.mine=null;S.lc="";S.count=null;$("#home").hidden=true;$("#view").hidden=false;C.form.hidden=true;document.body.classList.remove("has-cap");const n=$("#nav-right");n.href="/";if(S.back){n.textContent="Back";n.dataset.act="back";S.back=false;}else{n.textContent="Make your own";delete n.dataset.act;}
   renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
 /* /r/<payload> is a shared link, /#<payload> a private one (and every 1.x link), /#<name> a named page. */
 let routed="";
