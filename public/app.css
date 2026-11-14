@@ -306,7 +306,9 @@ body.has-cap .toast{bottom:calc(112px + env(safe-area-inset-bottom,0px))}
 .opt-text>span{font-size:12px;line-height:1.35;color:var(--muted)}
 #f-link{font:400 13px var(--mono);color:var(--ink);background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-chip);padding:0 14px;height:48px;width:100%;min-width:0;text-overflow:ellipsis}
 #f-link::placeholder{color:var(--muted)}
-.btnrow{display:grid;grid-template-columns:1fr auto auto;gap:8px}
+.btnrow{display:grid;grid-template-columns:1fr auto auto auto;gap:8px}
+/* Under 460 px the four don't fit in a row: Copy link takes the first row, Share, QR and Story the second. */
+@media (max-width:459px){.btnrow{grid-template-columns:repeat(3,1fr)}.btnrow #f-copy{grid-column:1/-1}}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:52px;padding:0 20px;border-radius:var(--r-button);border:1px solid var(--hairline);background:var(--card);color:var(--ink);font:600 15px var(--font);letter-spacing:-.01em;cursor:pointer;text-decoration:none;transition:transform .12s ease}
 .btn:active{transform:scale(.985)}
 .btn.ink{background:var(--ink);color:var(--paper);border-color:var(--ink)}

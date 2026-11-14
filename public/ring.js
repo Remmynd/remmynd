@@ -5,6 +5,8 @@
 
 export const STATES = ["open", "held", "soon", "now", "kept", "missed"];
 const RING = 44, HAND = 30, NIGHT = 33, GAP = 18, DOT = 8;
+/** The dial's measures in the 120 box, for drawing it elsewhere (the Story card draws it on a canvas). */
+export const GEOMETRY = { RING, HAND, NIGHT, GAP, DOT };
 const round = n => Math.round(n * 100) / 100 + 0; // + 0 turns -0 into 0
 
 /** Angle in degrees for a local time h:m: a = (h + m/60 - 12) * 15. */

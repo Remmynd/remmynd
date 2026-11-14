@@ -1,0 +1,10 @@
+/* remmynd Story card: the sheet behind Story on the ready screen. Loaded by story.js, after app.css,
+   so it uses the same tokens and sheet. Token names only, no raw colours (a test checks). */
+.st-card{display:grid;gap:12px;max-height:calc(100dvh - 88px);overflow:auto}
+.st-card h2{margin:4px 44px 0 0;font-size:20px;line-height:1.2;letter-spacing:-.02em;font-weight:600}
+.st-pic{justify-self:center;width:min(100%,calc(min(42dvh,380px) * 9 / 16));aspect-ratio:9/16;border-radius:14px;background:var(--band);overflow:hidden;box-shadow:var(--shadow-card)}
+.st-pic img{display:block;width:100%;height:100%}
+.st-steps{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px;line-height:1.4;color:var(--ink)}
+.st-card .btn{margin-top:0}
+.st-snap{display:flex;align-items:center;gap:12px;margin:0;font-size:13px;line-height:1.35;color:var(--muted)}
+.st-snap .btn{flex:none;width:auto;height:44px;padding:0 16px}

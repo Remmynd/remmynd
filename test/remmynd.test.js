@@ -1056,6 +1056,7 @@ const LINK_OUT_HOSTS = new Set([
   "calendar.google.com", // Google Calendar's add-event page
   "www.w3.org",          // the SVG namespace, never fetched
   "maps.apple.com",      // Directions to a place, on Apple devices
+  "www.snapchat.com",    // Snapchat's share page, a plain link from the Story sheet (ADDENDUM-1: no script from Snap)
   "www.google.com",      // Directions to a place, elsewhere
 ]);
 // <link rel> values that make the browser fetch the address.
@@ -1297,6 +1298,10 @@ test("words: the maker uses the spec's wording", () => {
   for (const [f, w] of [["public/index.html", 'aria-label="Talk"'], ["public/talk.js", "Listening. Pause to finish."], ["public/index.html", "Heard: “"], ["public/index.html", ">Fix<"],
     ["public/talk.js", "Say when, like “Friday 5 pm”."], ["public/talk.js", "Say a time, or press Enter for "], ["public/app.js", "Type it, or use your keyboard\'s mic."],
     ["public/talk.js", "The mic is blocked for this site. You can still type."], ["public/talk.js", "Speech needs a connection in this browser. You can still type."]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
+  // The Story card (ADDENDUM-1, section 5 and slice 3).
+  for (const [f, w] of [["public/index.html", "</svg>Story\n"], ["public/story.js", "Card ready. The link is copied."], ["public/story.js", "Share the card"], ["public/story.js", "Save picture"],
+    ["public/story.js", "Tap the link to get reminded"], ["public/story.js", "I'm in."], ["public/story.js", "1. In your Story, add the Link sticker and paste."],
+    ["public/story.js", "2. If you like, add the Countdown sticker and set it to "], ["public/story.js", "In Snapchat, attach the link with the paperclip."], ["public/story.js", " It is copied."]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
   // The live badge (ADDENDUM-1, section 5).
   for (const [f, w] of [["public/index.html", ">The live badge<"], ["public/livebadge.js", "The live badge"], ["public/livebadge.js", "Copy for Discord"], ["lib/remmynd.js", ". Tap to get reminded."], ["public/hosts/index.html", "The live badge"], ["worker/embed.js", "Scan to get reminded"], ["public/clock.js", '"Live now"'], ["public/clock.js", '"Ended"']]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
 });
@@ -2121,6 +2126,88 @@ test("talk: tap the mic, say it, and a line with a time becomes the link (ADDEND
   const man = JSON.parse(readFileSync(join(root, "public/manifest.webmanifest"), "utf8"));
   assert.deepEqual(man.shortcuts.map(s => [s.name, s.url]), [["New reminder", "/"], ["Talk", "/?talk=1"]]);
   assert.ok(app.includes('if(new URLSearchParams(location.search).get("talk")==="1"){history.replaceState(null,"","/"+location.hash);if(!T.btn.hidden)T.btn.classList.add("mark");setTimeout(()=>C.input.focus());}'));
+});
+
+test("story card: a picture for Stories, drawn on the device, with the link copied (ADDENDUM-1, slice 3)", async () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  const src = readFileSync(join(root, "public/story.js"), "utf8"), css = readFileSync(join(root, "public/story.css"), "utf8");
+
+  // A Story button in Share it. The link is copied inside the tap, where every browser allows it; the card loads after.
+  assert.ok(html.includes('<button class="btn" id="f-story" type="button">'));
+  assert.ok(app.includes('$("#f-story").addEventListener("click",e=>{const m=D.made,b=e.currentTarget;if(!m)return;const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(m.link).then(()=>true,()=>false):Promise.resolve(false);'));
+  assert.ok(app.includes('import("/story.js").then(x=>x.open({ev:m.ev,link:m.link,timeZone:TZ,copied,copy,toast,from:b}))'));
+  assert.ok(!firstVisit({ cache: true }).some(f => /^story\./.test(f)), "the first visit doesn't download it");
+  assert.doesNotMatch(src, /fetch\(|XMLHttpRequest|sendBeacon|WebSocket|<script/, "nothing is uploaded, and no script from another host");
+  assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "story.css uses token names");
+
+  const S = await import("../public/story.js");
+  const ring = await import("../public/ring.js");
+  assert.deepEqual(ring.GEOMETRY, { RING: 44, HAND: 30, NIGHT: 33, GAP: 18, DOT: 8 }, "the card's ring is ring.js's own");
+
+  // The card's words: a date and time, never time left. A picture can't tick.
+  const tz = "Asia/Kolkata", now = Date.now();
+  for (const ms of [5 * 60e3, 3 * 3600e3, 20 * 3600e3, 26 * 3600e3, 3 * 864e5, 40 * 864e5, 400 * 864e5]) {
+    const start = new Date(now + ms), L = S.lines({ title: "  Demo   day ", start }, { timeZone: tz });
+    assert.deepEqual(L, { kicker: "REMINDER", top: "", title: "Demo day", when: R.describeWhen(start, tz), cta: "Tap the link to get reminded" });
+    assert.deepEqual(S.lines({ title: "  Demo   day ", start }, { timeZone: tz }), L, "pure: the same reminder, the same lines");
+    assert.doesNotMatch(Object.values(L).join(" "), /\b(?:today|tonight|tomorrow|yesterday|now|soon|ago|left|in \d+|\d+ ?(?:min|mins|minutes?|hours?|hrs?|days?|weeks?))\b/i, "no relative time: " + L.when);
+  }
+  assert.equal(S.lines({ title: "Demo day", start: new Date(now + 864e5) }, { timeZone: tz, joiner: true }).top, "I'm in.", "the joiner's card");
+
+  // Lines that fit, words broken only when they must be, an ellipsis past the last line.
+  const m = t => t.length * 10;
+  assert.deepEqual(S.wrap("Launch party for Northwind", 120, m), ["Launch party", "for", "Northwind"]);
+  assert.deepEqual(S.wrap("Supercalifragilistic", 100, m), ["Supercalif", "ragilistic"]);
+  assert.deepEqual(S.wrap("a b c d e f", 30, m, 2), ["a b", "c…"]);
+  assert.deepEqual(S.wrap("Book club", 300, m, 2), ["Book club"]);
+
+  // Share the card where the browser can share files, otherwise save it.
+  const png = { type: "image/png" }, share = () => {};
+  assert.equal(S.canShareFile({ share, canShare: ({ files }) => files[0].type === "image/png" }, png), true, "a phone");
+  assert.equal(S.canShareFile({ share, canShare: () => false }, png), false, "can share, but not files");
+  assert.equal(S.canShareFile({ share }, png), false, "no canShare");
+  assert.equal(S.canShareFile({ canShare: () => true }, png), false, "no share");
+  assert.equal(S.canShareFile({ share, canShare: () => { throw new Error("no"); } }, png), false);
+  assert.equal(S.canShareFile(undefined, png), false);
+  assert.ok(src.includes('(share ? "Share the card" : "Save picture")'));
+  assert.ok(src.includes("await navigator.share({ files: [file] })"), "the file alone, which Instagram takes");
+
+  // Snapchat: its own share address with the link. Nothing loads from Snapchat.
+  assert.equal(S.snapURL("https://remmynd.space/r/abc?x=1"), "https://www.snapchat.com/share?link=https%3A%2F%2Fremmynd.space%2Fr%2Fabc%3Fx%3D1");
+  assert.ok(src.includes('target="_blank" rel="noopener">Snapchat</a>'));
+
+  // "The link is copied." only once it is. Otherwise a Copy link button.
+  assert.ok(src.includes("<h2 id=\"st-t\">Card ready.</h2>"));
+  assert.ok(src.includes('el.querySelector("#st-t").textContent = ok ? "Card ready. The link is copied." : "Card ready.";'));
+  assert.ok(src.includes('el.querySelector(\'[data-k="copy"]\').hidden = !!ok;'));
+
+  // Drawn on a stand-in canvas: everything sits above the lower third, which stays empty for the stickers.
+  const texts = [];
+  const ctx = { font: "", fillStyle: "", strokeStyle: "", lineWidth: 1, lineCap: "", textAlign: "", textBaseline: "", letterSpacing: "0px",
+    fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, stroke() {}, beginPath() {}, arc() {}, fill() {},
+    fillText(t, x, y) { texts.push({ t, x, y, font: this.font }); },
+    measureText(t) { return { width: t.length * +(/(\d+)px/.exec(this.font) || [0, 40])[1] * 0.55 }; } };
+  const saved = { document: globalThis.document, getComputedStyle: globalThis.getComputedStyle, Path2D: globalThis.Path2D };
+  globalThis.document = { fonts: { load: async () => [], ready: Promise.resolve() }, documentElement: {}, createElement: () => ({ getContext: () => ctx, toBlob: cb => cb({ type: "image/png" }) }) };
+  globalThis.getComputedStyle = () => ({ getPropertyValue: n => ({ "--band": " #0E0F11", "--band-accent": "#FFB52E" })[n] || "#F5F6F7" });
+  globalThis.Path2D = class { arc() {} };
+  try {
+    const start = new Date("2026-12-04T13:30:00Z");
+    for (const [title, joiner] of [["Demo day", false], ["Quarterly all-hands with the product, design and engineering teams and a long Q&A", true], ["Supercalifragilisticexpialidocious-and-then-some", false]]) {
+      texts.length = 0;
+      const blob = await S.draw({ title, start }, { timeZone: tz, joiner });
+      assert.equal(blob.type, "image/png");
+      const said = texts.map(x => x.t);
+      assert.ok(said.includes("REMINDER") && said.includes("Fri 4 Dec, 7:00 PM IST") && said.includes("Tap the link to get reminded") && said.includes("remmynd"), title);
+      assert.equal(said.includes("I'm in."), joiner, title);
+      for (const x of texts) assert.ok(x.y < 1280 && x.y > 200, title + ": '" + x.t + "' at " + x.y);
+      const lines = texts.filter(x => /^700 /.test(x.font));
+      for (const x of lines) assert.ok(ctx.measureText.call({ font: x.font }, x.t).width <= 1080 - 224, "the title fits: " + x.t);
+      for (let i = 1; i < texts.length; i++) assert.ok(texts[i].y > texts[i - 1].y || texts[i].t === "remmynd", "top to bottom: " + texts[i].t);
+    }
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete globalThis[k]; else globalThis[k] = v; }
+  }
 });
 
 test("follow through: the re-plan sheet's choices", () => {

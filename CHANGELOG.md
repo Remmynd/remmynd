@@ -18,6 +18,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - Talk: tap the mic in the bar, say the reminder, and pause. What you say goes into the bar as you speak, so the live preview follows along. If you said a time, like "Friday 5 pm" or "in 20 minutes", the link is made, and the ready screen shows what it heard with a Fix button. A day alone, like "Dentist tomorrow", stays in the bar until you say a time or press Enter. Tap the mic again to finish early; Esc or Cancel stops without making anything. Where the browser can recognise speech on the device, it does. The mic shows only where the browser can listen: not in Firefox, and not in the iPhone Home Screen app, where the keyboard's own mic works instead.
 - `/new?q=<line>` opens the app with one line in the bar, and makes the link when the line has a time in it.
 - A Talk shortcut on the installed app's icon (`/?talk=1`): it opens the bar with the mic marked.
+- The Story card: Story under Share it copies your link and draws a 9:16 picture of the reminder on your device, ready for Instagram, WhatsApp Status and other Stories. It shows the ring, the title, the date and time with the time zone, and "Tap the link to get reminded", and leaves the lower third free. The sheet says how to add Instagram's Link sticker (paste the copied link) and, if you like, its Countdown sticker. Share the card opens the share sheet where the browser can share pictures; elsewhere Save picture saves it. Snapchat gets a plain link to its own share page. Nothing is uploaded.
 
 ### Changed
 
