@@ -243,6 +243,13 @@ button{font:inherit;color:inherit}
 .fchip.add{background:transparent;border:1px dashed var(--dash);color:var(--muted)}
 .fchip.when:focus-within{outline:2px solid var(--ink);outline-offset:2px}
 #c-when-in{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
+/* Short call: lengths for a call, shown when the line has a meeting link or reads like a call. The pressed one is the length. */
+.lens{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.lens .label{margin-right:2px}
+.len{min-height:var(--tap);padding:0 14px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-chip);font:600 14px var(--font);color:var(--ink);cursor:pointer}
+.len[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+/* A calendar file over the page: the bar shows it can take it. */
+.capture.dropping .cap-bar{border-color:transparent;box-shadow:var(--shadow-float),inset 0 0 0 2px var(--moment)}
 .edit{display:grid;gap:6px}
 .edit-row{display:flex;gap:8px}
 .edit-row input{flex:1;min-width:0;height:var(--tap);padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r-chip);background:var(--card);color:var(--ink);font:400 16px var(--font)}
