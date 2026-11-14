@@ -48,6 +48,16 @@ database_id = "b0c76df1-abd8-4d65-8f0b-e3cd3d2156f2"
 [triggers]
 crons = ["* * * * *"]
 
+# Public counts: at most 20 taps a minute from one network for one reminder. Cloudflare's rate
+# limiter keeps that counter in passing; remmynd stores no address (worker/count.js).
+[[ratelimits]]
+name = "COUNT_LIMIT"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
+
 [vars]
 VAPID_PUBLIC_KEY = "BL1wKLc-1cGG7qJ-NS6KxwImTFfFVmp1YppjL7mdyXNjfHOTdjx9ThEfUb1aDx_3E8ACyw2yJ_gL3txgDQeQ3wg"
 VAPID_SUBJECT = "mailto:connect@zoof04.com"

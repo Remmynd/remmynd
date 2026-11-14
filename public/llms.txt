@@ -15,6 +15,7 @@ https://remmynd.space/new?t=Demo+day&at=2026-12-05T18:00&tz=Asia/Kolkata&l=https
 - `l`: place or link
 - `n`: notes
 - `h`: host
+- `count`: `1` adds a public count of how many tap Remind me, shown from 10 (shared links only)
 
 With `tz`, or a `Z` or offset in `at`, the address redirects to a shared link (`https://remmynd.space/r/…`) at once. Without one, the time is read in the visitor's own time zone. URL-encode each value.
 

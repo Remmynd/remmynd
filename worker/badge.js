@@ -15,10 +15,11 @@
 // picture left open stays true. Like /r/ and /embed/, the reminder is read from the address only
 // to draw it: nothing is stored or logged. Private links (/#…) never reach a server, so they have
 // no badge.
-import { decode, describeWhen } from "../lib/remmynd.js";
+import { decode, describeWhen, countLabel, countRings } from "../lib/remmynd.js";
 import { angle, point, arc } from "../public/ring.js";
 import { clockText } from "../public/clock.js";
 import { escapeHTML } from "./preview.js";
+import { readCount } from "./count.js";
 
 const MAX_PAYLOAD = 2000;
 const HOUR = 3600, DAY = 86400;
@@ -121,7 +122,8 @@ function clockSVG(left, { x, top, step, base, adv, shift }) {
 const KEYFRAMES = (n, step) => "@keyframes c" + n + "{from{transform:translateY(0)}to{transform:translateY(-" + n * step + "px)}}";
 
 /** The badge as an SVG string for reminder r seen at `now` (ms). size: "" or "mini". theme: "", "light" or "dark". */
-export function liveBadgeSVG(r, { now = Date.now(), theme = "", size = "" } = {}) {
+/** count: the public count, when the host turned it on. Shown from 10: "128 in" beside the title, and outer rings. */
+export function liveBadgeSVG(r, { now = Date.now(), theme = "", size = "", count = 0 } = {}) {
   const zone = r.timeZone || "UTC", start = r.start.getTime(), end = start + (r.durationMinutes || 60) * 60000;
   const state = badgeState(start, end, now), L = (start - now) / 1000, E = (end - now) / 1000;
   const when = describeWhen(r.start, zone), alt = escapeHTML(fit(r.title, 1, 100).text + ", " + when + ". Tap to get reminded.");
@@ -138,7 +140,9 @@ export function liveBadgeSVG(r, { now = Date.now(), theme = "", size = "" } = {}
   const g = mini
     ? { step: 14, base: 11, adv: 7.2, top: 7, H: 28 }
     : { step: 26, base: 19, adv: 13.2, top: 40, H: 96 };
-  const t = mini ? fit(r.title, 12, 180) : fit(r.title, 15, 158);
+  // The count, from 10 and on the standard badge: a pill beside the title takes its room.
+  const label = mini ? "" : countLabel(count), pw = label ? Math.ceil(label.length * 6.1 + 12) : 0;
+  const t = mini ? fit(r.title, 12, 180) : fit(r.title, 15, label ? 158 - pw - 6 : 158);
   let W, cx;
   if (mini) {
     // The clock half is as wide as its widest moment: the clock, "in 12 days", "• Live now" or "Ended".
@@ -194,7 +198,7 @@ export function liveBadgeSVG(r, { now = Date.now(), theme = "", size = "" } = {}
   const style = ":root{" + colours + "}" + (theme ? "" : "@media (prefers-color-scheme:dark){:root{" + vars(DARK) + "}}") +
     "text{font-family:" + SANS + ";fill:var(--ink)}.tt{font-weight:600;font-size:" + (mini ? 12 : 15) + "px}" +
     ".ck,.ck text{font:700 22px " + MONO + "}.ckm,.ckm text{font-size:12px;font-weight:600}.ck text{fill:inherit}.mu{fill:var(--mu)}.fo{fill:var(--om)}.fb{fill:var(--bg)}" +
-    ".rd{font-weight:600;font-size:" + (mini ? 12 : 13) + "px}.dt{font:500 10.5px " + MONO + ";letter-spacing:.04em;fill:var(--mu)}.pl{font-weight:600;font-size:13px;text-anchor:middle}.mk{font-weight:600;font-size:11px;fill:var(--mu)}" +
+    ".rd{font-weight:600;font-size:" + (mini ? 12 : 13) + "px}.dt{font:500 10.5px " + MONO + ";letter-spacing:.04em;fill:var(--mu)}.pl{font-weight:600;font-size:13px;text-anchor:middle}.mk{font-weight:600;font-size:11px;fill:var(--mu)}.cn{font:600 10px " + MONO + ";fill:var(--ot);text-anchor:middle}" +
     KEYFRAMES(24, g.step) + KEYFRAMES(10, g.step) + KEYFRAMES(6, g.step) + "@keyframes in{from,to{opacity:1}}@keyframes out{from,to{opacity:0}}" + css.join("");
 
   const mark = mini
@@ -203,7 +207,10 @@ export function liveBadgeSVG(r, { now = Date.now(), theme = "", size = "" } = {}
   return '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + g.H + '" viewBox="0 0 ' + W + " " + g.H + '" role="img" aria-label="' + alt + '"><title>' + alt + "</title><style>" + style + "</style>" +
     '<rect x=".5" y=".5" width="' + (W - 1) + '" height="' + (g.H - 1) + '" rx="' + (mini ? 13.5 : 19.5) + '" fill="var(--bg)" stroke="var(--ln)"/>' +
     (mini ? "" : '<g transform="translate(18 20) scale(.4667)" fill="none"><path d="' + arc(150, 270, 33) + '" stroke="var(--ni)" stroke-width="8" stroke-linecap="round"/></g>') +
-    mark + '<text class="tt" x="' + (mini ? 28 : 88) + '" y="' + (mini ? 18.5 : 32) + '">' + escapeHTML(t.text) + "</text>" + parts.join("") + "</svg>";
+    mark + '<text class="tt" x="' + (mini ? 28 : 88) + '" y="' + (mini ? 18.5 : 32) + '">' + escapeHTML(t.text) + "</text>" +
+    (label ? '<rect x="' + r2(88 + t.width + 6) + '" y="20" width="' + pw + '" height="16" rx="8" fill="var(--ti)"/><text class="cn" x="' + r2(88 + t.width + 6 + pw / 2) + '" y="31.5">' + label + "</text>" : "") +
+    (label ? '<g transform="translate(18 20) scale(.4667)" fill="none" stroke="var(--mo)" stroke-width="2.4">' + [[54.5, .95], [58, .55], [61.5, .3]].slice(0, countRings(count)).map(([rr, o]) => '<circle cx="60" cy="60" r="' + rr + '" stroke-opacity="' + o + '"/>').join("") + "</g>" : "") +
+    parts.join("") + "</svg>";
 }
 
 /** Demo day at 17:00 UTC, the first one more than a day away: always in the ticking Near state. */
@@ -222,9 +229,11 @@ export async function badgeResponse(request, env, url, now = Date.now()) {
   const t = url.searchParams.get("theme"), theme = t === "light" || t === "dark" ? t : "";
   const size = url.searchParams.get("size") === "mini" ? "mini" : "";
   const start = r.start.getTime(), state = badgeState(start, start + r.durationMinutes * 60000, now);
-  return new Response(request.method === "HEAD" ? null : liveBadgeSVG(r, { now, theme, size }), {
+  // The public count, when the host turned it on: one read, kept for a minute.
+  const count = r.count && p !== "example" ? await readCount(env, p, { now }) : 0;
+  return new Response(request.method === "HEAD" ? null : liveBadgeSVG(r, { now, theme, size, count }), {
     headers: {
-      "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": CACHE[state], "Content-Security-Policy": BADGE_CSP, "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+      "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": r.count && state === "far" ? "public, max-age=60" : CACHE[state], "Content-Security-Policy": BADGE_CSP, "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
       "X-Content-Type-Options": "nosniff", "Access-Control-Allow-Origin": "*", "Cross-Origin-Resource-Policy": "cross-origin", "X-Robots-Tag": "noindex"
     }
   });

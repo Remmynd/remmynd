@@ -12,11 +12,12 @@
 // Like /r/, the reminder is read from the address only to draw the card. Nothing is stored, logged
 // or cached. ?theme=light or ?theme=dark pins a theme; without it the card follows the system.
 // Private links (/#…) never reach a server, so they can't be embedded.
-import { decode, describeWhen } from "../lib/remmynd.js";
+import { decode, describeWhen, countLabel, countRings } from "../lib/remmynd.js";
 import { ringSVG, ringLabel } from "../public/ring.js";
 import { countdown } from "../public/clock.js";
 import { qrSVG } from "../public/qr.js";
 import { escapeHTML } from "./preview.js";
+import { readCount } from "./count.js";
 
 const MAX_PAYLOAD = 2000;
 const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
@@ -43,27 +44,32 @@ function nextFriday(now = new Date()) {
   return d;
 }
 
-export function embedHTML(r, { link, origin, theme = "", example = false, now = Date.now(), screen = false }) {
+/* The public count, when the host turned it on: from 10, "128 in" and the ring's outer rings (one from 10, two from 100, three from 1,000). */
+const rings = n => [[54.5, .95], [58, .55], [61.5, .3]].slice(0, countRings(n)).map(([r, o]) => '<circle class="r-count" cx="60" cy="60" r="' + r + '" stroke-opacity="' + o + '"/>').join("");
+const withRings = (svg, n) => countLabel(n) ? svg.replace(/<\/svg>$/, rings(n) + "</svg>") : svg;
+
+export function embedHTML(r, { link, origin, theme = "", example = false, now = Date.now(), screen = false, count = 0 }) {
   const zone = r.timeZone || "UTC", start = r.start.getTime(), end = start + r.durationMinutes * 60000;
   const state = now >= end ? "missed" : now >= start ? "now" : start - now <= 36e5 ? "soon" : "open";
   const [h, m] = clock(r.start, zone);
   const title = escapeHTML(r.title), href = escapeHTML(link), when = escapeHTML(describeWhen(r.start, zone));
   const left = '<b class="em-left">' + countdown(start, end, now) + "</b>", from = r.host ? '<span class="em-host"> · from ' + escapeHTML(r.host) + "</span>" : "";
+  const n = countLabel(count), tally = n ? '<span class="em-count">' + n + "</span>" : "";
   const head = '<!doctype html>\n<html lang="en"' + (theme ? ' data-theme="' + theme + '"' : "") + '>\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
     '<meta name="robots" content="noindex">\n<title>' + title + ' · remmynd</title>\n<link rel="stylesheet" href="/embed.css">\n</head>\n<body' + (screen ? ' class="screen"' : "") + '>\n' +
     '<main class="em' + (screen ? " em-screen" : "") + '" data-start="' + start + '" data-end="' + end + '"' + (example ? " data-example" : "") + '>\n';
   const tail = '<script type="module" src="/embed.js"></script>\n</body>\n</html>\n';
   if (screen) {
     // For a big screen: nothing to tap, so the link is a QR code instead of a button.
-    return head + '<div class="es-main">' + ringSVG({ h, m, state, size: 160, label: ringLabel(h, m, state) }) +
-      '<span class="em-label">Reminder' + (r.host ? " · from " + escapeHTML(r.host) : "") + '</span><h1 class="em-title">' + title + "</h1>" +
+    return head + '<div class="es-main">' + withRings(ringSVG({ h, m, state, size: 160, label: ringLabel(h, m, state) }), count) +
+      '<span class="em-label">Reminder' + (r.host ? " · from " + escapeHTML(r.host) : "") + tally + '</span><h1 class="em-title">' + title + "</h1>" +
       '<p class="em-left">' + countdown(start, end, now) + '</p><p class="em-when">' + when + "</p></div>\n" +
       '<figure class="es-qr">' + qrSVG(link, { label: "QR code that opens the reminder for " + r.title }) + "<figcaption>Scan to get reminded</figcaption></figure>\n" +
       '<span class="em-by">' + MARK + "remmynd</span>\n</main>\n" + tail;
   }
   return head +
-    '<a class="em-main" href="' + href + '" target="_blank" rel="noopener">' + ringSVG({ h, m, state, size: 52, label: ringLabel(h, m, state) }) +
-    '<span class="em-text"><span class="em-label">' + left + from + '</span><b class="em-title">' + title + '</b><span class="em-when">' + when + '</span></span></a>\n' +
+    '<a class="em-main" href="' + href + '" target="_blank" rel="noopener">' + withRings(ringSVG({ h, m, state, size: 52, label: ringLabel(h, m, state) }), count) +
+    '<span class="em-text"><span class="em-label">' + left + tally + from + '</span><b class="em-title">' + title + '</b><span class="em-when">' + when + '</span></span></a>\n' +
     '<a class="em-btn" href="' + href + '" target="_blank" rel="noopener" aria-label="Remind me about ' + title + '">' + BELL + 'Remind me</a>\n' +
     '<a class="em-by" href="' + escapeHTML(origin) + '/" target="_blank" rel="noopener">' + MARK + 'remmynd</a>\n</main>\n' + tail;
 }
@@ -81,5 +87,7 @@ export async function embedResponse(request, env, url) {
     link = url.origin + "/r/" + p;
   }
   if (!r) return new Response("Not a remmynd reminder", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
-  return new Response(request.method === "HEAD" ? null : embedHTML(r, { link, origin: url.origin, theme, example, screen }), { headers: HEADERS });
+  // The public count, when the host turned it on: one read, kept for a minute.
+  const count = r.count && !example ? await readCount(env, p) : 0;
+  return new Response(request.method === "HEAD" ? null : embedHTML(r, { link, origin: url.origin, theme, example, screen, count }), { headers: HEADERS });
 }
