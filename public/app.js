@@ -366,6 +366,9 @@ function editMade(link){const r=dec(payloadOf(link));if(!r)return;
   if(location.pathname!=="/"||location.hash){history.pushState(null,"","/");routed=location.href;}
   D.base=D.mode==="lists"?"lists":"home";swap(()=>{setMode("draft");showHome();});C.input.focus();toast("Change what you need, then press Enter");}
 F.qr.addEventListener("click",()=>{const m=D.made;if(m)openQR(m.link,m.ev.title);});
+/* Story: copy the link inside this tap, where every browser allows it, then draw the card (story.js, loaded on the first tap). */
+$("#f-story").addEventListener("click",e=>{const m=D.made,b=e.currentTarget;if(!m)return;const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(m.link).then(()=>true,()=>false):Promise.resolve(false);
+  import("/story.js").then(x=>x.open({ev:m.ev,link:m.link,timeZone:TZ,copied,copy,toast,from:b})).catch(()=>toast("Couldn't open it here. Try again."));});
 /* Talk: tap the mic, say the reminder, stop (talk.js, loaded on the first tap). Where it can't show, the line under the bar points to the keyboard's own mic. */
 const T={btn:$("#talk"),hint:$("#cap-hint")};
 if(canTalk(window))T.btn.hidden=false;else if(MOBILE){T.hint.textContent="Type it, or use your keyboard's mic.";T.hint.classList.add("idle");T.hint.hidden=false;}
