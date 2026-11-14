@@ -1303,7 +1303,8 @@ test("words: the maker uses the spec's wording", () => {
     ["public/story.js", "Tap the link to get reminded"], ["public/story.js", "I'm in."], ["public/story.js", "1. In your Story, add the Link sticker and paste."],
     ["public/story.js", "2. If you like, add the Countdown sticker and set it to "], ["public/story.js", "In Snapchat, attach the link with the paperclip."], ["public/story.js", " It is copied."],
     ["public/app.js", "Add to story"], ["public/app.js", "Pass it on"],
-    ["public/index.html", ">Show how many are in<"], ["public/index.html", ">Adds a public count to this reminder. One number, nothing about who.<"], ["lib/remmynd.js", 'n + " in"'], ["lib/remmynd.js", '" · First ten"']]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
+    ["public/index.html", ">Show how many are in<"], ["public/index.html", ">Adds a public count to this reminder. One number, nothing about who.<"], ["lib/remmynd.js", 'n + " in"'], ["lib/remmynd.js", '" · First ten"'],
+    ["public/story.js", '"Last call"'], ["public/story.js", "Share your year"], ["public/app.js", "Starts tomorrow. Post a card?"], ["public/app.js", "Starts today. Post a card?"], ["public/app.js", "Starts in an hour. Post a card?"]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
   // The live badge (ADDENDUM-1, section 5).
   for (const [f, w] of [["public/index.html", ">The live badge<"], ["public/livebadge.js", "The live badge"], ["public/livebadge.js", "Copy for Discord"], ["lib/remmynd.js", ". Tap to get reminded."], ["public/hosts/index.html", "The live badge"], ["worker/embed.js", "Scan to get reminded"], ["public/clock.js", '"Live now"'], ["public/clock.js", '"Ended"']]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
 });
@@ -1790,7 +1791,7 @@ test("extras: Kept N of M this month, Ctrl or Cmd + K, and the floating countdow
   ];
   assert.deepEqual(keptCount(recs, now, tz), { k: 2, n: 5 });
   assert.deepEqual(keptCount([], now, tz), { k: 0, n: 0 });
-  assert.match(html, /<p class="kept" id="kept" hidden><svg class="s-on"[^>]*aria-hidden="true">[\s\S]*?<\/svg><span id="kept-n"><\/span><\/p>/);
+  assert.match(html, /<button type="button" class="kept" id="kept" aria-label="Share your year" hidden><svg class="s-on"[^>]*aria-hidden="true">[\s\S]*?<\/svg><span id="kept-n"><\/span><\/button>/, "the kept line is a button: it opens Share your year");
   assert.ok(app.includes('$("#kept-n").textContent="Kept "+kc.k+" of "+kc.n+" this month";$("#kept").hidden=!(up&&kc.k);'), "shown on Coming up once one is kept, never as a zero");
 
   // Ctrl or Cmd + K, and Search and commands in the menu, open the palette; it loads only then.
@@ -2429,6 +2430,88 @@ test("remove, then Remind me again before the 5 seconds are up: the reminder sta
   // hold() calls it off before it holds, for this reminder's own key.
   assert.ok(app.includes('function hold(cal){const c=S.ctx;if(S.held||!c)return;keep("r:"+S.rkey);S.held=true;'));
   assert.ok(app.includes('later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.")'), "Remove waits under the same key");
+});
+
+test("last call and the year card (ADDENDUM-1, slice 7)", async () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+  const { lastCall, yearCount } = new Function(line("function parts(") + line("function offsetMin(") + line("function zonedToUTC(") + line("const dayNum=") + line("const lastCall=") + line("const yearCount=") + "; return { lastCall, yearCount };")();
+  const tz = "Asia/Kolkata", at = (y, mo, d, h, mi = 0) => R.zonedTime(y, mo, d, h, mi, tz).getTime();
+
+  // The prompt: tomorrow from 24 hours before, while it's still the day before; today from midnight; an hour for the last hour.
+  const start = at(2026, 12, 5, 18), say = now => lastCall(start, now, tz);
+  assert.equal(say(at(2026, 12, 4, 17, 59)), "", "more than 24 hours before: nothing");
+  assert.equal(say(at(2026, 12, 4, 18)), "Starts tomorrow. Post a card?");
+  assert.equal(say(at(2026, 12, 4, 23, 59)), "Starts tomorrow. Post a card?");
+  assert.equal(say(at(2026, 12, 5, 0)), "Starts today. Post a card?", "from midnight it's today, never a wrong tomorrow");
+  assert.equal(say(at(2026, 12, 5, 16, 59)), "Starts today. Post a card?");
+  assert.equal(say(at(2026, 12, 5, 17)), "Starts in an hour. Post a card?");
+  assert.equal(say(at(2026, 12, 5, 17, 59)), "Starts in an hour. Post a card?");
+  assert.equal(say(start), "", "not once it has started");
+  assert.equal(say(at(2026, 12, 6, 9)), "");
+  const early = at(2026, 12, 5, 2);
+  assert.equal(lastCall(early, at(2026, 12, 4, 3), tz), "Starts tomorrow. Post a card?", "an early start: the day before");
+  assert.equal(lastCall(early, at(2026, 12, 5, 0, 30), tz), "Starts today. Post a card?");
+
+  // For the host only: on the ticket of a link made on this device, and in My links. Never in Coming up. No notifications.
+  assert.ok(app.includes('if(!S.key&&S.mine==null&&window.remmyndDB){S.mine=false;const me=payloadOf(linkFor(r,null,S.priv));window.remmyndDB.getAll("links").then(ls=>{if(S.r===r&&ls.some(x=>payloadOf(x.share)===me)){S.mine=true;renderBottom();}})'), "made on this device");
+  assert.ok(app.includes('const lc=S.mine&&(!S.held||ph==="before")?lastCall(c.start.getTime(),Date.now(),TZ):"";S.lc=lc;'));
+  assert.ok(app.includes("b.innerHTML=(lc?'<button type=\"button\" class=\"lastcall\" id=\"t-last\">'+esc(lc)+'</button>':'')+"));
+  assert.ok(app.includes('else if(S.ctx&&S.mine&&S.ctx.el.isConnected&&(!S.held||S.phase==="before")&&lastCall(S.ctx.start.getTime(),Date.now(),TZ)!==S.lc)renderBottom();'), "it changes at its times while the page is open");
+  const links = app.slice(app.indexOf("function linkRow("), app.indexOf("async function loadLists("));
+  assert.ok(links.includes("(lastCall(x.start,now,TZ)?'<button type=\"button\" class=\"li-last\" data-act=\"last\">'+esc(lastCall(x.start,now,TZ))+'</button>':'')"), "My links");
+  assert.doesNotMatch(app.slice(app.indexOf("function upRow("), app.indexOf("function linkRow(")), /lastCall|li-last/, "not in Coming up: those aren't the host's");
+  assert.ok(app.includes('if(act==="last")return lastCard(share,{title:x.title,start:new Date(x.start)},document.activeElement);'));
+  assert.ok(app.includes('import("/story.js").then(m=>m.open({ev,link,timeZone:TZ,lastCall:true,copied,copy,toast,from}))'));
+  for (const f of ["public/sw.js", "public/push.js", "worker/push.js"]) assert.doesNotMatch(readFileSync(join(root, f), "utf8"), /last ?call|Post a card/i, f + ": no new notifications");
+
+  // The card: "Last call" above the title, with the date and time, never "tomorrow" or "in an hour".
+  const S = await import("../public/story.js");
+  for (const ms of [30 * 60e3, 5 * 3600e3, 20 * 3600e3]) {
+    const when = new Date(Date.now() + ms), L = S.lines({ title: "Demo day", start: when }, { timeZone: tz, lastCall: true });
+    assert.equal(L.top, "Last call");
+    assert.equal(L.when, R.describeWhen(when, tz));
+    assert.doesNotMatch(Object.values(L).join(" "), /\b(?:today|tonight|tomorrow|now|soon|left|in an hour|in \d+|\d+ ?(?:min|minutes?|hours?|days?))\b/i);
+  }
+  assert.equal(S.lines({ title: "Demo day", start: new Date() }, { timeZone: tz }).top, "", "the host's usual card has no line");
+
+  // The year: kept of due this year, from this device's own records, counted as the month is. No streaks.
+  const now = at(2026, 11, 14, 12);
+  const recs = [
+    { start: at(2026, 3, 10, 9), state: "kept", doneAt: at(2026, 3, 10, 10) },        // kept this year
+    { start: at(2025, 12, 30, 9), state: "kept", doneAt: at(2025, 12, 30, 10) },      // kept last year: not this year's
+    { start: at(2026, 6, 1, 9), state: "held" },                                      // over, not kept
+    { start: at(2026, 8, 1, 9), state: "dropped" },                                   // dropped: due, not kept
+    { start: at(2026, 12, 20, 9), state: "held" },                                    // later this year: not yet
+    { start: at(2025, 12, 31, 23, 30), state: "kept", doneAt: at(2026, 1, 1, 0, 10) } // marked done on 1 January
+  ];
+  assert.deepEqual(yearCount(recs, now, tz), { k: 2, n: 4, y: 2026 });
+  assert.deepEqual(yearCount([], now, tz), { k: 0, n: 0, y: 2026 });
+  assert.equal(S.yearLine({ k: 41, n: 47, y: 2026 }), "Kept 41 of 47 in 2026");
+  assert.ok(html.includes('<button type="button" class="kept" id="kept" aria-label="Share your year" hidden>'));
+  assert.ok(app.includes('$("#kept").addEventListener("click",e=>{const b=e.currentTarget,yc=yearCount(L.recs,Date.now(),TZ);import("/story.js").then(m=>m.openYear({...yc,toast,from:b}))'), "from L.recs, this device's own list");
+  for (const f of ["public/app.js", "public/story.js"]) assert.doesNotMatch(readFileSync(join(root, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /streak/i, f + ": no streaks");
+
+  // Both cards drawn on a stand-in canvas: everything above the lower third.
+  const texts = [];
+  const ctx = { font: "", fillStyle: "", strokeStyle: "", lineWidth: 1, lineCap: "", textAlign: "", textBaseline: "", letterSpacing: "0px",
+    fillRect() {}, save() {}, restore() {}, translate() {}, scale() {}, stroke() {}, beginPath() {}, arc() {}, fill() {},
+    fillText(t, x, y) { texts.push({ t, y }); }, measureText(t) { return { width: t.length * +(/(\d+)px/.exec(this.font) || [0, 40])[1] * 0.55 }; } };
+  const saved = { document: globalThis.document, getComputedStyle: globalThis.getComputedStyle, Path2D: globalThis.Path2D };
+  globalThis.document = { fonts: { load: async () => [], ready: Promise.resolve() }, documentElement: {}, createElement: () => ({ getContext: () => ctx, toBlob: cb => cb({ type: "image/png" }) }) };
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => "#0E0F11" });
+  globalThis.Path2D = class { arc() {} };
+  try {
+    await S.draw({ title: "Demo day", start: new Date(start) }, { timeZone: tz, lastCall: true });
+    assert.ok(texts.some(x => x.t === "Last call") && texts.some(x => x.t === "Sat 5 Dec, 6:00 PM IST"));
+    for (const x of texts) assert.ok(x.y < 1280, "'" + x.t + "' at " + x.y);
+    texts.length = 0;
+    assert.equal((await S.drawYear({ k: 41, n: 47, y: 2026 })).type, "image/png");
+    assert.equal(texts.filter(x => x.t !== "remmynd").map(x => x.t).join(" "), "Kept 41 of 47 in 2026");
+    for (const x of texts) assert.ok(x.y < 1280, "'" + x.t + "' at " + x.y);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete globalThis[k]; else globalThis[k] = v; }
+  }
 });
 
 test("follow through: the re-plan sheet's choices", () => {
