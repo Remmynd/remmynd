@@ -204,6 +204,12 @@ const AMPM = "(a\\.?\\s?m\\.?|p\\.?\\s?m\\.?)";
 const WORDY = new Set(["sun", "sat", "wed", "mon"]);
 const TOD = { morning: [9, "am"], afternoon: [14, "pm"], evening: [19, "pm"], night: [20, "pm"], tonight: [20, "pm"] };
 const MARK = " \u0001 ";
+// Spoken hours: number words are hours only beside am, pm, o'clock or a part of the day ("five pm").
+const WORDNUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 };
+const WORDS = Object.keys(WORDNUM).join("|");
+const hourOf = s => WORDNUM[String(s).toLowerCase()] || (+s >= 1 && +s <= 12 ? +s : 0);
+// What people say before a reminder, dropped at the start of a line only.
+const LEAD_IN = /^\s*(?:remind me (?:to|about|of)|remind me|set a reminder (?:for|to|about)|add a reminder (?:for|to)|reminder (?:for|to))\s+/i;
 
 function minutesOf(a, unit) {
   const n = /^half/i.test(a) ? 0.5 : /^an?$/i.test(a) ? 1 : parseFloat(a);
@@ -220,7 +226,8 @@ const cmpYMD = (a, b) => (a.y - b.y) || (a.m - b.m) || (a.d - b.d);
  *   parse("Demo day Fri 5pm zoom.us/j/123") → title "Demo day", start Friday 5:00 PM, place the zoom.us address
  * Understands today, tonight, tomorrow, weekdays, "next Friday", "13 Nov", "Nov 13", "13/11", "1st",
  * ISO dates; "5pm", "5:30 pm", "17:00", noon, midnight; "in 2 hours", "in 30 min"; "for 30 min";
- * time ranges like "5-6pm"; web addresses; and a trailing "at <place>". A date with no time means
+ * time ranges like "5-6pm"; spoken times like "half past six", "quarter to 5", "five pm", "5 o'clock in the
+ * evening"; web addresses; and a trailing "at <place>". "Remind me to" and the like are dropped. A date with no time means
  * 9:00 AM. A time with no date means the next time that hour comes. What is left is the title.
  * `start` is null when the line has no time, `dur` (minutes) is null when it has no length.
  */
@@ -235,7 +242,8 @@ export function parse(text, { now = new Date(), timeZone = systemTimeZone() } = 
     if (/^\s*(meeting id|passcode|password|pin|dial|phone|one tap mobile|find your local number)\b/i.test(line)) continue;
     if (/\b(standard|daylight|summer) time\b/i.test(line) && !/\d/.test(line)) continue;
     line = line.replace(/^\s*(?:you(?:'|’)re invited|you are invited|(?:updated )?invitation|invite)\s*(?:to\s*)?[:\-]\s*/i, "")
-      .replace(/\b(?:join (?:zoom|the) meeting|join with google meet|click to join)\b/gi, " ");
+      .replace(/\b(?:join (?:zoom|the) meeting|join with google meet|click to join)\b/gi, " ")
+      .replace(LEAD_IN, "");
     let label = "";
     const lm = /^\s*(what|title|event|subject|when|date|time|where|location|venue|place|join|link|joining info|meeting link|notes?|description)\s*:\s*(.*)$/i.exec(line);
     if (lm) { label = lm[1].toLowerCase(); line = lm[2]; }
@@ -306,6 +314,13 @@ function extract(s, st) {
     st.end = timeOf(b);
     return { type: "time" };
   });
+  // "five pm", "six in the morning", "eight tonight": number words beside am, pm or a part of the day.
+  // Before the dates, so "tonight" is still there to read.
+  take(new RegExp("(?:\\b(?:at|by)\\s+)?\\b(" + WORDS + ")(?:\\s*" + AMPM + "(?![a-z])|(?=\\s+(?:in the\\s+|this\\s+)?(?:morning|afternoon|evening|night|tonight)\\b))", "gi"), m => {
+    if (st.time) return false;
+    st.time = timeOf({ h: WORDNUM[m[1].toLowerCase()], mi: 0, ap: ampmOf(m[2]) });
+    return { type: "time" };
+  });
   // "13 Nov", "Nov 13", "Friday, November 13, 2026", "13th of Nov"
   take(new RegExp("(?:\\bon\\s+)?(?:\\b" + WEEKDAY + ",?\\s+)?(?:\\b(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?(?:\\s+of)?\\s+" + MONTH + "|\\b" + MONTH + "\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)?)(?![\\d:])(?:,?\\s+(\\d{4})\\b)?", "gi"), m => {
     if (st.date) return false;
@@ -344,6 +359,21 @@ function extract(s, st) {
     st.date = { dom: +m[1] };
     return { type: "date" };
   });
+  // Spoken times: "half past six", "quarter past 4", "quarter to 5".
+  const NUM = "(\\d{1,2}|" + WORDS + ")";
+  take(new RegExp("(?:\\b(?:at|by)\\s+)?\\b(?:a\\s+)?(half|quarter)\\s+(past|to)\\s+" + NUM + "\\b(?:\\s*" + AMPM + "(?![a-z]))?", "gi"), m => {
+    const n = hourOf(m[3]), half = /^half$/i.test(m[1]), past = /^past$/i.test(m[2]);
+    if (st.time || !n || (half && !past)) return false;
+    st.time = timeOf({ h: past ? n : n === 1 ? 12 : n - 1, mi: past ? (half ? 30 : 15) : 45, ap: ampmOf(m[4]) });
+    return { type: "time" };
+  });
+  // "5 o'clock", "five o'clock": the hour before it.
+  take(new RegExp("(?:\\b(?:at|by)\\s+)?\\b" + NUM + "\\s*o['’]?\\s?clock\\b(?:\\s*" + AMPM + "(?![a-z]))?", "gi"), m => {
+    const h = hourOf(m[1]);
+    if (st.time || !h) return false;
+    st.time = timeOf({ h, mi: 0, ap: ampmOf(m[2]) });
+    return { type: "time" };
+  });
   // noon, midnight, 5pm, 5:30 pm, 17:00, "at 5"
   take(/(?:\b(?:at|by)\s+)?\b(noon|midday|midnight)\b/gi, m => {
     if (st.time) return false;
@@ -365,8 +395,11 @@ function extract(s, st) {
     st.time = { h: +m[1], mi: 0, exact: false };
     return { type: "time" };
   });
-  // morning, afternoon, evening, night
+  // morning, afternoon, evening, night. With a clock time in the line, a bare one that follows an
+  // ordinary word is part of the title: "movie night … 8 p.m.".
   take(/\b(?:this\s+|in the\s+)?(morning|afternoon|evening|night)\b/gi, m => {
+    const before = m[3].slice(0, m[2]).trimEnd().split(/\s+/).pop() || "";
+    if (st.time && m[0] === m[1] && /\p{L}/u.test(before) && !/^(?:at|on|by|from|in|this|every|each)$/i.test(before)) return false;
     if (st.tod && st.tod !== "tonight") return false;
     if (!st.tod) st.tod = m[1].toLowerCase();
     return { type: "time" };
