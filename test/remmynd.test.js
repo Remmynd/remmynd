@@ -166,6 +166,80 @@ test("parse: one typed line becomes a reminder", () => {
   assert.deepEqual(r.tokens.map(t => [t.type, t.text]), [["place", "zoom.us/j/123"], ["date", "Fri"], ["time", "5pm"]]);
 });
 
+test("parse: spoken lines, as Talk will hear them (ADDENDUM-1, slice 2)", () => {
+  // Wednesday 11 November 2026, 19:40 in Kolkata.
+  const now = new Date("2026-11-11T14:10:00Z"), timeZone = "Asia/Kolkata";
+  const lines = [
+    // line, title, start (UTC), and the place or length where there is one
+    // The 8 that failed on 2.0.1.
+    ["remind me to call the bank tomorrow at 10 a.m.", "call the bank", "2026-11-12T04:30Z"],
+    ["set a reminder for the product review on Monday at 3 p.m.", "the product review", "2026-11-16T09:30Z"],
+    ["webinar next Friday at 5 o'clock", "webinar", "2026-11-20T11:30Z"],
+    ["webinar next Friday 5 o'clock in the evening", "webinar", "2026-11-20T11:30Z"],
+    ["movie night this Saturday 8 p.m. at Regal Cinema", "movie night", "2026-11-14T14:30Z", { place: "Regal Cinema" }],
+    ["Demo day Friday five pm", "Demo day", "2026-11-13T11:30Z"],
+    ["doctor appointment at quarter past 4 tomorrow", "doctor appointment", "2026-11-12T10:45Z"],
+    ["yoga at half past six tomorrow morning", "yoga", "2026-11-12T01:00Z"],
+    // The 18 that passed and must keep passing.
+    ["Demo day Friday 5 p.m.", "Demo day", "2026-11-13T11:30Z"],
+    ["Demo day Friday at 5 p.m.", "Demo day", "2026-11-13T11:30Z"],
+    ["demo day on Friday at 5:30 p.m.", "demo day", "2026-11-13T12:00Z"],
+    ["Dentist tomorrow at 4:00 p.m.", "Dentist", "2026-11-12T10:30Z"],
+    ["dentist tomorrow 4 PM", "dentist", "2026-11-12T10:30Z"],
+    ["call mom tonight at 9", "call mom", "2026-11-11T15:30Z"],
+    ["team lunch day after tomorrow at 1 p.m.", "team lunch", "2026-11-13T07:30Z"],
+    ["Flight to Delhi on the 21st of November at 6:15 a.m.", "Flight to Delhi", "2026-11-21T00:45Z"],
+    ["flight to Delhi November 21st 6:15 a.m.", "flight to Delhi", "2026-11-21T00:45Z"],
+    ["gym at 7 in the morning tomorrow", "gym", "2026-11-12T01:30Z"],
+    ["standup at 9:30 tomorrow morning", "standup", "2026-11-12T04:00Z"],
+    ["pay rent on 1st December", "pay rent", "2026-12-01T03:30Z"],
+    ["meeting in 2 hours", "meeting", "2026-11-11T16:10Z"],
+    ["meeting in half an hour", "meeting", "2026-11-11T14:40Z"],
+    ["meeting in an hour", "meeting", "2026-11-11T15:10Z"],
+    ["lunch at noon tomorrow", "lunch", "2026-11-12T06:30Z"],
+    ["birthday party on 25 December at 7 p.m. for 2 hours", "birthday party", "2026-12-25T13:30Z", { dur: 120 }],
+    ["call with Sam at 8 tonight", "call with Sam", "2026-11-11T14:30Z"]
+  ];
+  assert.equal(lines.length, 26);
+  for (const [line, title, start, { place = "", dur = null } = {}] of lines) {
+    const r = R.parse(line, { now, timeZone });
+    assert.equal(r.title, title, line);
+    assert.equal(r.start && r.start.toISOString(), new Date(start).toISOString(), line);
+    assert.equal(r.place, place, line + ": place");
+    assert.equal(r.dur, dur, line + ": length");
+  }
+
+  // What it took, one rule at a time.
+  const p = line => R.parse(line, { now, timeZone });
+  const local = d => new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit" }).format(d);
+  // Lead-ins go at the start of a line only.
+  for (const lead of ["remind me to", "remind me about", "remind me of", "remind me", "set a reminder for", "set a reminder to", "set a reminder about", "add a reminder for", "add a reminder to", "reminder for", "reminder to"]) {
+    assert.equal(p(lead + " the launch Friday 5pm").title, "the launch", lead);
+  }
+  assert.equal(p("Ask Sam to remind me to stretch Friday 5pm").title, "Ask Sam to remind me to stretch", "not in the middle of a line");
+  assert.equal(p("Reminders app review tomorrow 4pm").title, "Reminders app review");
+  // o'clock belongs to the hour before it, however it's written.
+  for (const oc of ["o'clock", "o’clock", "oclock"]) assert.equal(local(p("Call at 5 " + oc + " tomorrow").start), "17:00", oc);
+  assert.equal(local(p("Call at 9 o'clock tomorrow").start), "09:00", "an hour with no part of the day reads as before");
+  // Number words are hours beside am, pm, o'clock or a part of the day.
+  assert.equal(local(p("dinner at eight tonight").start), "20:00");
+  assert.equal(local(p("yoga six in the morning tomorrow").start), "06:00");
+  assert.equal(local(p("Call at ten o'clock tomorrow").start), "10:00");
+  assert.equal(p("Lunch with one friend Friday 1pm").title, "Lunch with one friend", "elsewhere they stay words");
+  // half past, quarter past, quarter to.
+  assert.equal(local(p("Board meeting at a quarter past ten tomorrow").start), "10:15");
+  assert.equal(local(p("Call at quarter to twelve tomorrow").start), "11:45");
+  assert.equal(local(p("Call at quarter to 1 tomorrow").start), "12:45");
+  assert.equal(local(p("Train at half past 7 pm").start), "19:30");
+  assert.equal(p("Quarter review Friday 3pm").title, "Quarter review", "quarter alone is a word");
+  // A part of the day sets am or pm beside a clock time; after an ordinary word it stays in the title.
+  assert.equal(p("Team night out Friday 7pm").title, "Team night out");
+  assert.equal(p("early morning run 6am").title, "early morning run");
+  assert.equal(p("Dinner Friday night").title, "Dinner", "with no clock time it's still the time of day");
+  assert.equal(local(p("Dinner Friday night").start), "20:00");
+  assert.equal(p("Standup Monday morning 9:30").title, "Standup");
+});
+
 test("parse: pasted invitations", () => {
   const now = new Date("2026-11-11T04:30:00Z"), timeZone = "Asia/Kolkata";
   const at = (d, h, mi = 0) => R.zonedTime(2026, 11, d, h, mi, timeZone).toISOString();
@@ -2027,7 +2101,7 @@ test("website: every figure is real and checkable", async () => {
   assert.ok(!pkg.dependencies || !Object.keys(pkg.dependencies).length, "0 runtime dependencies, as /open says");
   assert.ok(open.includes("<b>0</b><span>runtime dependencies in the npm package</span>"));
   const openNums = visible(open.slice(open.indexOf("<main"), open.indexOf("</main>"))).match(/\d+(?:\.\d+)?/g);
-  assert.deepEqual([...new Set(openNums)].sort(), [String(tests), "70", "150", "0"].sort(), "/open shows no number a test doesn't keep true");
+  assert.deepEqual([...new Set(openNums)].sort(), [...new Set([String(tests), "70", "150", "0"])].sort(), "/open shows no number a test doesn't keep true");
   const { qrSVG } = await import("../public/qr.js");
   assert.ok(hosts.includes(qrSVG("https://remmynd.space/example", { label: "QR code that opens an example reminder" })), "the QR code on /hosts is drawn by qr.js for remmynd.space/example");
 
