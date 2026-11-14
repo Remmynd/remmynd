@@ -1301,7 +1301,8 @@ test("words: the maker uses the spec's wording", () => {
   // The Story card (ADDENDUM-1, section 5 and slice 3).
   for (const [f, w] of [["public/index.html", "</svg>Story\n"], ["public/story.js", "Card ready. The link is copied."], ["public/story.js", "Share the card"], ["public/story.js", "Save picture"],
     ["public/story.js", "Tap the link to get reminded"], ["public/story.js", "I'm in."], ["public/story.js", "1. In your Story, add the Link sticker and paste."],
-    ["public/story.js", "2. If you like, add the Countdown sticker and set it to "], ["public/story.js", "In Snapchat, attach the link with the paperclip."], ["public/story.js", " It is copied."]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
+    ["public/story.js", "2. If you like, add the Countdown sticker and set it to "], ["public/story.js", "In Snapchat, attach the link with the paperclip."], ["public/story.js", " It is copied."],
+    ["public/app.js", "Add to story"], ["public/app.js", "Pass it on"]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
   // The live badge (ADDENDUM-1, section 5).
   for (const [f, w] of [["public/index.html", ">The live badge<"], ["public/livebadge.js", "The live badge"], ["public/livebadge.js", "Copy for Discord"], ["lib/remmynd.js", ". Tap to get reminded."], ["public/hosts/index.html", "The live badge"], ["worker/embed.js", "Scan to get reminded"], ["public/clock.js", '"Live now"'], ["public/clock.js", '"Ended"']]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
 });
@@ -2208,6 +2209,39 @@ test("story card: a picture for Stories, drawn on the device, with the link copi
   } finally {
     for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete globalThis[k]; else globalThis[k] = v; }
   }
+});
+
+test("held ticket: Add to story and Pass it on (ADDENDUM-1, slice 4)", async () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8");
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+  // On a held ticket, right under the reminder stack. Not on the ticket before Remind me.
+  const stack = app.slice(app.indexOf("function stackHTML(c){"), app.indexOf("/* Follow through (step 5)"));
+  assert.ok(stack.includes("emailRow(c)+floatRow()+'</div>'+\n    '<div class=\"s-actions two s-pass\"><button type=\"button\" class=\"btn\" id=\"s-story\">'+I.story+'Add to story</button><button type=\"button\" class=\"btn\" id=\"s-pass\">'+I.pass+'Pass it on</button></div>'"), "right under the stack");
+  assert.ok(stack.includes("\"Held. You\\'re set.\""), "Held. You're set. stays as it is");
+  assert.doesNotMatch(line("function remindHTML(c){") + line("  '<a class=\"remind\" id=\"remind\">"), /s-story|s-pass|Add to story|Pass it on/, "absent before Remind me");
+  assert.doesNotMatch(app.slice(app.indexOf("function followHTML(c){"), app.indexOf("function labelFor(")), /s-story|s-pass/, "and once it's time, the ticket asks Done or Not yet instead");
+
+  // Add to story: the joiner's card ("I'm in."), with the link copied inside the tap.
+  assert.ok(app.includes('on("#s-story",x=>x.addEventListener("click",()=>{const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(c.share).then(()=>true,()=>false):Promise.resolve(false);'));
+  assert.ok(app.includes('import("/story.js").then(m=>m.open({ev:{title:c.r.t,start:c.start},link:c.share,timeZone:TZ,joiner:true,copied,copy,toast,from:x}))'));
+
+  // Pass it on, run with stand-ins: the share sheet with the title and the link; "Link copied" where there is no sheet.
+  const pass = line('  on("#s-pass",');
+  const run = async nav => {
+    let click = null; const copies = [], c = { r: { t: "Demo day" }, share: "https://remmynd.space/#private-payload" };
+    new Function("on", "c", "copy", "navigator", pass)((sel, fn) => fn({ addEventListener: (t, f) => { click = f; } }), c, (...a) => copies.push(a), nav);
+    click();
+    await new Promise(r => setImmediate(r));
+    return copies;
+  };
+  let shared = null;
+  assert.deepEqual(await run({ share: async d => { shared = d; } }), [], "shared, not copied");
+  assert.deepEqual(shared, { title: "Demo day", url: "https://remmynd.space/#private-payload" }, "the title and the link; a private link stays the private one");
+  assert.deepEqual(await run({}), [["https://remmynd.space/#private-payload", "Link copied"]], "no share sheet: copied");
+  assert.deepEqual(await run({ share: async () => { throw Object.assign(new Error("x"), { name: "AbortError" }); } }), [], "closed the sheet: nothing else");
+  assert.deepEqual(await run({ share: async () => { throw Object.assign(new Error("x"), { name: "NotAllowedError" }); } }), [["https://remmynd.space/#private-payload", "Link copied"]], "the sheet failed: copied");
+  // The link a ticket shares is the one it was opened with: shared, or private for a private link.
+  assert.ok(app.includes("const share=linkFor(r,S.key,S.priv);"));
 });
 
 test("follow through: the re-plan sheet's choices", () => {

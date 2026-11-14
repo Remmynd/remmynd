@@ -19,6 +19,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - `/new?q=<line>` opens the app with one line in the bar, and makes the link when the line has a time in it.
 - A Talk shortcut on the installed app's icon (`/?talk=1`): it opens the bar with the mic marked.
 - The Story card: Story under Share it copies your link and draws a 9:16 picture of the reminder on your device, ready for Instagram, WhatsApp Status and other Stories. It shows the ring, the title, the date and time with the time zone, and "Tap the link to get reminded", and leaves the lower third free. The sheet says how to add Instagram's Link sticker (paste the copied link) and, if you like, its Countdown sticker. Share the card opens the share sheet where the browser can share pictures; elsewhere Save picture saves it. Snapchat gets a plain link to its own share page. Nothing is uploaded.
+- Two buttons on a reminder you hold, under the reminder stack: Add to story makes your own card, "I'm in." with the ring held, and Pass it on opens the share sheet with the title and the link (or copies the link where there's no share sheet). A private link stays private: it's the one passed on.
 
 ### Changed
 
