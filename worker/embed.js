@@ -26,7 +26,7 @@ const MARK = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M
 export const EMBED_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors *";
 const HEADERS = {
   "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex",
-  "Content-Security-Policy": EMBED_CSP, "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin"
+  "Content-Security-Policy": EMBED_CSP, "Permissions-Policy": "camera=(), microphone=(), geolocation=()", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin"
 };
 
 /** The hour and minute of a moment in a time zone. */

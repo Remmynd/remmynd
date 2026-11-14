@@ -224,7 +224,7 @@ export async function badgeResponse(request, env, url, now = Date.now()) {
   const start = r.start.getTime(), state = badgeState(start, start + r.durationMinutes * 60000, now);
   return new Response(request.method === "HEAD" ? null : liveBadgeSVG(r, { now, theme, size }), {
     headers: {
-      "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": CACHE[state], "Content-Security-Policy": BADGE_CSP,
+      "Content-Type": "image/svg+xml; charset=utf-8", "Cache-Control": CACHE[state], "Content-Security-Policy": BADGE_CSP, "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
       "X-Content-Type-Options": "nosniff", "Access-Control-Allow-Origin": "*", "Cross-Origin-Resource-Policy": "cross-origin", "X-Robots-Tag": "noindex"
     }
   });

@@ -1,0 +1,9 @@
+/* Talk, while listening: the bar's border in the moment colour and a pulsing dot. No level meter: the sound is never measured. */
+.capture.listening .cap-bar{border-color:transparent;box-shadow:var(--shadow-float),inset 0 0 0 2px var(--moment)}
+.capture.listening .cap-talk{background:var(--moment-tint);color:var(--ink)}
+.talk-dot{display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:var(--moment);vertical-align:1px;animation:talkPulse 1.2s ease-in-out infinite}
+@keyframes talkPulse{50%{opacity:.25;transform:scale(.7)}}
+.cap-note{margin:0;padding-left:18px;font-size:12px;line-height:1.4;color:var(--muted)}
+/* On phones the bar is docked at the bottom and grows with the note: keep messages above it. */
+@media (max-width:959px){body.has-cap:has(#talk-note) .toast{bottom:calc(176px + env(safe-area-inset-bottom,0px))}}
+@media (prefers-reduced-motion:reduce){.talk-dot{animation:none}}

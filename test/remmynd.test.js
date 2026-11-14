@@ -1293,7 +1293,10 @@ test("words: the maker uses the spec's wording", () => {
     "Up to 3 nudges, 10 minutes apart.", "Sign in to get it by email too", "More ways to be reminded", ". Confirm there.", "Calendar and a notification on this "]) assert.ok(app.includes(w), "app.js says: " + w);
   assert.match(app, /CAL_NAME=\{apple:"Apple Calendar",google:"Google Calendar",outlook:"Outlook"\}/, "Sent to Apple Calendar. Confirm there. (and Google or Outlook)");
   assert.doesNotMatch(app, /Added to (Apple|Google)/, "never claim it was added");
-  assert.doesNotMatch(html + app, /microphone|Speak it/i, "no microphone in 2.0");
+  // Talk (ADDENDUM-1, section 5). It retires the 2.0 check "no microphone in 2.0".
+  for (const [f, w] of [["public/index.html", 'aria-label="Talk"'], ["public/talk.js", "Listening. Pause to finish."], ["public/index.html", "Heard: “"], ["public/index.html", ">Fix<"],
+    ["public/talk.js", "Say when, like “Friday 5 pm”."], ["public/talk.js", "Say a time, or press Enter for "], ["public/app.js", "Type it, or use your keyboard\'s mic."],
+    ["public/talk.js", "The mic is blocked for this site. You can still type."], ["public/talk.js", "Speech needs a connection in this browser. You can still type."]]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
   // The live badge (ADDENDUM-1, section 5).
   for (const [f, w] of [["public/index.html", ">The live badge<"], ["public/livebadge.js", "The live badge"], ["public/livebadge.js", "Copy for Discord"], ["lib/remmynd.js", ". Tap to get reminded."], ["public/hosts/index.html", "The live badge"], ["worker/embed.js", "Scan to get reminded"], ["public/clock.js", '"Live now"'], ["public/clock.js", '"Ended"']]) assert.ok(readFileSync(join(root, f), "utf8").includes(w), f + " says: " + w);
 });
@@ -1309,6 +1312,10 @@ test("privacy and free wording match the approved text", () => {
   const signin = "If you sign in, we keep your email address and your reminders so they sync across your devices and can be emailed to you. Private links stay on your device. Delete it all any time.";
   for (const f of ["README.md", "docs/PRINCIPLES.md", "public/privacy/index.html"]) assert.ok(readFileSync(join(root, f), "utf8").includes(signin), f + " explains what signing in keeps");
   assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes("delivered by <a href=\"https://resend.com/legal/privacy-policy\">Resend</a>"), "the privacy page names who delivers the emails");
+  // Talk, in the owner's words (ADDENDUM-1, sentence 3): on the privacy page, and under the bar the first time.
+  const talking = "If you use the mic, your browser turns your speech into text, and it may send the sound to its maker to do that. remmynd never receives your voice.";
+  assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes('<h2 id="talking">Talking</h2>\n    <p>' + talking + "</p>"), "the privacy page has Talking");
+  assert.ok(readFileSync(join(root, "public/talk.js"), "utf8").includes('const NOTE = "' + talking + '";'), "Talk shows it on first use");
   for (const f of repoFiles()) {
     if (/\.(png|ico|woff2)$/.test(f) || f.startsWith(join(root, "test")) || f.includes(join("docs", "v2")) || f.endsWith("CHANGELOG.md")) continue;
     assert.doesNotMatch(readFileSync(f, "utf8"), /no sign-up|No account on either side/i, f + " still promises no sign-up");
@@ -1943,6 +1950,177 @@ test("smart paste: the browser's on-device AI reads an email or a poster into on
   assert.equal(line({ title: "  Two\n  lines  ", date: "", place: "" }).line, "Two lines");
   assert.equal(line({ title: "t".repeat(500) }).line.length, 120);
   assert.deepEqual(line(null), { line: "", found: false });
+});
+
+test("talk: tap the mic, say it, and a line with a time becomes the link (ADDENDUM-1, slice 2)", async () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  const src = readFileSync(join(root, "public/talk.js"), "utf8"), css = readFileSync(join(root, "public/talk.css"), "utf8");
+  const worker = (await import("../worker/index.js")).default, env = shellEnv();
+
+  // The mic for this site only. The reminder card and the live badge never grant it.
+  assert.ok(readFileSync(join(root, "public/_headers"), "utf8").includes("Permissions-Policy: camera=(), microphone=(self), geolocation=(), interest-cohort=()"));
+  const code = R.createLink({ title: "Demo day", start: new Date("2026-12-05T12:30:00Z") }).split("/r/")[1];
+  for (const path of ["/embed/" + code, "/b/" + code + ".svg"]) {
+    const res = await worker.fetch(new Request("https://remmynd.space" + path), env);
+    assert.equal(res.status, 200, path);
+    assert.equal(res.headers.get("permissions-policy"), "camera=(), microphone=(), geolocation=()", path);
+  }
+
+  // Loaded on the first tap only. It never makes a request, and it never measures the sound.
+  assert.ok(!firstVisit({ cache: true }).some(f => /^talk\./.test(f)), "the first visit doesn't download it");
+  assert.doesNotMatch(src, /fetch\(|XMLHttpRequest|sendBeacon|WebSocket|getUserMedia|AudioContext/);
+  assert.doesNotMatch(css.replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "talk.css uses token names");
+  assert.ok(css.includes("@media (prefers-reduced-motion:reduce){.talk-dot{animation:none}}"), "the dot stops under reduced motion");
+
+  // The mic shows only where the browser can listen.
+  const line = p => app.split("\n").find(l => l.startsWith(p));
+  const canTalk = new Function(line("const canTalk=") + "; return canTalk;")();
+  const API = function () {};
+  assert.equal(canTalk({ isSecureContext: true, navigator: {} }), false, "no speech recognition, as in Firefox");
+  assert.equal(canTalk({ webkitSpeechRecognition: API, isSecureContext: true, navigator: { standalone: true } }), false, "the iPhone Home Screen app");
+  assert.equal(canTalk({ webkitSpeechRecognition: API, isSecureContext: true, navigator: { standalone: false } }), true, "Safari");
+  assert.equal(canTalk({ SpeechRecognition: API, webkitSpeechRecognition: API, isSecureContext: true, navigator: {} }), true, "Chrome");
+  assert.equal(canTalk({ SpeechRecognition: API, isSecureContext: false, navigator: {} }), false, "not off https");
+  assert.ok(html.includes('<button type="button" class="cap-talk" id="talk" aria-label="Talk" aria-pressed="false" hidden>'), "hidden until the check passes");
+  assert.ok(app.includes('if(canTalk(window))T.btn.hidden=false;else if(MOBILE){T.hint.textContent="Type it, or use your keyboard\'s mic.";T.hint.classList.add("idle");T.hint.hidden=false;}'));
+  assert.ok(app.includes('import("/talk.js").then(m=>m.toggle({input:C.input,form:C.form,btn:T.btn,hint:T.hint,make,timed,parse:R.parse,at:d=>fShort(d,TZ),timeZone:TZ}))'), "loaded on the tap");
+
+  // Made by itself only with a clock time or "in 20 minutes". A day alone, or a part of the day, waits in the bar.
+  const timed = new Function(line("const timed=") + "; return timed;")();
+  const now = new Date("2026-11-11T14:10:00Z"), timeZone = "Asia/Kolkata", p = l => R.parse(l, { now, timeZone });
+  for (const l of ["Demo day Friday five pm", "doctor appointment at quarter past 4 tomorrow", "webinar next Friday at 5 o'clock", "call mom tonight at 9",
+    "lunch at noon tomorrow", "meeting in 20 minutes", "meeting in half an hour", "Standup 9:30", "yoga at half past six tomorrow morning"]) assert.equal(timed(p(l)), true, l);
+  for (const l of ["pay rent on 1st December", "Dentist tomorrow", "call mom tonight", "Dinner Friday night", "yoga tomorrow morning", "call the bank"]) assert.equal(timed(p(l)), false, l);
+
+  // talk.js itself, with a stand-in for the browser's speech recognition and the few page parts it touches.
+  class Rec {
+    constructor() { Rec.all.push(this); }
+    start() { this.onstart(); }
+    stop() { this.stopped = true; }
+    abort() { this.aborted = true; this.onerror({ error: "aborted" }); this.onend(); }
+  }
+  Rec.prototype.processLocally = false;
+  Rec.all = []; Rec.answer = "available";
+  Rec.available = async q => { Rec.asked = q; return Rec.answer; };
+  const on = {}, byId = {}, store = {};
+  const node = () => ({ kids: [], attrs: {}, hidden: true, textContent: "", value: "", events: {},
+    classList: { set: new Set(), add(c) { this.set.add(c); }, remove(c) { this.set.delete(c); }, contains(c) { return this.set.has(c); } },
+    setAttribute(k, v) { this.attrs[k] = v; }, prepend(x) { this.kids.unshift(x); }, after(x) { this.next = x; byId[x.id] = x; }, remove() { delete byId[this.id]; },
+    addEventListener(t, f) { (this.events[t] ||= []).push(f); }, dispatchEvent(e) { (this.events[e.type] || []).forEach(f => f(e)); return true; } });
+  const saved = { window: globalThis.window, document: globalThis.document, localStorage: globalThis.localStorage };
+  globalThis.window = { webkitSpeechRecognition: Rec };
+  globalThis.document = { head: { append() {} }, querySelector: () => null, createElement: () => node(), getElementById: id => byId[id] || null, addEventListener(t, f) { (on[t] ||= []).push(f); } };
+  globalThis.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = String(v); } };
+  if (!globalThis.navigator) globalThis.navigator = { language: "en-IN" };
+  try {
+    const T = await import("../public/talk.js");
+    const input = node(), form = node(), btn = node(), hint = node(), made = [], typed = [];
+    input.addEventListener("input", () => typed.push(input.value));
+    const at = d => new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "2-digit" }).format(d);
+    const o = { input, form, btn, hint, make: l => made.push(l), timed, parse: R.parse, at, timeZone };
+    const hear = (r, t) => r.onresult({ results: [[{ transcript: t }]] });
+    const say = async () => { await T.toggle(o); return Rec.all.at(-1); };
+
+    // First use: on the device where it can be, listening shown, the note once, each result in the bar, then made.
+    let r = await say();
+    assert.deepEqual([r.lang, r.interimResults, r.continuous, r.maxAlternatives, r.processLocally], [navigator.language, true, false, 1, true]);
+    assert.deepEqual(Rec.asked, { langs: [navigator.language], processLocally: true });
+    assert.ok(form.classList.contains("listening"));
+    assert.equal(btn.attrs["aria-pressed"], "true");
+    assert.deepEqual([hint.textContent, hint.hidden, hint.kids[0].className], ["Listening. Pause to finish.", false, "talk-dot"]);
+    assert.ok(byId["talk-note"].textContent.startsWith("If you use the mic, your browser turns your speech into text"), "the note, on first use");
+    assert.equal(store["rm:talk-note"], "1");
+    hear(r, "Demo day"); hear(r, "Demo day Friday five pm");
+    assert.deepEqual(typed, ["Demo day", "Demo day Friday five pm"], "each result goes into the bar as if typed");
+    r.onend();
+    assert.deepEqual(made, ["Demo day Friday five pm"], "made, with the line it heard");
+    assert.ok(!form.classList.contains("listening"));
+    assert.equal(btn.attrs["aria-pressed"], "false");
+    assert.equal(hint.hidden, true);
+
+    // A day alone waits for a time; what's said next is added after it. No language download is started.
+    input.value = ""; Rec.answer = "downloadable";
+    r = await say();
+    assert.equal(r.processLocally, false, "the browser's usual way");
+    assert.equal(byId["talk-note"], undefined, "the note shows on first use only");
+    hear(r, "Dentist tomorrow"); r.onend();
+    assert.equal(made.length, 1, "a day alone isn't made");
+    assert.equal(input.value, "Dentist tomorrow");
+    assert.equal(hint.textContent, "Say a time, or press Enter for 9:00 AM.");
+    r = await say();
+    hear(r, "at 4 pm");
+    assert.equal(input.value, "Dentist tomorrow at 4 pm");
+    r.onend();
+    assert.equal(made.at(-1), "Dentist tomorrow at 4 pm");
+
+    // Nothing about when: ask. Typing clears it.
+    input.value = "";
+    r = await say(); hear(r, "call the bank"); r.onend();
+    assert.deepEqual([hint.textContent, hint.hidden], ["Say when, like “Friday 5 pm”.", false]);
+    input.value = "call the bank Friday"; input.dispatchEvent(new Event("input"));
+    assert.equal(hint.hidden, true);
+
+    // A second tap finishes early. Esc or Cancel stops without making anything.
+    input.value = "";
+    r = await say(); await T.toggle(o);
+    assert.equal(r.stopped, true, "a second tap finishes early");
+    r.onend();
+    const count = made.length;
+    r = await say(); hear(r, "Demo day Friday 5 pm");
+    on.keydown.forEach(f => f({ key: "Escape" }));
+    assert.equal(r.aborted, true, "Esc");
+    r = await say(); hear(r, "Demo day Friday 5 pm");
+    on.click.forEach(f => f({ target: { closest: s => s === '[data-act="cancel"]' ? {} : null } }));
+    assert.equal(r.aborted, true, "Cancel");
+    assert.equal(made.length, count, "nothing made");
+
+    // Errors say what to do, or stop quietly.
+    for (const [error, said] of [["not-allowed", "The mic is blocked for this site. You can still type."], ["service-not-allowed", "The mic is blocked for this site. You can still type."],
+      ["network", "Speech needs a connection in this browser. You can still type."], ["no-speech", ""], ["audio-capture", ""]]) {
+      input.value = "";
+      r = await say(); r.onerror({ error }); r.onend();
+      assert.deepEqual([hint.textContent, hint.hidden], [said, !said], error);
+    }
+    // A language the device can't do: once more, the browser's usual way.
+    Rec.answer = "available";
+    r = await say();
+    assert.equal(r.processLocally, true);
+    const n = Rec.all.length;
+    r.onerror({ error: "language-not-supported" }); r.onend();
+    assert.equal(Rec.all.length, n + 1);
+    const again = Rec.all.at(-1);
+    assert.equal(again.processLocally, false, "tried once more without it");
+    again.onerror({ error: "language-not-supported" }); again.onend();
+    assert.equal(Rec.all.length, n + 1, "only once");
+    assert.equal(made.length, count);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete globalThis[k]; else globalThis[k] = v; }
+  }
+
+  // On the ready screen: what it heard, as text, and Fix, which is the Edit button.
+  assert.ok(html.includes('<p class="heard" id="heard" hidden><span>Heard: “<span id="heard-t"></span>”</span><button type="button" class="linkish" id="f-fix">Fix</button></p>'));
+  assert.ok(app.includes('$("#heard").hidden=!m.heard;$("#heard-t").textContent=m.heard||"";'));
+  assert.ok(app.includes('$("#f-fix").addEventListener("click",()=>F.edit.click());'));
+  // Made without a tap on Copy (Talk, /new?q=): the link is copied where the browser allows it, and "Copied" shows only when it was.
+  assert.ok(app.includes('function copy(text,msg,done,quiet){const ok=()=>{toast(msg||"Copied");if(done)done();};const fb=()=>{if(quiet)return;'));
+  assert.ok(app.includes('copy(link,"Link copied. Share it anywhere.",copied,!!(heard||auto));'));
+  assert.equal(app.split("F.copied.hidden=false").length, 2, "only copied() shows it");
+  assert.ok(app.includes('if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{if(D.mode==="draft"){setMode("draft");renderDraft();}});}'), "a link made while the bar switches to the preview stays on the ready screen");
+
+  // /new?q=<line>: the line in the bar, and made when it has a time, as Talk does.
+  const res = await worker.fetch(new Request("https://remmynd.space/new?q=Dentist+tomorrow+4pm"), env);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.match(await res.text(), /<title>remmynd<\/title>/);
+  assert.ok(app.includes('line=(q.get("q")||"").replace(/\\s+/g," ").trim().slice(0,600);'));
+  assert.ok(app.includes('if(line){intoBar(line);const p=R.parse(line,{timeZone:TZ});if(timed(p))make(null,true);return;}'));
+  assert.ok(readFileSync(join(root, "public/docs/index.html"), "utf8").includes("https://remmynd.space/new?q=Dentist+tomorrow+4pm"), "on the docs page");
+  assert.ok(readFileSync(join(root, "public/llms.txt"), "utf8").includes("https://remmynd.space/new?q=Dentist+tomorrow+4pm"), "and in llms.txt");
+
+  // The Talk shortcut on the app's icon focuses the bar and marks the mic. It doesn't listen by itself.
+  const man = JSON.parse(readFileSync(join(root, "public/manifest.webmanifest"), "utf8"));
+  assert.deepEqual(man.shortcuts.map(s => [s.name, s.url]), [["New reminder", "/"], ["Talk", "/?talk=1"]]);
+  assert.ok(app.includes('if(new URLSearchParams(location.search).get("talk")==="1"){history.replaceState(null,"","/"+location.hash);if(!T.btn.hidden)T.btn.classList.add("mark");setTimeout(()=>C.input.focus());}'));
 });
 
 test("follow through: the re-plan sheet's choices", () => {

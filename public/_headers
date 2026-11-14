@@ -3,7 +3,7 @@
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Permissions-Policy: camera=(), microphone=(self), geolocation=(), interest-cohort=()
   X-Frame-Options: DENY
   Cache-Control: public, max-age=600
 # "! Cache-Control" drops the default above, so each file below gets exactly one Cache-Control.

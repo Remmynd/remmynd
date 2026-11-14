@@ -15,8 +15,14 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - The reminder card counts down. Its first line says "in 12 days", then "1d 04:12:09" inside 48 hours, ticking every second, then "Live now" and "Ended". The Worker writes the first value, so the card is right before its script runs. The badge and the card share one clock.
 - `?screen=1` on the reminder card: a layout for big screens, streams and the last slide of a talk, with the countdown in large type and a QR code of the link, "Scan to get reminded", in place of the button.
 
+- Talk: tap the mic in the bar, say the reminder, and pause. What you say goes into the bar as you speak, so the live preview follows along. If you said a time, like "Friday 5 pm" or "in 20 minutes", the link is made, and the ready screen shows what it heard with a Fix button. A day alone, like "Dentist tomorrow", stays in the bar until you say a time or press Enter. Tap the mic again to finish early; Esc or Cancel stops without making anything. Where the browser can recognise speech on the device, it does. The mic shows only where the browser can listen: not in Firefox, and not in the iPhone Home Screen app, where the keyboard's own mic works instead.
+- `/new?q=<line>` opens the app with one line in the bar, and makes the link when the line has a time in it.
+- A Talk shortcut on the installed app's icon (`/?talk=1`): it opens the bar with the mic marked.
+
 ### Changed
 
+- The site now lets itself use the microphone (`Permissions-Policy: microphone=(self)`), for Talk. The reminder card and the live badge still don't.
+- "Copied" beside a new link shows only once the link really is copied. When a link is made without a tap on Copy (Talk, `/new?q=`) and the browser won't copy without one, the app says nothing and leaves Copy link to you.
 - The bar reads lines the way people say them. "remind me to", "set a reminder for" and similar lead-ins are dropped at the start of a line. It also reads "5 o'clock", "half past six", "quarter past 4", "quarter to 5" and "five pm", and a part of the day sets am or pm, so "5 o'clock in the evening" is 17:00. "movie night … 8 p.m." keeps "night" in the title. All 26 spoken lines in the Talk plan now come out right, up from 18. This is groundwork for Talk, and it helps typing too.
 - The app code budget is now 70 KB compressed, up from 60 KB, to make room for what's coming next: Talk, the live badge and the count. Each of those loads from its own file on first use; the budget covers only what a first visit downloads. The whole first visit, fonts included, stays under 150 KB. The size test, the principles, the spec, CONTRIBUTING and the For hosts and Open numbers pages all say 70 KB.
 

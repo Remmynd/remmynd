@@ -270,7 +270,8 @@ function later(key,run,undo,msg){PEND.set(key,{run,t:setTimeout(()=>{PEND.delete
   toastUndo(msg,()=>{const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);undo();});}
 addEventListener("pagehide",()=>{for(const[k,p]of PEND){clearTimeout(p.t);PEND.delete(k);p.run();}});
 const forgetRec=k=>{if(window.remmyndDB)window.remmyndDB.del("reminders",k).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(k).catch(()=>{});};
-function copy(text,msg){const ok=()=>toast(msg||"Copied");const fb=()=>{const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy")?ok():toast("Select the text and copy it");}catch(e){toast("Select the text and copy it");}ta.remove();};
+/* copy(): done runs only once it has really copied. quiet: nobody pressed Copy (Talk, /new?q=), so a browser that refuses without a tap gets no fallback and no message. */
+function copy(text,msg,done,quiet){const ok=()=>{toast(msg||"Copied");if(done)done();};const fb=()=>{if(quiet)return;const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy")?ok():toast("Select the text and copy it");}catch(e){toast("Select the text and copy it");}ta.remove();};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,fb);else fb();}
 async function shareIt(data,msg){if(navigator.share){try{await navigator.share(data);toast(msg);return;}catch(e){if(e&&e.name==="AbortError")return;}}copy(data.url,"Link copied. Paste it into Reminders or Notes.");}
 
@@ -278,11 +279,16 @@ async function shareIt(data,msg){if(navigator.share){try{await navigator.share(d
 const C={form:$("#cap-form"),input:$("#cap"),label:$("#cap-l"),hero:$("#hero"),try:$("#try"),draft:$("#draft"),ready:$("#ready"),prev:$("#t-preview"),hint:$("#draft-hint"),
   what:$("#c-what"),when:$("#c-when"),whenIn:$("#c-when-in"),where:$("#c-where"),note:$("#c-note"),edit:$("#edit"),editIn:$("#edit-in"),editL:$("#edit-l"),editOk:$("#edit-ok")};
 const F={remind:$("#f-remind"),edit:$("#f-edit"),link:$("#f-link"),copy:$("#f-copy"),share:$("#f-share"),qr:$("#f-qr"),priv:$("#f-private"),copied:$("#copied"),card:$("#ready-card"),chat:$("#chat-card")};
+const copied=()=>{F.copied.hidden=false;clearTimeout(F.copied._t);F.copied._t=setTimeout(()=>{F.copied.hidden=true;},2600);};
 /* D.line is the typed line; D.set holds parts fixed with a chip, which win over the line; D.made is the last link made. */
 const D={line:"",set:{},made:null,mode:"home",base:"home",editing:null,replace:null};
 const short=u=>String(u||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
 const webish=s=>/^(https?:\/\/|www\.)|^[\w-]+(\.[\w-]+)+(\/|$)/i.test(s);
 const nextHour=()=>new Date(Math.ceil((Date.now()+1)/36e5)*36e5);
+/* Talk shows only where the browser can listen: not without the API, not off https, and not in the iPhone Home Screen app, where speech recognition doesn't work. */
+const canTalk=w=>!!(w.SpeechRecognition||w.webkitSpeechRecognition)&&w.isSecureContext===true&&w.navigator.standalone!==true;
+/* A line with a clock time or "in 20 minutes" in it. Talk and /new?q= make the link by themselves only then; a day alone, or a part of the day, stays in the bar. */
+const timed=p=>p.tokens.some(t=>t.type==="relative"||t.type==="time"&&!/^(?:this |in the )?(?:morning|afternoon|evening|night)$/i.test(t.text));
 function draft(){const p=R.parse(D.line,{timeZone:TZ});return Object.assign({title:p.title,start:p.start,dur:p.dur,place:p.place,notes:""},D.set);}
 function whenText(d){return fDate(d,TZ)+" · "+fShort(d,TZ);}
 /* Line to ticket: a same-document view transition where the browser has one, a plain swap elsewhere. */
@@ -305,8 +311,9 @@ function renderPane(){if(D.mode==="draft")return renderDraft();if(D.mode==="list
   renderTicket(C.prev,{t:x.title,s:pack(x.start),...(x.durationMinutes&&x.durationMinutes!==60?{d:x.durationMinutes}:{}),...(x.location?{l:x.location}:{}),...(x.notes?{n:x.notes}:{}),z:TZ},{interactive:false});}
 function renderMaker(){renderPane();}
 function clearDraft(){swap(()=>{D.line="";D.set={};D.replace=null;C.input.value="";closeEdit();setMode(D.made?"ready":D.base);renderMaker();});}
+/* The switch to the preview waits for the view transition; a link made meanwhile (Talk, /new?q=) wins, so the preview never comes back over the ready screen. */
 C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.line.trim()||Object.keys(D.set).length);
-  if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{setMode("draft");renderDraft();});}
+  if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{if(D.mode==="draft"){setMode("draft");renderDraft();}});}
   else if(typing)renderDraft();
   else if(D.mode==="draft"){const m=D.made?"ready":D.base;D.mode=m;swap(()=>{setMode(m);renderMaker();});}});
 /* Smart paste: a long paste or an image can be read by the browser's own on-device AI, where it has one (smartpaste.js, loaded only then). */
@@ -325,25 +332,25 @@ C.whenIn.addEventListener("click",()=>{try{C.whenIn.showPicker();}catch(e){}});
 C.whenIn.addEventListener("change",()=>{const[dt,tm]=C.whenIn.value.split("T");if(!dt||!tm)return;const[y,mo,d]=dt.split("-").map(Number),[h,mi]=tm.split(":").map(Number);
   D.set.start=zonedToUTC(y,mo,d,h,mi,TZ);if(D.mode!=="draft")setMode("draft");renderDraft();});
 /* Enter: make the link, copy it and keep it in this device's list of links. */
-function make(){if(D.editing)saveEdit();const d=draft();
+function make(heard,auto){if(D.editing)saveEdit();const d=draft();
   if(!d.title){if(D.mode!=="draft")setMode("draft");renderDraft();openEdit("title");return toast("Add what it is first");}
   if(!d.start){if(D.mode!=="draft")setMode("draft");renderDraft();try{C.whenIn.showPicker();}catch(e){C.whenIn.focus();}return toast("Pick a time to make the link");}
   const ev={title:d.title,start:d.start,durationMinutes:d.dur||undefined,location:d.place,notes:d.notes,timeZone:TZ};
   let link;try{link=R.createLink(ev,{base:BASE,private:F.priv.checked});}catch(e){return toast("That reminder can't be made: "+e.message);}
-  swap(()=>{D.made={ev,link};D.line="";D.set={};C.input.value="";closeEdit();showReady();});
-  copy(link,"Link copied. Share it anywhere.");D.made={ev,link};keepLink(D.replace||undefined);D.replace=null;}
+  swap(()=>{D.made={ev,link,heard};D.line="";D.set={};C.input.value="";closeEdit();showReady();});
+  copy(link,"Link copied. Share it anywhere.",copied,!!(heard||auto));D.made={ev,link,heard};keepLink(D.replace||undefined);D.replace=null;}
 function keepLink(prev){const m=D.made;if(!m||!window.remmyndDB)return;const DB=window.remmyndDB;
   (prev?DB.del("links",prev):Promise.resolve()).then(()=>DB.put("links",{share:m.link,title:m.ev.title,start:m.ev.start.getTime(),createdAt:Date.now(),private:F.priv.checked})).catch(()=>{});}
-function showReady(){const m=D.made;F.link.value=m.link;
+function showReady(){const m=D.made;F.link.value=m.link;$("#heard").hidden=!m.heard;$("#heard-t").textContent=m.heard||"";
   F.card.href=m.link;F.card.innerHTML=ringFor(m.ev.start,"open",28)+'<span><b>'+esc(m.ev.title)+'</b><i>'+esc(whenText(m.ev.start))+(m.ev.location?' · '+esc(short(m.ev.location)):'')+'</i></span>';
   /* How it looks in chats: what a chat app shows for this link. A private link shows nothing about the reminder. */
   const host=new URL(BASE).host;
   F.chat.innerHTML='<div class="chat-img" aria-hidden="true">'+ringFor(m.ev.start,"open",28)+'<span>remmynd</span></div><div class="chat-text">'+(F.priv.checked?
     '<b>remmynd</b><span>Reminders that make sure it happens. Free, no account needed, no tracking.</span>':'<b>'+esc(m.ev.title)+'</b><span>'+esc(R.describeWhen(m.ev.start,TZ))+' · Tap to get reminded</span>')+'<i>'+esc(host)+'</i></div>';
-  F.copied.hidden=false;clearTimeout(F.copied._t);F.copied._t=setTimeout(()=>{F.copied.hidden=true;},2600);setMode("ready");renderMaker();}
+  setMode("ready");renderMaker();}
 F.priv.addEventListener("change",()=>{const m=D.made;if(!m)return;const prev=m.link;m.link=R.createLink(m.ev,{base:BASE,private:F.priv.checked});
-  showReady();copy(m.link,F.priv.checked?"Private link copied":"Link copied");keepLink(prev);});
-F.copy.addEventListener("click",()=>F.link.value&&copy(F.link.value,"Link copied. Share it anywhere."));
+  showReady();copy(m.link,F.priv.checked?"Private link copied":"Link copied",copied);keepLink(prev);});
+F.copy.addEventListener("click",()=>F.link.value&&copy(F.link.value,"Link copied. Share it anywhere.",copied));
 F.share.addEventListener("click",()=>{const m=D.made;if(!m)return;shareIt({title:m.ev.title,text:"Get a reminder: "+m.ev.title,url:m.link},"Shared");});
 F.link.addEventListener("focus",()=>F.link.select());
 F.remind.insertAdjacentHTML("afterbegin",I.bell);
@@ -351,6 +358,7 @@ F.remind.insertAdjacentHTML("afterbegin",I.bell);
  * so the calendar, notifications and the stack work exactly as on any reminder link. */
 F.remind.addEventListener("click",()=>{const m=D.made;if(!m)return;const u=new URL(m.link);S.back=true;history.pushState(null,"",u.pathname+u.hash);route();const b=$("#remind");if(b)b.click();});
 F.edit.addEventListener("click",()=>{if(D.made)editMade(D.made.link);});
+$("#f-fix").addEventListener("click",()=>F.edit.click());
 /* Edit a reminder you made: back to the line with its parts filled in. Making it again replaces the old link in My links. */
 const payloadOf=l=>{const s=String(l),i=s.indexOf("/r/");return i>=0?s.slice(i+3).split(/[?#/]/)[0]:s.slice(s.indexOf("#")+1);};
 function editMade(link){const r=dec(payloadOf(link));if(!r)return;
@@ -358,6 +366,12 @@ function editMade(link){const r=dec(payloadOf(link));if(!r)return;
   if(location.pathname!=="/"||location.hash){history.pushState(null,"","/");routed=location.href;}
   D.base=D.mode==="lists"?"lists":"home";swap(()=>{setMode("draft");showHome();});C.input.focus();toast("Change what you need, then press Enter");}
 F.qr.addEventListener("click",()=>{const m=D.made;if(m)openQR(m.link,m.ev.title);});
+/* Talk: tap the mic, say the reminder, stop (talk.js, loaded on the first tap). Where it can't show, the line under the bar points to the keyboard's own mic. */
+const T={btn:$("#talk"),hint:$("#cap-hint")};
+if(canTalk(window))T.btn.hidden=false;else if(MOBILE){T.hint.textContent="Type it, or use your keyboard's mic.";T.hint.classList.add("idle");T.hint.hidden=false;}
+T.btn.addEventListener("click",()=>{T.btn.classList.remove("mark");import("/talk.js").then(m=>m.toggle({input:C.input,form:C.form,btn:T.btn,hint:T.hint,make,timed,parse:R.parse,at:d=>fShort(d,TZ),timeZone:TZ})).catch(()=>toast("Couldn't open it here. Try again."));});
+/* /?talk=1, the Talk shortcut on the app's icon: the bar is focused and the mic marked. Listening still waits for a tap. */
+if(new URLSearchParams(location.search).get("talk")==="1"){history.replaceState(null,"","/"+location.hash);if(!T.btn.hidden)T.btn.classList.add("mark");setTimeout(()=>C.input.focus());}
 /* The live badge and the Discord line: livebadge.js, loaded only when asked for. */
 $("#f-live").addEventListener("click",e=>{const m=D.made,b=e.currentTarget;if(m)import("/livebadge.js").then(x=>x.open(m.link,{copy,from:b})).catch(()=>toast("Couldn't open it here. Try again."));});
 /* Keep the bar above the on-screen keyboard where the browser doesn't move fixed elements itself. */
@@ -452,15 +466,18 @@ function route(){if(location.href===routed)return;routed=location.href;const p=l
   if(p==="/share"||p==="/share/")return fromShare();
   const h=decodeURIComponent(location.hash.slice(1));if(h==="coming-up"||h==="links")return showLists(h==="links"?"links":"coming");
   const preset=PRESETS.get(h);if(typeof preset==="function")return showView(preset(),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
-/* /new?t=…&at=… lands here only when the time has no zone. Read it in this device's zone with the library itself, then show the /r/ link. */
-function fromNew(){const q=new URLSearchParams(location.search);
+/* /new?t=…&at=… lands here only when the time has no zone. Read it in this device's zone with the library itself, then show the /r/ link. /new?q=<line> lands here too. */
+function fromNew(){const q=new URLSearchParams(location.search),line=(q.get("q")||"").replace(/\s+/g," ").trim().slice(0,600);
+  /* /new?q=<line>: the line in the bar, read like anything typed there. With a time in it, the link is made, as Talk does. */
+  if(line){intoBar(line);const p=R.parse(line,{timeZone:TZ});if(timed(p))make(null,true);return;}
   const ev=R.fromQuery(q,{timeZone:TZ});if(ev){history.replaceState(null,"",R.toPath(ev));return route();}
   history.replaceState(null,"","/");routed=location.href;
   const set={};for(const[k,key]of[["t","title"],["l","place"],["n","notes"]]){const v=(q.get(k)||"").trim();if(v)set[key]=key==="place"&&webish(v)&&!/^https?:\/\//i.test(v)?"https://"+v:v;}
   D.set=set;D.mode=Object.keys(set).length?"draft":"home";showHome();toast("Add what's missing to make the link");}
 /* Shared from another app (Android share sheet, manifest share_target): title, text and link become one line in the bar, read like anything typed there. */
 const shareLine=q=>{const u=(q.get("url")||"").trim();let s=[q.get("title"),q.get("text")].map(x=>(x||"").trim()).filter((x,i,a)=>x&&a.indexOf(x)===i).join(" ");if(u&&!s.includes(u))s+=" "+u;return s.replace(/\s+/g," ").trim().slice(0,600);};
-function fromShare(){const t=shareLine(new URLSearchParams(location.search));history.replaceState(null,"","/");routed=location.href;D.base="home";D.mode="home";showHome();if(t){C.input.value=t;C.input.dispatchEvent(new Event("input"));}}
+function intoBar(t){history.replaceState(null,"","/");routed=location.href;D.base="home";D.mode="home";showHome();if(t){C.input.value=t;C.input.dispatchEvent(new Event("input"));}}
+function fromShare(){intoBar(shareLine(new URLSearchParams(location.search)));}
 const goHome=e=>{e.preventDefault();if(location.pathname==="/"&&!location.hash)return showHome();history.pushState(null,"","/");route();};
 $("#home-link").addEventListener("click",goHome);$("#make-own").addEventListener("click",goHome);
 $("#nav-right").addEventListener("click",e=>{const n=e.currentTarget;if(n.dataset.act==="back"){e.preventDefault();return history.back();}if(n.dataset.act==="cancel"){e.preventDefault();return clearDraft();}if(n.getAttribute("href")==="/")goHome(e);});
