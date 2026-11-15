@@ -8,6 +8,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- Groundwork for remmynd for iPhone: inside the app (it sets `window.__rmNative` and listens on `webkit.messageHandlers.remmynd`), alerts are the phone's own notifications. push.js hands each alert, with the same words sw.js uses, to the app instead of the push server; Done and Not yet on an alert open the reminder with `?act=`; the app icon's badge and the Home Screen widget's "next reminder" come from the same place. The page counts as installed there, so no Home Screen prompts. On the web nothing changes.
+
+### Added
+
 - Make it a video call, on the Short call row when the line has a time and no place yet: it opens remmynd Calls with the title, time and length filled in. Calls makes a room on Daily that opens five minutes early and closes at the end, then hands the call link back here as the reminder's place, so "Open the link" on the ticket joins the call. A plain link: this page still asks no other host for anything.
 
 ## [2.3.0] - 2026-11-14

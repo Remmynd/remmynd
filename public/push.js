@@ -5,7 +5,29 @@
   "use strict";
   const RM = window.__rm;
   if (!RM) return;
-  const SUPPORTED = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && RM.OWN;
+  /* ---------- inside remmynd for iPhone: alerts are the phone's own notifications, through a bridge ----------
+   * The app sets window.__rmNative before any script runs and listens on webkit.messageHandlers.remmynd. Each
+   * message carries a request id; the app answers with window.__rmNativeReply(id, result). No server, no push
+   * address: the alerts, with their words, go straight to the phone. */
+  const NATIVE = window.__rmNative && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.remmynd ? window.webkit.messageHandlers.remmynd : null;
+  const SUPPORTED = !!NATIVE || ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window && RM.OWN);
+  const waits = new Map(); let nperm = "default";
+  window.__rmNativeReply = (req, result) => { const w = waits.get(req); if (w) { waits.delete(req); w(result || {}); } };
+  const native = (type, payload = {}) => new Promise(ok => { const req = rid(); waits.set(req, ok); try { NATIVE.postMessage({ type, req, ...payload }); } catch (e) { waits.delete(req); return ok({ ok: false }); } setTimeout(() => { if (waits.has(req)) { waits.delete(req); ok({ ok: false }); } }, 15000); });
+  const permission = () => (NATIVE ? nperm : Notification.permission);
+  const askPermission = () => (NATIVE ? native("permission", { ask: true }).then(r => (nperm = r.status || "denied")) : Notification.requestPermission());
+  /* The alert's words, the same as sw.js shows on the web. */
+  const timeStr = t => RM.fShort(new Date(t), RM.TZ);
+  const short = u => String(u || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  function words(a) {
+    const place = a.place ? short(a.place) : "";
+    if (a.kind === "before") return { title: a.title + " starts in 1 hour", body: timeStr(a.start) + (place ? " · " + place : "") };
+    if (a.kind === "after") return { title: a.title + " started at " + timeStr(a.start), body: place ? "Tap to open " + place : "Tap to see the details" };
+    if (a.kind === "check") return { title: a.title + ": did you make it?", body: "Tap Done, or Not yet to pick another time." };
+    if (a.kind === "nudge") return { title: a.title + " has started", body: "Nudge " + (a.n || 1) + " of 3. Tap to open." };
+    if (a.kind === "replan") return { title: a.title, body: "You asked to be reminded now. Tap to open." };
+    return { title: a.title + " is starting now", body: place ? "Tap to open " + place : "Tap to see the details" };
+  }
   const MOBILE = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
   const DEVICE = MOBILE ? "phone" : "computer";
   const $ = s => document.querySelector(s);
@@ -48,7 +70,7 @@
     if (!el || !el.isConnected) return;
     const start = d.start.getTime();
     if (start <= Date.now() + 30e3) { el.innerHTML = row("It has already started", "", true); return; }
-    if (!SUPPORTED || !(await serverKey())) {
+    if (!SUPPORTED || (!NATIVE && !(await serverKey()))) {
       if (RM.IOS && !RM.STANDALONE && RM.OWN) {
         el.innerHTML = row("On iPhone, add remmynd to your Home Screen first", '<button type="button" class="btn small" id="n-install">Add</button>');
         el.querySelector("#n-install").addEventListener("click", () => RM.openSheet());
@@ -62,14 +84,15 @@
       el.querySelector("#n-off").addEventListener("click", async () => { try { await turnOff(rkey); } catch (e) {} renderRow(d); });
       // A test alert now, shown by this device itself, so you can see and hear how a reminder arrives.
       el.querySelector("#n-test").addEventListener("click", async () => {
+        if (NATIVE) { await native("test", { title: d.r.t, share: d.share }); return RM.toast("Test sent. It arrives in a few seconds."); }
         try {
           const reg = await navigator.serviceWorker.ready;
           await reg.showNotification(d.r.t, { body: "Test alert. This is how remmynd will remind you.", icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: "rm-test", data: { url: d.share } });
           RM.toast("Test sent. Check your notifications.");
         } catch (e) { RM.toast("This browser didn't show the test"); }
       });
-    } else if (Notification.permission === "denied") {
-      el.innerHTML = row("Blocked in this browser's settings", "", true);
+    } else if (permission() === "denied") {
+      el.innerHTML = row(NATIVE ? "Turned off for remmynd in Settings" : "Blocked in this browser's settings", "", true);
     } else {
       el.innerHTML = row("Not set on this " + DEVICE, '<button type="button" class="btn small" id="n-on">Turn on</button>');
       el.querySelector("#n-on").addEventListener("click", () => remind(d, true));
@@ -80,7 +103,7 @@
    * the tap itself, so this asks before anything is awaited. */
   function remind(d, loud) {
     if (!SUPPORTED || d.start.getTime() <= Date.now() + 30e3) return renderRow(d).then(() => false);
-    const perm = Notification.permission === "default" ? Notification.requestPermission() : Promise.resolve(Notification.permission);
+    const perm = permission() === "default" ? askPermission() : Promise.resolve(permission());
     return perm.then(async p => {
       if (p !== "granted") { await renderRow(d); return false; }
       const rkey = rkeyOf(d.r.t, d.start.getTime());
@@ -108,6 +131,13 @@
     const now = Date.now();
     alerts = alerts.filter(a => a.at > now + 30e3);
     if (!alerts.length) return [];
+    if (NATIVE) {
+      await putMany(alerts);
+      const r = await native("schedule", { alerts: alerts.map(a => ({ id: a.id, at: a.at, kind: a.kind, share: a.share, ...words(a) })) });
+      if (!r.ok) { await delMany(alerts.map(a => a.id)); throw new Error("native"); }
+      refreshBadge();
+      return alerts;
+    }
     const sub = await subscription();
     await putMany(alerts);
     try { await post("/push/schedule", { endpoint: sub.endpoint, pings: alerts.map(a => ({ id: a.id, at: a.at })) }); }
@@ -121,7 +151,8 @@
     const mine = (await getAll()).filter(a => a.rkey === rkey && !a.shown && (!kinds || kinds.includes(a.kind)));
     if (!mine.length) return 0;
     await delMany(mine.map(a => a.id));
-    try {
+    if (NATIVE) await native("cancel", { ids: mine.map(a => a.id) });
+    else try {
       const reg = SUPPORTED && await navigator.serviceWorker.ready;
       const sub = reg && await reg.pushManager.getSubscription();
       if (sub) await post("/push/cancel", { endpoint: sub.endpoint, ids: mine.map(a => a.id) });
@@ -134,7 +165,7 @@
   async function replan(d, at) {
     const rkey = rkeyOf(d.r.t, d.start.getTime());
     await cancel(rkey);
-    if (!SUPPORTED || Notification.permission !== "granted") return false;
+    if (!SUPPORTED || permission() !== "granted") return false;
     const base = { rkey, title: d.r.t, start: d.start.getTime(), place: d.r.l || "", share: d.share, shown: false };
     return (await schedule([{ ...base, id: rid(), at, kind: "replan" }])).length > 0;
   }
@@ -143,7 +174,7 @@
   async function setNudge(d, on) {
     const rkey = rkeyOf(d.r.t, d.start.getTime());
     if (!on) return cancel(rkey, ["nudge"]);
-    if (!SUPPORTED || Notification.permission !== "granted" || d.morningAt) return 0;
+    if (!SUPPORTED || permission() !== "granted" || d.morningAt) return 0;
     const mine = await getAll();
     if (!mine.some(a => a.rkey === rkey && !a.shown)) return 0; // notifications are off for this one
     if (mine.some(a => a.rkey === rkey && a.kind === "nudge" && !a.shown)) return 0;
@@ -159,9 +190,12 @@
   async function turnOff(rkey) {
     const mine = (await getAll()).filter(a => a.rkey === rkey);
     if (!mine.length) return;
-    const reg = await navigator.serviceWorker.ready;
-    const sub = await reg.pushManager.getSubscription();
-    if (sub) await post("/push/cancel", { endpoint: sub.endpoint, ids: mine.map(a => a.id) }).catch(() => {});
+    if (NATIVE) await native("cancel", { ids: mine.map(a => a.id) });
+    else {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) await post("/push/cancel", { endpoint: sub.endpoint, ids: mine.map(a => a.id) }).catch(() => {});
+    }
     await delMany(mine.map(a => a.id));
     RM.toast("Notifications off for this reminder");
     refreshBadge();
@@ -169,13 +203,23 @@
 
   /* ---------- Home Screen badge ---------- */
   async function refreshBadge() {
-    if (!navigator.setAppBadge || !RM.STANDALONE) return;
+    if (!NATIVE && (!navigator.setAppBadge || !RM.STANDALONE)) return;
     const now = Date.now(), end = new Date(); end.setHours(23, 59, 59, 999);
     const n = new Set((await getAll()).filter(a => a.start >= now - 3600e3 && a.start <= end.getTime()).map(a => a.rkey)).size;
+    if (NATIVE) {
+      native("badge", { n });
+      // The widget: the next reminder held on this phone.
+      const recs = DB ? await DB.getAll("reminders").catch(() => []) : [];
+      const at = x => x.replanAt || x.start;
+      const up = recs.filter(x => x.state === "held" && at(x) + (x.dur || 60) * 6e4 > now).sort((a, b) => at(a) - at(b))[0];
+      native("next", up ? { title: up.title, start: at(up), share: up.share, dur: up.dur || 60 } : { none: true });
+      return;
+    }
     try { n ? await navigator.setAppBadge(n) : await navigator.clearAppBadge(); } catch (e) {}
   }
 
-  window.__rmPush = { remind, renderRow, cancel, replan, setNudge };
+  window.__rmPush = { remind, renderRow, cancel, replan, setNudge, native: !!NATIVE };
+  if (NATIVE) native("permission", { ask: false }).then(r => { nperm = r.status || "default"; });
   window.addEventListener("rm:stack", e => renderRow(e.detail));
   if (window.__rmLast && window.__rmLast.type === "stack") renderRow(window.__rmLast.detail);
   refreshBadge();
