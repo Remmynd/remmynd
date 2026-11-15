@@ -38,6 +38,34 @@ body.screen{padding:0}
 .es-qr figcaption{font-weight:650;font-size:clamp(15px,1.7vw,22px);color:var(--ink)}
 .em-screen .em-by{right:clamp(16px,3vw,32px);bottom:clamp(12px,2.5vw,28px);font-size:clamp(10px,1vw,13px)}
 .em-screen .em-by svg{width:1.1em;height:1.1em}
+/* ---------- ?size=launch: the launch countdown for a landing page ---------- */
+.em-launch{display:grid;justify-items:center;gap:18px;min-height:0;padding:28px 20px 40px;text-align:center}
+.el-head{display:grid;gap:8px;justify-items:center;min-width:0;max-width:100%}
+.em-launch .em-title{margin:0;font-size:clamp(22px,5vw,32px);line-height:1.12;letter-spacing:-.02em;white-space:normal;overflow-wrap:anywhere}
+.em-launch .em-when{margin:0}
+.el-clock{display:flex;justify-content:center;gap:clamp(8px,2.4vw,14px)}
+.el-clock[hidden],.el-live[hidden]{display:none}
+.el-unit{display:grid;justify-items:center;gap:6px;min-width:clamp(60px,15vw,84px);padding:12px 6px 10px;border-radius:16px;background:var(--well)}
+.el-unit b{font:700 clamp(30px,8vw,46px)/1 "Geist Mono",ui-monospace,monospace;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.el-unit i{font:600 10px/1 "Geist Mono",ui-monospace,monospace;font-style:normal;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.el-live{margin:0;font:700 clamp(30px,8vw,46px)/1 "Geist Mono",ui-monospace,monospace;letter-spacing:-.03em;color:var(--ink)}
+.el-count{margin:0;padding:6px 12px;border-radius:999px;background:var(--tint);color:var(--on-tint);font-size:14px;font-weight:550}
+.el-count b{font-variant-numeric:tabular-nums}
+.el-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.em-launch .em-btn{min-height:48px;padding:0 22px;font-size:16px}
+.el-cal{display:inline-flex;align-items:center;gap:6px;min-height:48px;padding:0 16px;border-radius:24px;border:1px solid var(--hairline);color:var(--ink);font-weight:600;font-size:14px}
+.el-cal svg{width:16px;height:16px}
+.el-cal:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.em-launch .em-by{left:0;right:0;bottom:12px;justify-content:center}
+/* Phone width: Remind me across the card, the two calendars side by side under it, so it fits 400 px. */
+@media (max-width:460px){
+.em-launch{gap:14px;padding:22px 14px 36px}
+.el-unit{min-width:0;flex:1;padding:10px 4px 8px}
+.el-clock{width:100%;gap:8px}
+.el-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.em-launch .em-btn{grid-column:1 / -1;justify-content:center}
+.el-cal{justify-content:center;padding:0 10px;min-height:44px;font-size:13px}
+}
 @media (max-width:340px){.em{gap:10px;padding:12px}.em-main{gap:10px}.em .ring{width:40px;height:40px}.em-btn{padding:0 12px}}
 /* ---------- the moment ring (as in app.css) ---------- */
 .ring{display:block;flex:none;overflow:visible}
