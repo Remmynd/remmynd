@@ -1061,6 +1061,7 @@ test("package version matches the library", () => {
 const SITE = "remmynd.space";
 // Hosts a script in public/ may name, for links out only. The page never loads from them.
 const LINK_OUT_HOSTS = new Set([
+  "calls.remmynd.space", // remmynd Calls: Make it a video call opens it, a plain link
   SITE,                  // our own address: shared links and the badge snippet
   "calendar.google.com", // Google Calendar's add-event page
   "www.w3.org",          // the SVG namespace, never fetched
@@ -3271,7 +3272,12 @@ test("short call: a bare length in the line, and the 2, 5, 8 and 10 minute chips
   for (const [t, p] of [["Demo day", "https://lu.ma/demo"], ["Dentist", ""], ["Rent due", ""], ["Call Mum", "Blue Tokai"]]) assert.equal(callish({ title: t, place: p }), t === "Call Mum", t);
   // A tap sets the length, a second tap clears it, and the pressed chip is the length the line has.
   assert.ok(app.includes('LEN.el.addEventListener("click",e=>{const b=e.target.closest(".len");if(!b)return;const n=+b.dataset.min;if(D.set.dur===n)delete D.set.dur;else D.set.dur=n;renderDraft();});'));
-  assert.ok(app.includes('LEN.el.hidden=!callish(d);LEN.el.querySelectorAll(".len").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.min===d.dur)));'));
+  assert.ok(app.includes('LEN.el.hidden=!callish(d);LEN.el.querySelectorAll(".len[data-min]").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.min===d.dur)));'));
+  // Make it a video call: a plain link to remmynd Calls, shown with a time and no place, carrying title, time, length and the way back.
+  assert.ok(html.includes('<a class="len call" id="len-call" href="https://calls.remmynd.space/new" hidden>Make it a video call</a>'));
+  assert.ok(app.includes('const CALLS="https://calls.remmynd.space";'));
+  assert.ok(app.includes('LEN.call.hidden=!(CALLS&&d.start&&!d.place);if(!LEN.call.hidden)LEN.call.href=CALLS+"/new?"+new URLSearchParams({t:d.title||"Call",at:d.start.toISOString(),d:String([2,5,8,10].includes(d.dur)?d.dur:5),back:"remmynd"});'));
+  assert.doesNotMatch(app, /fetch\(CALLS|fetch\("https:\/\/calls/, "a link, never a request to another host");
   // The check-in comes when the call ends: push.js plans it at start plus the length.
   assert.match(readFileSync(join(root, "public/push.js"), "utf8"), /at: start \+ \(d\.r\.d \|\| 30\) \* 60e3, kind: "check"/);
   const r = R.parse("Call with Sam Tue 4pm 5 min https://meet.google.com/abc-defg-hij", { now: new Date("2026-11-11T04:30:00Z"), timeZone: "Asia/Kolkata" });

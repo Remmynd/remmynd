@@ -6,6 +6,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- Make it a video call, on the Short call row when the line has a time and no place yet: it opens remmynd Calls with the title, time and length filled in. Calls makes a room on Daily that opens five minutes early and closes at the end, then hands the call link back here as the reminder's place, so "Open the link" on the ticket joins the call. A plain link: this page still asks no other host for anything.
+
 ## [2.3.0] - 2026-11-14
 
 ### Added

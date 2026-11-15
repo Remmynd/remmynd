@@ -248,6 +248,7 @@ button{font:inherit;color:inherit}
 .lens .label{margin-right:2px}
 .len{min-height:var(--tap);padding:0 14px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-chip);font:600 14px var(--font);color:var(--ink);cursor:pointer}
 .len[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.len.call{display:inline-flex;align-items:center;text-decoration:none;background:var(--moment-tint);border-color:var(--moment);color:var(--on-moment-tint)}
 /* A calendar file over the page: the bar shows it can take it. */
 .capture.dropping .cap-bar{border-color:transparent;box-shadow:var(--shadow-float),inset 0 0 0 2px var(--moment)}
 .edit{display:grid;gap:6px}

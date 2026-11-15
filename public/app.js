@@ -332,11 +332,15 @@ function renderDraft(){const d=draft();
   const s=d.start||nextHour(),p=parts(s,TZ);C.whenIn.value=p.y+"-"+pad(p.mo)+"-"+pad(p.d)+"T"+pad(p.h)+":"+pad(p.mi);
   C.hint.textContent=!d.title?"Add what it is to make the link.":!d.start?"Add a time to make the link.":"Not a link yet. Press Enter to make it.";
   /* Short call: with a meeting link, or a line that reads like a call, offer 2, 5, 8 and 10 minutes. The check-in comes when it ends. */
-  LEN.el.hidden=!callish(d);LEN.el.querySelectorAll(".len").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.min===d.dur)));}
+  LEN.el.hidden=!callish(d);LEN.el.querySelectorAll(".len[data-min]").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.min===d.dur)));
+  /* Make it a video call: remmynd Calls makes a room that ends itself, then hands the call link back here as the place. A plain link, so this page asks no other host for anything. */
+  LEN.call.hidden=!(CALLS&&d.start&&!d.place);if(!LEN.call.hidden)LEN.call.href=CALLS+"/new?"+new URLSearchParams({t:d.title||"Call",at:d.start.toISOString(),d:String([2,5,8,10].includes(d.dur)?d.dur:5),back:"remmynd"});}
+/* Where short calls are made. Empty hides the link. */
+const CALLS="https://calls.remmynd.space";
 /* Where calls happen, and what people call them. */
 const CALL_HOST=/(^|\/\/|\.)(meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com|whereby\.com|meet\.jit\.si|webex\.com|around\.co|discord\.gg|discord\.com|facetime\.apple\.com|gather\.town|slack\.com\/huddle)\b/i;
 const callish=d=>CALL_HOST.test(d.place||"")||/\b(call|sync|stand[ -]?up|catch[ -]?up|check[ -]?in|huddle|1:1|one-on-one|interview|intro)\b/i.test(d.title||"");
-const LEN={el:$("#lens")};
+const LEN={el:$("#lens"),call:$("#len-call")};
 LEN.el.addEventListener("click",e=>{const b=e.target.closest(".len");if(!b)return;const n=+b.dataset.min;if(D.set.dur===n)delete D.set.dur;else D.set.dur=n;renderDraft();});
 /* The pane: the live preview while typing; otherwise the link just made, or an example (seen beside the maker from 960 px). */
 function renderPane(){if(D.mode==="draft")return renderDraft();if(D.mode==="lists")return previewRow(L.body.querySelector(".li-main"));
