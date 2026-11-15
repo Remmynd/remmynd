@@ -9,6 +9,7 @@ import { handleMcp } from "./mcp.js";
 import { embedResponse } from "./embed.js";
 import { badgeResponse } from "./badge.js";
 import { handleAccount, sendDueMails } from "./account.js";
+import { handleFeeds, calendarResponse, receiveEmail } from "./feed.js";
 import { handleCount, cleanCounts } from "./count.js";
 import { appSiteResponse } from "./appsite.js";
 
@@ -31,6 +32,9 @@ export default {
     }
 
     // Optional sign-in, sync and email reminders.
+    // A signed-in account's calendar feed and email-in address (worker/feed.js).
+    if (url.pathname.startsWith("/api/feeds")) return handleFeeds(request, env, url);
+    if (url.pathname.startsWith("/cal/")) return calendarResponse(request, env, url);
     if (url.pathname.startsWith("/api/")) return handleAccount(request, env, url, ctx);
 
     // Connector for AI assistants (MCP): makes and reads reminder links, stores nothing.
@@ -72,6 +76,11 @@ export default {
     if (PRESETS.has(name)) return Response.redirect(url.origin + "/#" + name, 302);
 
     return env.ASSETS.fetch(request);
+  },
+
+  // Email Routing (a catch-all to this Worker): mail to in-<token>@ becomes a reminder in that account.
+  async email(message, env, ctx) {
+    await receiveEmail(message, env);
   },
 
   // Cron trigger (every minute): send the pings that are due, then forget them.

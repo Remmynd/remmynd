@@ -75,14 +75,40 @@ function render() {
       '<span class="switch"><input type="checkbox" id="ac-mail" role="switch" aria-labelledby="ac-ml" aria-describedby="ac-md"' + (ME.emailAlerts ? " checked" : "") + '><span></span></span></label>' +
       '<div class="label">Passkeys</div><div class="ac-keys">' + (keys.length ? keys.map(k => '<div class="ac-key">' + KEY + '<span><b>' + esc(k.name) + '</b><i>Added ' + esc(day(k.created)) + '</i></span><button type="button" class="btn small" data-key="' + esc(k.id) + '">Remove</button></div>').join("") : '<p class="ac-none">No passkey yet. You sign in with a code by email.</p>') + '</div>' +
       (PASSKEYS ? '<button type="button" class="btn ac-wide" id="ac-add">' + KEY + 'Add a passkey</button>' : '') +
+      '<div class="label">Your calendar</div><p class="ac-none">Subscribe in Apple, Google or Outlook Calendar: the reminders you hold show there, repeats included.</p>' +
+      feedRow("cal", "Get my calendar address") +
+      '<div class="label">Email in</div><p class="ac-none">Forward a booking or an invite to your own address and it becomes a reminder.</p>' +
+      feedRow("in", "Get my email address") +
       '<p class="ac-fine" id="ac-sync">' + (lastSync ? "Synced " + new Date(lastSync).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) + "." : "Syncing…") + ' Private links stay on this device.</p>' +
       '<div class="ac-row"><button type="button" class="btn" id="ac-out">Sign out</button><button type="button" class="btn ac-danger" id="ac-del">' + (deleteArmed ? "Tap again to delete everything" : "Delete account") + '</button></div>';
     $("#ac-mail").addEventListener("change", async e => { try { ME = await api("/api/account/settings", { emailAlerts: e.target.checked }); announce(); toast(ME.emailAlerts ? "Email reminders on" : "Email reminders off"); } catch (err) { e.target.checked = !e.target.checked; toast(err.message); } });
     b.querySelectorAll("[data-key]").forEach(x => x.addEventListener("click", async () => { try { ME = await api("/api/passkeys/delete", { id: x.dataset.key }); render(); toast("Passkey removed"); } catch (err) { toast(err.message); } }));
     if (PASSKEYS) $("#ac-add").addEventListener("click", addPasskey);
+    b.querySelectorAll("[data-feed]").forEach(x => x.addEventListener("click", () => feed(x.dataset.feed, x.dataset.act)));
     $("#ac-out").addEventListener("click", signOut);
     $("#ac-del").addEventListener("click", deleteAccount);
   }
+}
+
+/* ---------- the calendar feed and the email-in address (worker/feed.js) ----------
+ * Each is shown once, when it's made: the server keeps only a hash. Making it again replaces the old one. */
+const FEEDS = {};
+function feedRow(kind, label) {
+  const a = FEEDS[kind];
+  if (!a) return '<button type="button" class="btn ac-wide" data-feed="' + kind + '" data-act="get">' + label + '</button>';
+  return '<p class="ac-addr"><code>' + esc(a) + '</code></p><div class="ac-row"><button type="button" class="btn small" data-feed="' + kind + '" data-act="copy">Copy</button>' +
+    (kind === "cal" ? '<a class="btn small" href="' + esc(a) + '">Subscribe</a>' : '') +
+    '<button type="button" class="btn small" data-feed="' + kind + '" data-act="reset">New address</button><button type="button" class="btn small" data-feed="' + kind + '" data-act="off">Turn off</button></div>' +
+    '<p class="ac-fine">Keep it private: anyone with it ' + (kind === "cal" ? "can see the reminders you hold" : "can add reminders to your account") + '. It\'s shown only now; New address replaces it.</p>';
+}
+async function feed(kind, act) {
+  if (act === "copy") { try { await navigator.clipboard.writeText(FEEDS[kind]); toast("Copied"); } catch (e) { toast("Select it and copy"); } return; }
+  try {
+    const r = await api(act === "off" ? "/api/feeds/off" : act === "reset" ? "/api/feeds/reset" : "/api/feeds", { kind });
+    FEEDS[kind] = r.address || null;
+    render();
+    toast(act === "off" ? "Turned off" : act === "reset" ? "New address. The old one stopped working." : "Here it is");
+  } catch (e) { toast(e.message); }
 }
 
 /* ---------- signing in ---------- */
