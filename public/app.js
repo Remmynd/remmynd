@@ -666,3 +666,43 @@ new MutationObserver(ms=>{for(const m of ms){const s=m.target,el=document.active
 /* shared with push.js */
 window.__rm={OWN,IOS,STANDALONE,TZ,openSheet,toast,fShort,refresh:()=>{if(D.mode==="lists"&&!$("#home").hidden)renderLists();else loadLists();}};
 if("serviceWorker" in navigator&&OWN&&location.protocol==="https:")navigator.serviceWorker.register("/sw.js").catch(()=>{});
+/* ---------- inside remmynd for iPhone: the native Today screen ----------
+ * The app shows the list, the capture bar and the swipes natively, but the reminders stay here, on this device, in
+ * the same storage and with the same alerts. These calls are how the app reads and changes them. They exist only
+ * inside the app (window.__rmNative); on the web nothing here runs. */
+if(NATIVE_TALK){const DB=()=>window.remmyndDB,P=()=>window.__rmPush;
+  const ndOf=x=>({el:null,r:{t:x.title,...(x.dur?{d:x.dur}:{}),...(x.place?{l:x.place}:{})},key:null,start:new Date(x.start),share:x.share,morningAt:null});
+  const find=async k=>(await DB().getAll("reminders").catch(()=>[])).find(x=>x.rkey===k);
+  const after=()=>{try{window.__rm.refresh();}catch(e){}};
+  window.__rmApp={
+    /* Every reminder held on this phone, with the ids of the alerts still waiting for it. */
+    async list(){const[recs,alerts]=await Promise.all([DB().getAll("reminders").catch(()=>[]),DB().getAll("alerts").catch(()=>[])]);
+      return recs.filter(x=>!PEND.has("r:"+x.rkey)).map(x=>({rkey:x.rkey,title:x.title||"",start:x.start,dur:x.dur||60,place:x.place||"",share:x.share||"",state:x.state||"held",replanAt:x.replanAt||null,doneAt:x.doneAt||null,
+        alerts:alerts.filter(a=>a.rkey===x.rkey&&!a.shown).map(a=>a.id)}));},
+    /* The capture bar's preview, read by the same parser as the website's. */
+    parse(text){const p=R.parse(String(text||""),{timeZone:TZ});return{title:p.title||"",start:p.start?p.start.getTime():null,dur:p.dur||null,place:p.place||""};},
+    /* Typed or said: held at once, with its alerts, as an imported event is. */
+    async add(text){const p=R.parse(String(text||""),{timeZone:TZ});
+      if(!p.title)return{ok:false,error:"Type what to remember."};
+      if(!p.start)return{ok:false,error:"Add a time, like “at 5pm” or “tomorrow 9am”."};
+      if(p.start.getTime()<=Date.now()+30e3)return{ok:false,error:"That time has passed. Pick a later one."};
+      const r=await holdImported({title:p.title,start:p.start,dur:p.dur||null,place:p.place||""});
+      if(r==="have")return{ok:false,error:"You already have this one."};
+      if(!r)return{ok:false,error:"Couldn't save it. Try again."};
+      after();return{ok:true,rkey:rkeyOf(p.title,p.start)};},
+    async done(k){const x=await find(k);if(!x)return{ok:false};unfloat(k);await DB().put("reminders",{...x,state:"kept",doneAt:Date.now()});if(P())await P().cancel(k).catch(()=>{});after();return{ok:true};},
+    /* Undo a Done: held again, with fresh alerts for whatever is still ahead. */
+    async undone(k){const x=await find(k);if(!x)return{ok:false};const y={...x,state:"held",doneAt:null};await DB().put("reminders",y);
+      if(P()){if(y.replanAt>Date.now())await P().replan(ndOf(y),y.replanAt).catch(()=>{});else await Promise.resolve(P().remind(ndOf(y),false)).catch(()=>{});}
+      after();return{ok:true};},
+    /* Not yet: the same choices as the re-plan sheet, and the same single alert at the new time. */
+    laterOptions(){return replanOptions(new Date(),TZ).map(o=>({label:o.label,at:o.at}));},
+    async later(k,at){const x=await find(k);if(!x||!(at>Date.now()))return{ok:false};unfloat(k,1);await DB().put("reminders",{...x,state:"held",replanAt:at});
+      const ok=P()?await P().replan(ndOf(x),at).catch(()=>false):false;after();return{ok:true,alerts:!!ok};},
+    async remove(k){unfloat(k);await DB().del("reminders",k).catch(()=>{});if(P())await P().cancel(k).catch(()=>{});after();return{ok:true};},
+    /* The full reminder page, for its details, its plan and its call. */
+    open(share){go(share);return true;},
+    home(){if(location.pathname!=="/"||location.hash)go("/");return true;}
+  };
+  try{window.webkit.messageHandlers.remmynd.postMessage({type:"ready"});}catch(e){}
+}
