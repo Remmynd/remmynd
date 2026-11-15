@@ -3361,3 +3361,23 @@ test("calendar import: an .ics file read on the device, its upcoming events held
   for (const w of ["Your calendar file", ", read on this device. Nothing is uploaded.", ">Hold<", "Hold all ", "Each one becomes a private reminder in Coming up, with the same alerts as Remind me.", "No upcoming events in this file."]) assert.ok(src.includes(w), "calimport.js says: " + w);
   assert.match(src, /el\.setAttribute\("role", "dialog"\); el\.setAttribute\("aria-modal", "true"\); el\.setAttribute\("aria-labelledby", "ci-t"\)/, "a named modal dialog");
 });
+
+test("the app: inside remmynd for iPhone, alerts go to the phone through the bridge, with the same words", () => {
+  const push = readFileSync(join(root, "public/push.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8");
+  assert.ok(push.includes('const NATIVE = window.__rmNative && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.remmynd ? window.webkit.messageHandlers.remmynd : null;'));
+  assert.ok(push.includes('const SUPPORTED = !!NATIVE || ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window && RM.OWN);'), "the web path is unchanged");
+  for (const w of ['native("schedule", { alerts: alerts.map(a => ({ id: a.id, at: a.at, kind: a.kind, share: a.share, ...words(a) })) })', 'native("cancel", { ids: mine.map(a => a.id) })', 'native("test", { title: d.r.t, share: d.share })', 'native("badge", { n })', 'native("next", up ? { title: up.title, start: at(up), share: up.share, dur: up.dur || 60 } : { none: true })', 'native("permission", { ask: false })', "window.__rmNativeReply = (req, result) =>"]) assert.ok(push.includes(w), "push.js: " + w);
+  assert.doesNotMatch(push, /if \(NATIVE\)[^\n]*\/push\//, "the app path never talks to the push server");
+  // The words match sw.js, kind by kind.
+  const sw = readFileSync(join(root, "public/sw.js"), "utf8");
+  for (const w of ['": did you make it?", body: "Tap Done, or Not yet to pick another time."', '" has started", body: "Nudge " + (a.n || 1) + " of 3. Tap to open."', 'body: "You asked to be reminded now. Tap to open."', '" is starting now", body: place ? "Tap to open " + place : "Tap to see the details"', '" started at " + timeStr(a.start), body: place ? "Tap to open " + place : "Tap to see the details"', 'const place = a.place ? short(a.place) : "";']) assert.ok(push.includes(w) && sw.includes(w), "both say " + w);
+  // The page counts as installed in the app, and the Remind me line promises a notification there.
+  assert.ok(app.includes('const STANDALONE=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true||!!window.__rmNative;'));
+  assert.ok(app.includes('const PUSH_OK=!!window.__rmNative||('));
+  // Without the app nothing changes: run push.js's top in a bare window and see the web branch chosen.
+  const line = push.split("\n").find(l => l.trim().startsWith("const NATIVE ="));
+  const pick = new Function("window", line.trim().replace("const NATIVE =", "return ")); 
+  assert.equal(pick({}), null);
+  assert.equal(pick({ __rmNative: { platform: "ios" }, webkit: { messageHandlers: { remmynd: "handler" } } }), "handler");
+  assert.equal(pick({ webkit: { messageHandlers: { remmynd: "handler" } } }), null, "a handler without the flag isn't the app");
+});

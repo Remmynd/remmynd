@@ -102,7 +102,7 @@ function chime(){if(!soundOn())return;try{const ac=new(window.AudioContext||wind
   setTimeout(()=>ac.close(),500);}catch(e){}}
 const CAL_NAME={apple:"Apple Calendar",google:"Google Calendar",outlook:"Outlook"};
 const MOBILE=IOS||/Mobi|Android/.test(UA),DEVICE=MOBILE?"phone":"computer";
-const PUSH_OK="serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&OWN;
+const PUSH_OK=!!window.__rmNative||("serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&OWN);
 const keepRec=()=>{const DB=window.remmyndDB;if(DB&&S.rec)DB.put("reminders",S.rec).catch(()=>{});};
 function hold(cal){const c=S.ctx;if(S.held||!c)return;keep("r:"+S.rkey);S.held=true;c.el.dataset.held="1";tick();setTimeout(chime,320);try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.isActive))navigator.vibrate(20);}catch(e){}
   S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null};
@@ -555,7 +555,8 @@ document.querySelectorAll("[data-theme-set]").forEach(b=>b.addEventListener("cli
   applyTheme(t);}));
 
 /* ---------- install (PWA) ---------- */
-const STANDALONE=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+/* Inside remmynd for iPhone (window.__rmNative) the page counts as installed: no Home Screen prompts. */
+const STANDALONE=matchMedia("(display-mode: standalone)").matches||navigator.standalone===true||!!window.__rmNative;
 const IOS_VER=(()=>{const m=UA.match(/OS (\d+)_/)||UA.match(/Version\/(\d+)/);return m?+m[1]:0;})();
 const IPAD=/iPad/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1);
 const SOCIAL_APP=/FBAN|FBAV|Instagram|LinkedInApp|Line\/|Twitter|Snapchat|Pinterest|GSA\//.test(UA);
