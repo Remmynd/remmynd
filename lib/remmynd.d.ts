@@ -13,6 +13,8 @@ export interface ReminderInput {
   host?: string;
   /** The host turns on a public count for this reminder (`c` in the link). Shared links only: a private link never carries it. */
   count?: boolean;
+  /** A repeat rule (`r` in the link): "d", "3d", "w", "2w", "w:1,2,3,4,5" (0 is Sunday), "m" or "y". */
+  repeat?: string;
 }
 
 export interface Reminder {
@@ -26,6 +28,8 @@ export interface Reminder {
   timeZone: string;
   /** Present, and true, when the host turned on a public count. */
   count?: true;
+  /** Present when the reminder repeats: its rule, as in ReminderInput.repeat. */
+  repeat?: string;
 }
 
 export interface BaseOptions {
@@ -40,7 +44,9 @@ export interface Parsed {
   start: Date | null;
   dur: number | null;
   place: string;
-  tokens: { type: "place" | "date" | "time" | "relative" | "duration" | "zone"; text: string }[];
+  /** The repeat rule the line asks for ("every weekday" → "w:1,2,3,4,5"), or null. */
+  repeat: string | null;
+  tokens: { type: "place" | "date" | "time" | "relative" | "duration" | "zone" | "repeat"; text: string }[];
 }
 export interface ThemeOptions { theme?: "light" | "dark" }
 
@@ -53,6 +59,12 @@ export function decode(linkOrFragment: string): Reminder | null;
 export function fromQuery(query: string | URLSearchParams | Record<string, string>, options?: { timeZone?: string }): (ReminderInput & { start: Date; timeZone: string }) | null;
 export function parse(text: string, options?: { now?: Date; timeZone?: string }): Parsed;
 export function describeWhen(start: Date | number, timeZone?: string): string;
+/** A repeat rule in words: "Every weekday", "Every Monday and Thursday", "Every 2 weeks". "" when it isn't a rule. */
+export function describeRepeat(rule: string): string;
+/** The iCalendar RRULE value for a repeat rule, or "". */
+export function repeatRRule(rule: string): string;
+/** The first occurrence after `after` (default now), at the start's wall-clock time in `timeZone`. null when the rule isn't one. */
+export function nextOccurrence(start: Date | number | string, rule: string, options?: { after?: Date | number; timeZone?: string }): Date | null;
 export function parseStart(value: Date | number | string, timeZone?: string): Date;
 export function zonedTime(year: number, month: number, day: number, hour: number, minute: number, timeZone: string): Date;
 export function systemTimeZone(): string;
@@ -93,5 +105,6 @@ declare const remmynd: {
   embedURL: typeof embedURL; embedHTML: typeof embedHTML;
   liveBadgeURL: typeof liveBadgeURL; liveBadgeHTML: typeof liveBadgeHTML; liveBadgeMarkdown: typeof liveBadgeMarkdown; discordLine: typeof discordLine;
   countLabel: typeof countLabel; countRings: typeof countRings; placeLabel: typeof placeLabel;
+  describeRepeat: typeof describeRepeat; repeatRRule: typeof repeatRRule; nextOccurrence: typeof nextOccurrence;
 };
 export default remmynd;

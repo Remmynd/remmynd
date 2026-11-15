@@ -13,7 +13,7 @@
 //                        Mcp-Method and Mcp-Name; server/discover, tools/list, tools/call.
 //   legacy (2025-11-25 back to 2025-03-26)  an initialize handshake first. No session id is minted,
 //                        so every request stands on its own there too.
-import { createLink, decode, parse, describeWhen, VERSION } from "../lib/remmynd.js";
+import { createLink, decode, parse, describeWhen, describeRepeat, VERSION } from "../lib/remmynd.js";
 
 export const MODERN = ["2026-07-28"];
 export const LEGACY = ["2025-11-25", "2025-06-18", "2025-03-26"];
@@ -24,7 +24,7 @@ const HAS_OFFSET = /(?:[zZ]|[+-]\d{2}:?\d{2})$/;
 
 const INSTRUCTIONS = "remmynd turns an event into a reminder link. Whoever opens the link can add it to their calendar and turn on phone alerts in one tap, with no account. " +
   "Use make_reminder_link when you know the title, the date and time, and the time zone. Use make_reminder_from_text for one line the way a person writes it, such as \"Dentist Tue 4pm\". " +
-  "Always pass the person's IANA time zone, and give them the link exactly as returned. read_reminder_link reads a remmynd link back.";
+  "Repeats work too: \"Gym every weekday 7am\" or repeat: \"w:1,2,3,4,5\". Always pass the person's IANA time zone, and give them the link exactly as returned. read_reminder_link reads a remmynd link back.";
 
 /* ---------- tools ---------- */
 
@@ -41,9 +41,10 @@ const EVENT_OUT = {
     notes: { type: "string" },
     host: { type: "string" },
     private: { type: "boolean", description: "true when the link keeps everything after #, so it never reaches a server and chat apps show no preview." },
+    repeat: { type: "string", description: "How it repeats, in words (\"Every weekday\"), or an empty string." },
     in_the_past: { type: "boolean" }
   },
-  required: ["link", "title", "starts_at", "time_zone", "when", "duration_minutes", "location", "notes", "host", "private", "in_the_past"],
+  required: ["link", "title", "starts_at", "time_zone", "when", "duration_minutes", "location", "notes", "host", "private", "repeat", "in_the_past"],
   additionalProperties: false
 };
 const ZONE = { type: "string", description: "The IANA time zone, e.g. \"Asia/Kolkata\" or \"America/New_York\".", maxLength: 64 };
@@ -65,6 +66,7 @@ export const TOOLS = [
         location: { type: "string", description: "A meeting link or a place.", maxLength: 500 },
         notes: { type: "string", maxLength: 1000 },
         host: { type: "string", description: "Who it's from, shown as \"from …\".", maxLength: 100 },
+        repeat: { type: "string", description: "Optional. How it repeats: \"d\" every day, \"w\" every week, \"w:1,2,3,4,5\" every weekday (0 is Sunday), \"2w\" every 2 weeks, \"m\" every month, \"y\" every year.", maxLength: 20 },
         private: PRIVATE
       },
       required: ["title", "start"],
@@ -76,7 +78,7 @@ export const TOOLS = [
   {
     name: "make_reminder_from_text",
     title: "Make a reminder link from one line",
-    description: "Read one line the way a person writes it (\"Demo day Fri 5pm zoom.us/j/123\", \"Call Mum tomorrow 7:30pm\", \"Standup in 2 hours for 15 min\") and make a remmynd reminder link from it.",
+    description: "Read one line the way a person writes it (\"Demo day Fri 5pm zoom.us/j/123\", \"Call Mum tomorrow 7:30pm\", \"Gym every weekday 7am\") and make a remmynd reminder link from it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -94,7 +96,7 @@ export const TOOLS = [
   {
     name: "read_reminder_link",
     title: "Read a reminder link",
-    description: "Read what a remmynd reminder link holds: title, start, length, place, notes and host.",
+    description: "Read what a remmynd reminder link holds: title, start, length, place, notes, host and how it repeats.",
     inputSchema: {
       type: "object",
       properties: { link: { type: "string", description: "A remmynd link: remmynd.space/r/… or remmynd.space/#…", minLength: 1, maxLength: 4000 } },
@@ -115,9 +117,9 @@ function describe(link, e, isPrivate, now) {
   const out = {
     link, title: e.title, starts_at: e.start.toISOString(), time_zone: e.timeZone || "", when: describeWhen(e.start, e.timeZone),
     duration_minutes: e.durationMinutes, location: e.location || "", notes: e.notes || "", host: e.host || "", private: !!isPrivate,
-    in_the_past: e.start.getTime() + e.durationMinutes * 60000 < now
+    repeat: describeRepeat(e.repeat || ""), in_the_past: !e.repeat && e.start.getTime() + e.durationMinutes * 60000 < now
   };
-  const line = [out.title, out.when, lengthText(out.duration_minutes), out.location].filter(Boolean).join(" · ");
+  const line = [out.title, out.when, out.repeat, lengthText(out.duration_minutes), out.location].filter(Boolean).join(" · ");
   const extra = (out.in_the_past ? "\nNote: this time has already passed." : "") + (out.private ? "\nPrivate link: the details stay after #, so chat apps show no preview." : "");
   return { out, text: line + "\n" + link + extra };
 }
@@ -136,7 +138,7 @@ function runTool(name, a, base, now) {
     if (zone && !validZone(zone)) throw new ToolError("\"" + zone + "\" isn't a time zone. Use an IANA name such as \"Europe/London\".");
     if (!zone && !HAS_OFFSET.test(start)) throw new ToolError("Which time zone is " + start + " in? Pass time_zone (for example \"America/New_York\"), or give start with Z or an offset.");
     if (a.duration_minutes != null && !(Number.isInteger(a.duration_minutes) && a.duration_minutes >= 1 && a.duration_minutes <= 1440)) throw new ToolError("duration_minutes must be a whole number from 1 to 1440.");
-    return makeLink({ title, start, timeZone: zone || undefined, durationMinutes: a.duration_minutes ?? 60, location: str(a.location, 500), notes: str(a.notes, 1000), host: str(a.host, 100) }, a.private, base, now);
+    return makeLink({ title, start, timeZone: zone || undefined, durationMinutes: a.duration_minutes ?? 60, location: str(a.location, 500), notes: str(a.notes, 1000), host: str(a.host, 100), repeat: str(a.repeat, 20) || undefined }, a.private, base, now);
   }
   if (name === "make_reminder_from_text") {
     const text = str(a.text, 600), zone = str(a.time_zone, 64);
@@ -150,7 +152,7 @@ function runTool(name, a, base, now) {
     const p = parse(text, { now: at, timeZone: zone });
     if (!p.start) throw new ToolError("No day or time found in \"" + text + "\". Add one, for example \"Fri 5pm\" or \"tomorrow 9:30am\".");
     if (!p.title) throw new ToolError("No title found in \"" + text + "\". Say what it is, for example \"Dentist Tue 4pm\".");
-    return makeLink({ title: p.title, start: p.start, timeZone: zone, durationMinutes: p.dur || 60, location: p.place || "" }, a.private, base, now);
+    return makeLink({ title: p.title, start: p.start, timeZone: zone, durationMinutes: p.dur || 60, location: p.place || "", repeat: p.repeat || undefined }, a.private, base, now);
   }
   if (name === "read_reminder_link") {
     const link = str(a.link, 4000), e = link ? decode(link) : null;

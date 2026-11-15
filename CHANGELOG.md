@@ -9,9 +9,13 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 ### Changed
 
 - Inside the iPhone app, the page no longer repeats the website's free and no-account lines: the preview of a private link says only "Reminders that make sure it happens.", and the re-plan sheet's "No account" line is left out. The website keeps its wording.
+- The app code budget is now 75 KB compressed, up from 70 KB, to make room for repeating reminders in the library, which the capture bar uses on every visit. The app-only code and the repeat logic load from their own files, only when needed.
 
 ### Added
 
+- Repeating reminders. "Gym every weekday 7am", "Pay rent monthly on the 1st 9am", "Mum's birthday every year Mar 3", "every Tue and Thu", "every 2 weeks", "daily" and "every evening" all read as repeats. The link carries the rule in a new optional key, `r` (`d`, `3d`, `w`, `2w`, `w:1,2,3,4,5`, `m`, `y`); older readers see a one-off, as the format promises. Done keeps that time and moves the reminder on to the next; alerts cover the next 7 times, up to 14 days ahead, and are topped up whenever remmynd opens. Calendar files and Google Calendar links repeat too, in local time, so they never drift with daylight saving. The library adds `describeRepeat`, `repeatRRule` and `nextOccurrence`; `parse` returns `repeat`.
+- The connector for AI assistants reads and makes repeating reminders, and every answer says how it repeats. The docs say how to add it to an assistant.
+- Inside the iPhone app only, the calls the native Today screen uses moved to `native.js`, which the website never downloads.
 - remmynd for iPhone feels like an app: inside it (html.native) the page hides the website's hero, Try one, facts, footer, menu and links to website pages, and uses the system font. The website is unchanged.
 - Passkeys in the iPhone app: remmynd.space serves Apple's app-site file (`/.well-known/apple-app-site-association`) naming the app for webcredentials, and for applinks, so shared reminder links and `/new` links open in the app when it's installed.
 - Talk in the iPhone app uses the phone's own speech recognizer through the bridge; what it hears lands in the bar, and a line with a time becomes the link.

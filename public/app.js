@@ -10,7 +10,11 @@ const BASE=OWN?location.origin+"/":"https://remmynd.space/";
 /* ---------- link encoding: the link is the database ---------- */
 const enc=o=>{const b=new TextEncoder().encode(JSON.stringify(o));let s="";b.forEach(x=>s+=String.fromCharCode(x));return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");};
 const dec=s=>{try{const bin=atob(s.replace(/-/g,"+").replace(/_/g,"/"));const o=JSON.parse(new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0))));return o&&typeof o.t==="string"&&o.t&&o.s?o:null;}catch(e){return null;}};
-const startOf=r=>/T/.test(String(r.s))?new Date(r.s):new Date(parseInt(r.s,36)*6e4);
+const linkStart=r=>/T/.test(String(r.s))?new Date(r.s):new Date(parseInt(r.s,36)*6e4);
+/* A repeating link shows the time it comes round now: a held one's own next time (OCC), else the one live or next. */
+const OCC=new Map();
+const startOf=r=>{const s=linkStart(r),k=r.r&&rkeyOf(r.t,s),m=(r.d||60)*6e4;if(!k)return s;if(OCC.has(k))return new Date(OCC.get(k));
+  return s.getTime()+m>Date.now()?s:R.nextOccurrence(s,r.r,{after:Date.now()-m,timeZone:r.z||TZ})||s;};
 const pack=d=>Math.round(d.getTime()/6e4).toString(36);
 /* Shared links (/r/) let chat apps preview the title and time. Private links (/#) never reach a server. */
 const linkFor=(r,key,priv)=>key?BASE+key:BASE+(priv?"#":"r/")+enc(r);
@@ -45,7 +49,7 @@ function eventOf(r,key,start,title,mins){
   const share=linkFor(r,key,S.priv),end=new Date(start.getTime()+mins*6e4);
   const head=[r.n,isHttp(r.l)?"Join: "+r.l:""].filter(Boolean);
   const desc=(head.length?head.join("\n")+"\n\n":"")+"Reminder link: "+share+"\nMade with remmynd.space · free reminder links, no account needed";
-  return{title,start,end,loc:r.l||"",desc,url:isHttp(r.l)?r.l:share,uid:"rm-"+pack(startOf(r))+"-"+hash(r.t)+"@remmynd.space"};
+  return{title,start,end,loc:r.l||"",desc,url:isHttp(r.l)?r.l:share,uid:"rm-"+pack(linkStart(r))+"-"+hash(r.t)+"@remmynd.space"};
 }
 function ics(ev){const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//zoof04//remmynd//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT","UID:"+ev.uid,"DTSTAMP:"+stamp(new Date()),"DTSTART:"+stamp(ev.start),"DTEND:"+stamp(ev.end),"SUMMARY:"+iesc(ev.title),"DESCRIPTION:"+iesc(ev.desc)];
   if(ev.loc)L.push("LOCATION:"+iesc(ev.loc));L.push("URL:"+ev.url);
@@ -105,7 +109,7 @@ const MOBILE=IOS||/Mobi|Android/.test(UA),DEVICE=MOBILE?"phone":"computer";
 const PUSH_OK=!!window.__rmNative||("serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&OWN);
 const keepRec=()=>{const DB=window.remmyndDB;if(DB&&S.rec)DB.put("reminders",S.rec).catch(()=>{});};
 function hold(cal){const c=S.ctx;if(S.held||!c)return;keep("r:"+S.rkey);S.held=true;c.el.dataset.held="1";tick();setTimeout(chime,320);try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.isActive))navigator.vibrate(20);}catch(e){}
-  S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null};
+  S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null,rep:R.describeRepeat(c.r.r)?c.r.r:"",first:linkStart(c.r).getTime()};
   keepRec();c.nd.nudge=false;countMe();
   /* Notifications where they are allowed: push.js asks inside this same tap, then fills the stack's row. */
   if(window.__rmPush)window.__rmPush.remind(c.nd,false);
@@ -215,30 +219,33 @@ function renderTicket(el,r,o){
    '<div class="t-top">'+
      '<div class="t-head"><span class="label">Reminder</span>'+(r.h?'<span class="t-from">from '+esc(r.h)+'</span>':'')+(o.interactive&&counted(r)?'<span class="t-count"'+(R.countLabel(S.count)?'':' hidden')+'>'+esc(R.countLabel(S.count))+'</span>':'')+'</div>'+
      '<div class="t-when">'+ringFor(start,ringState(start,end,held))+'<div class="t-clock"><div class="t-time">'+esc(t.main)+(t.per?'<small>'+esc(t.per)+'</small>':'')+'</div>'+
-       '<div class="t-date">'+esc(fDate(start,TZ))+'</div><div class="t-zone">your time · '+esc(city(TZ))+'</div><div class="t-soon" hidden></div></div></div>'+
+       '<div class="t-date">'+esc(fDate(start,TZ)+(R.describeRepeat(r.r)?" · "+R.describeRepeat(r.r):""))+'</div><div class="t-zone">your time · '+esc(city(TZ))+'</div><div class="t-soon" hidden></div></div></div>'+
      '<'+H+' class="t-title'+(o.ph?" ph":"")+'">'+esc(r.t)+'</'+H+'>'+(r.n?'<p class="t-notes">'+esc(r.n)+'</p>':'')+where+
    '</div><div class="t-perf" aria-hidden="true"><span></span></div>'+
    '<div class="t-meta">'+(host?'<div><span class="label">Host time</span><b>'+esc(host)+'</b></div>':'')+'<div class="t-len"><span class="label">Length</span><b>'+esc(lengthText(r.d||60))+'</b></div></div>'+
    '<div class="t-bottom">'+(o.interactive?'':'<div class="remind" aria-hidden="true">'+I.bell+'Remind me</div>')+'</div>';
   tick();
   if(!o.interactive)return;
-  S.rkey=rkeyOf(r.t,start);
+  S.rkey=rkeyOf(r.t,linkStart(r));
   if(!S.key&&S.mine==null&&window.remmyndDB){S.mine=false;const me=payloadOf(linkFor(r,null,S.priv));window.remmyndDB.getAll("links").then(ls=>{if(S.r===r&&ls.some(x=>payloadOf(x.share)===me)){S.mine=true;renderBottom();}}).catch(()=>{});}
   if(counted(r)&&S.count==null){S.count=0;fetch("/count/"+payloadOf(linkFor(r,null,false))).then(x=>x.ok?x.json():null).then(j=>{if(j&&S.r===r){S.count=j.n;showCount();}}).catch(()=>{});}
   /* Held already, from an earlier visit: show it and its stack without the animation. */
   if(!S.held&&window.remmyndDB)window.remmyndDB.getAll("reminders").then(list=>{const rec=list.find(x=>x.rkey===S.rkey&&!PEND.has("r:"+x.rkey));
+    if(rec&&rec.rep&&rec.state==="held"&&String(rec.start)!==el.dataset.start&&OCC.get(S.rkey)!==rec.start){OCC.set(S.rkey,rec.start);return showView(S.r,S.key,S.priv);}
     if(!S.held&&rec&&el.dataset.start===String(start.getTime())){S.held=true;S.rec=rec;if(S.ctx)S.ctx.nd.nudge=!!rec.nudge;el.dataset.held="1";el.classList.add("still");renderBottom();tick();requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.remove("still")));
       if(new URLSearchParams(location.search).get("act")==="replan"){history.replaceState(null,"",location.pathname+location.hash);openReplan();}}}).catch(()=>{});
   const title=morning?r.t+" (live since "+fShort(start,TZ)+")":r.t;
   const ev=eventOf(r,S.key,when,title,morning?15:(r.d||60));
+  /* A repeat goes to calendars as a repeating event, through the library, in local time. */
+  const lev=R.describeRepeat(r.r)?{title,start:when,durationMinutes:morning?15:(r.d||60),location:r.l||"",notes:r.n||"",timeZone:r.z||TZ,repeat:r.r}:null;
   const file=(r.t.replace(/[^a-z0-9]+/gi,"-").replace(/^-|-$/g,"").toLowerCase().slice(0,40)||"reminder")+".ics";
   let icsHref,useDownload;
   if(IN_APP&&IOS&&OWN){icsHref="/ics?d="+enc({t:title,s:pack(when),d:morning?15:(r.d||60),l:r.l,n:r.n,u:linkFor(r,S.key,S.priv),k:pack(start),o:r.t});useDownload=false;}
-  else{if(S.blob)URL.revokeObjectURL(S.blob);S.blob=URL.createObjectURL(new Blob([ics(ev)],{type:"text/calendar;charset=utf-8"}));icsHref=S.blob;useDownload=true;}
+  else{if(S.blob)URL.revokeObjectURL(S.blob);S.blob=URL.createObjectURL(new Blob([lev?R.toICS(lev,{base:BASE,private:S.priv}):ics(ev)],{type:"text/calendar;charset=utf-8"}));icsHref=S.blob;useDownload=true;}
   const setApple=a=>{a.href=icsHref;if(useDownload)a.download=file;else a.removeAttribute("download");};
   const share=linkFor(r,S.key,S.priv);
-  S.ctx={el,r,o,start,night,morning,setApple,g:gcal(ev),ol:outlook(ev,"outlook.live.com"),o365:outlook(ev,"outlook.office.com"),share,
-    nd:{el:null,r,key:S.key,start,share,morningAt:morning?when:null}};
+  S.ctx={el,r,o,start,night,morning,setApple,g:lev?R.googleCalendarUrl(lev,{base:BASE,private:S.priv}):gcal(ev),ol:outlook(ev,"outlook.live.com"),o365:outlook(ev,"outlook.office.com"),share,
+    nd:{el:null,r,key:S.key,rkey:S.rkey,first:linkStart(r).getTime(),z:r.z||TZ,start,share,morningAt:morning?when:null}};
   renderBottom();
 }
 
@@ -263,7 +270,9 @@ function closeReplan(){RP.el.hidden=true;}
 function replanTo(at){const c=S.ctx;if(!c||!S.rec||!(at>Date.now()))return;S.rec.replanAt=at;S.rec.state="held";keepRec();unfloat(S.rkey,1);closeReplan();renderBottom();tick();
   (window.__rmPush?window.__rmPush.replan(c.nd,at):Promise.resolve(false)).then(ok=>toast("Back at "+whenText(new Date(at))+(ok?".":". Turn on notifications to be reminded then."))).catch(()=>{});}
 function dropIt(){if(!S.rec)return;unfloat(S.rkey);S.rec.state="dropped";keepRec();closeReplan();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Dropped. No more alerts for this one.");}
-function markDone(){if(!S.rec)return;unfloat(S.rkey);S.rec.state="kept";S.rec.doneAt=Date.now();keepRec();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Done. You kept it.");}
+function markDone(){if(!S.rec)return;unfloat(S.rkey);
+  if(S.rec.rep)return import("/repeat.js").then(m=>m.done(S.rec)).then(y=>{OCC.set(S.rkey,y.start);toast("Done. Back "+whenText(new Date(y.start))+".");showView(S.r,S.key,S.priv);}).catch(()=>toast("Couldn't save that. Try again."));
+  S.rec.state="kept";S.rec.doneAt=Date.now();keepRec();renderBottom();tick();if(window.__rmPush)window.__rmPush.cancel(S.rkey).catch(()=>{});toast("Done. You kept it.");}
 RP.grid.addEventListener("click",e=>{const b=e.target.closest("[data-at]");if(b)replanTo(+b.dataset.at);});
 RP.pick.addEventListener("click",()=>{try{RP.pick.showPicker();}catch(e){}});
 RP.pick.addEventListener("change",()=>{const[dt,tm]=RP.pick.value.split("T");if(!dt||!tm)return;const[y,mo,d]=dt.split("-").map(Number),[h,mi]=tm.split(":").map(Number);const at=zonedToUTC(y,mo,d,h,mi,TZ).getTime();
@@ -318,7 +327,7 @@ const nextHour=()=>new Date(Math.ceil((Date.now()+1)/36e5)*36e5);
 const canTalk=w=>!!(w.SpeechRecognition||w.webkitSpeechRecognition)&&w.isSecureContext===true&&w.navigator.standalone!==true;
 /* A line with a clock time or "in 20 minutes" in it. Talk and /new?q= make the link by themselves only then; a day alone, or a part of the day, stays in the bar. */
 const timed=p=>p.tokens.some(t=>t.type==="relative"||t.type==="time"&&!/^(?:this |in the )?(?:morning|afternoon|evening|night)$/i.test(t.text));
-function draft(){const p=R.parse(D.line,{timeZone:TZ});return Object.assign({title:p.title,start:p.start,dur:p.dur,place:p.place,notes:""},D.set);}
+function draft(){const p=R.parse(D.line,{timeZone:TZ});return Object.assign({title:p.title,start:p.start,dur:p.dur,place:p.place,notes:"",repeat:p.repeat},D.set);}
 function whenText(d){return fDate(d,TZ)+" · "+fShort(d,TZ);}
 /* Line to ticket: a same-document view transition where the browser has one, a plain swap elsewhere. */
 const STILL=matchMedia("(prefers-reduced-motion: reduce)");
@@ -375,7 +384,7 @@ C.whenIn.addEventListener("change",()=>{const[dt,tm]=C.whenIn.value.split("T");i
 function make(heard,auto){if(D.editing)saveEdit();const d=draft();
   if(!d.title){if(D.mode!=="draft")setMode("draft");renderDraft();openEdit("title");return toast("Add what it is first");}
   if(!d.start){if(D.mode!=="draft")setMode("draft");renderDraft();try{C.whenIn.showPicker();}catch(e){C.whenIn.focus();}return toast("Pick a time to make the link");}
-  const ev={title:d.title,start:d.start,durationMinutes:d.dur||undefined,location:d.place,notes:d.notes,timeZone:TZ,count:F.count.checked&&!F.priv.checked};
+  const ev={title:d.title,start:d.start,durationMinutes:d.dur||undefined,location:d.place,notes:d.notes,timeZone:TZ,count:F.count.checked&&!F.priv.checked,repeat:d.repeat||undefined};
   let link;try{link=R.createLink(ev,{base:BASE,private:F.priv.checked});}catch(e){return toast("That reminder can't be made: "+e.message);}
   swap(()=>{D.made={ev,link,heard};D.line="";D.set={};C.input.value="";closeEdit();showReady();});
   copy(link,"Link copied. Share it anywhere.",copied,!!(heard||auto));D.made={ev,link,heard};keepLink(D.replace||undefined);D.replace=null;}
@@ -456,10 +465,11 @@ const ACTS=a=>'<div class="li-acts">'+a.map(([k,t])=>'<button type="button" data
 function upRow(x,now){const later=x.replanAt>now,t=later?x.replanAt:x.start,end=x.start+(x.dur||60)*6e4,kept=x.state==="kept";
   const st=kept?"kept":ringState(x.start,end,true,x.state,x.replanAt||0),g=kept?"kept":groupOf(t,now,TZ),d=new Date(t);
   const sub=kept?fDate(new Date(x.doneAt||x.start),TZ)+" · done":g==="today"?fShort(d,TZ)+" · "+(later?"back ":"")+relText(t,later?t+1:end,now):fDate(d,TZ)+" · "+fShort(d,TZ)+(x.host?" · "+x.host:"");
+  const sub2=x.rep&&!kept?sub+" · "+R.describeRepeat(x.rep):sub;
   const chip=st==="soon"?'<span class="li-chip">Soon</span>':st==="now"?'<span class="li-chip">Now</span>':"";
   const acts=kept?[["delete","Delete"]]:[["replan","Re-plan"],["done","Done"],["delete","Delete"]];
   return{g,t:kept?(x.doneAt||x.start):t,html:'<div class="li n'+acts.length+'" data-rkey="'+esc(x.rkey)+'">'+ACTS(acts)+
-    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub)+'</i></span>'+chip+'</a>'+MORE(x.title)+'</div>'};}
+    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub2)+'</i></span>'+chip+'</a>'+MORE(x.title)+'</div>'};}
 function linkRow(x,now){const d=new Date(x.start);
   return{g:groupOf(x.start,now,TZ),t:x.start,html:'<div class="li n3" data-share="'+esc(x.share)+'">'+ACTS([["copy","Copy"],["edit","Edit"],["delete","Delete"]])+
     '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(d,x.start<now?"missed":"open",28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(fDate(d,TZ)+" · "+fShort(d,TZ)+(x.private?" · private":""))+'</i></span></a>'+MORE(x.title)+
@@ -483,7 +493,8 @@ function previewRow(a){if(!a)return renderTicket(C.prev,{t:EX[0].title,s:pack(EX
 async function rowAct(rkey,act,at){const x=L.recs.find(r=>r.rkey===rkey);if(!x)return;if(act!=="replan")unfloat(rkey);
   if(act==="delete"){renderListsSoon(at);return later("r:"+rkey,()=>forgetRec(rkey),()=>renderLists(at),"Deleted “"+x.title+"”. Delete it from your calendar too.");}
   if(act==="replan"){const u=new URL(x.share,location.origin);u.searchParams.set("act","replan");location.href=u.href;return;}
-  await window.remmyndDB.put("reminders",{...x,state:"kept",doneAt:Date.now()}).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(rkey).catch(()=>{});
+  if(x.rep)await import("/repeat.js").then(m=>m.done(x)).catch(()=>{});
+  else{await window.remmyndDB.put("reminders",{...x,state:"kept",doneAt:Date.now()}).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(rkey).catch(()=>{});}
   toast("Done. You kept it.");renderLists(at);}
 function linkAct(share,act,at){const x=L.links.find(l=>l.share===share);if(!x)return;
   if(act==="last")return lastCard(share,{title:x.title,start:new Date(x.start)},document.activeElement);
@@ -635,13 +646,13 @@ function openImport(files,from){closeMenu();import("/calimport.js").then(m=>m.op
   .catch(()=>toast("Couldn't open it here. Try again."));}
 /* Hold an imported event, as Remind me would: a private link (it never reaches a server), kept in Coming up and My links, with the same alerts. */
 async function holdImported(x){const DB=window.remmyndDB;if(!DB)return false;
-  const ev={title:x.title,start:x.start,durationMinutes:x.dur||undefined,location:x.place||"",notes:"",timeZone:TZ};
+  const ev={title:x.title,start:x.start,durationMinutes:x.dur||undefined,location:x.place||"",notes:"",timeZone:TZ,repeat:x.rep||undefined};
   let share;try{share=R.createLink(ev,{base:BASE,private:true});}catch(e){return false;}
   const rkey=rkeyOf(ev.title,ev.start),have=(await DB.getAll("reminders").catch(()=>[])).find(r=>r.rkey===rkey);if(have&&have.state!=="dropped")return"have";
-  await DB.put("reminders",{rkey,title:ev.title,start:ev.start.getTime(),dur:x.dur||60,place:ev.location,host:"",z:TZ,share,state:"held",nudge:false,cal:null,heldAt:Date.now(),doneAt:null,replanAt:null});
+  await DB.put("reminders",{rkey,title:ev.title,start:ev.start.getTime(),dur:x.dur||60,place:ev.location,host:"",z:TZ,share,state:"held",nudge:false,cal:null,heldAt:Date.now(),doneAt:null,replanAt:null,rep:x.rep||"",first:ev.start.getTime()});
   await DB.put("links",{share,title:ev.title,start:ev.start.getTime(),createdAt:Date.now(),private:true}).catch(()=>{});
-  const r={t:ev.title,...(x.dur?{d:x.dur}:{}),...(ev.location?{l:ev.location}:{})};
-  if(window.__rmPush)await Promise.resolve(window.__rmPush.remind({el:null,r,key:null,start:ev.start,share,morningAt:null},false)).catch(()=>{});return true;}
+  const r={t:ev.title,...(x.dur?{d:x.dur}:{}),...(ev.location?{l:ev.location}:{}),...(x.rep?{r:x.rep}:{})};
+  if(window.__rmPush)await Promise.resolve(window.__rmPush.remind({el:null,r,key:null,rkey,first:ev.start.getTime(),z:TZ,start:ev.start,share,morningAt:null},false)).catch(()=>{});return true;}
 const impBtn=$("#import-btn"),impIn=$("#import-in");
 impBtn.addEventListener("click",()=>impIn.click());
 impIn.addEventListener("change",()=>{const fs=[...impIn.files].filter(ICS_FILE);impIn.value="";if(fs.length)openImport(fs,impBtn);else toast("That isn't a calendar file. Export one as .ics first.");});
@@ -666,43 +677,5 @@ new MutationObserver(ms=>{for(const m of ms){const s=m.target,el=document.active
 /* shared with push.js */
 window.__rm={OWN,IOS,STANDALONE,TZ,openSheet,toast,fShort,refresh:()=>{if(D.mode==="lists"&&!$("#home").hidden)renderLists();else loadLists();}};
 if("serviceWorker" in navigator&&OWN&&location.protocol==="https:")navigator.serviceWorker.register("/sw.js").catch(()=>{});
-/* ---------- inside remmynd for iPhone: the native Today screen ----------
- * The app shows the list, the capture bar and the swipes natively, but the reminders stay here, on this device, in
- * the same storage and with the same alerts. These calls are how the app reads and changes them. They exist only
- * inside the app (window.__rmNative); on the web nothing here runs. */
-if(NATIVE_TALK){const DB=()=>window.remmyndDB,P=()=>window.__rmPush;
-  const ndOf=x=>({el:null,r:{t:x.title,...(x.dur?{d:x.dur}:{}),...(x.place?{l:x.place}:{})},key:null,start:new Date(x.start),share:x.share,morningAt:null});
-  const find=async k=>(await DB().getAll("reminders").catch(()=>[])).find(x=>x.rkey===k);
-  const after=()=>{try{window.__rm.refresh();}catch(e){}};
-  window.__rmApp={
-    /* Every reminder held on this phone, with the ids of the alerts still waiting for it. */
-    async list(){const[recs,alerts]=await Promise.all([DB().getAll("reminders").catch(()=>[]),DB().getAll("alerts").catch(()=>[])]);
-      return recs.filter(x=>!PEND.has("r:"+x.rkey)).map(x=>({rkey:x.rkey,title:x.title||"",start:x.start,dur:x.dur||60,place:x.place||"",share:x.share||"",state:x.state||"held",replanAt:x.replanAt||null,doneAt:x.doneAt||null,
-        alerts:alerts.filter(a=>a.rkey===x.rkey&&!a.shown).map(a=>a.id)}));},
-    /* The capture bar's preview, read by the same parser as the website's. */
-    parse(text){const p=R.parse(String(text||""),{timeZone:TZ});return{title:p.title||"",start:p.start?p.start.getTime():null,dur:p.dur||null,place:p.place||""};},
-    /* Typed or said: held at once, with its alerts, as an imported event is. */
-    async add(text){const p=R.parse(String(text||""),{timeZone:TZ});
-      if(!p.title)return{ok:false,error:"Type what to remember."};
-      if(!p.start)return{ok:false,error:"Add a time, like “at 5pm” or “tomorrow 9am”."};
-      if(p.start.getTime()<=Date.now()+30e3)return{ok:false,error:"That time has passed. Pick a later one."};
-      const r=await holdImported({title:p.title,start:p.start,dur:p.dur||null,place:p.place||""});
-      if(r==="have")return{ok:false,error:"You already have this one."};
-      if(!r)return{ok:false,error:"Couldn't save it. Try again."};
-      after();return{ok:true,rkey:rkeyOf(p.title,p.start)};},
-    async done(k){const x=await find(k);if(!x)return{ok:false};unfloat(k);await DB().put("reminders",{...x,state:"kept",doneAt:Date.now()});if(P())await P().cancel(k).catch(()=>{});after();return{ok:true};},
-    /* Undo a Done: held again, with fresh alerts for whatever is still ahead. */
-    async undone(k){const x=await find(k);if(!x)return{ok:false};const y={...x,state:"held",doneAt:null};await DB().put("reminders",y);
-      if(P()){if(y.replanAt>Date.now())await P().replan(ndOf(y),y.replanAt).catch(()=>{});else await Promise.resolve(P().remind(ndOf(y),false)).catch(()=>{});}
-      after();return{ok:true};},
-    /* Not yet: the same choices as the re-plan sheet, and the same single alert at the new time. */
-    laterOptions(){return replanOptions(new Date(),TZ).map(o=>({label:o.label,at:o.at}));},
-    async later(k,at){const x=await find(k);if(!x||!(at>Date.now()))return{ok:false};unfloat(k,1);await DB().put("reminders",{...x,state:"held",replanAt:at});
-      const ok=P()?await P().replan(ndOf(x),at).catch(()=>false):false;after();return{ok:true,alerts:!!ok};},
-    async remove(k){unfloat(k);await DB().del("reminders",k).catch(()=>{});if(P())await P().cancel(k).catch(()=>{});after();return{ok:true};},
-    /* The full reminder page, for its details, its plan and its call. */
-    open(share){go(share);return true;},
-    home(){if(location.pathname!=="/"||location.hash)go("/");return true;}
-  };
-  try{window.webkit.messageHandlers.remmynd.postMessage({type:"ready"});}catch(e){}
-}
+/* Inside remmynd for iPhone only: the calls its native Today screen uses (native.js, never loaded on the web). */
+if(NATIVE_TALK)import("/native.js").then(m=>m.boot({R,TZ,holdImported,rkeyOf,replanOptions,unfloat,go,PEND,refresh:()=>window.__rm.refresh()})).catch(()=>{});

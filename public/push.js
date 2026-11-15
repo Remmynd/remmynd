@@ -15,7 +15,8 @@
   window.__rmNativeReply = (req, result) => { const w = waits.get(req); if (w) { waits.delete(req); w(result || {}); } };
   const native = (type, payload = {}, wait = 15000) => new Promise(ok => { const req = rid(); waits.set(req, ok); try { NATIVE.postMessage({ type, req, ...payload }); } catch (e) { waits.delete(req); return ok({ ok: false }); } setTimeout(() => { if (waits.has(req)) { waits.delete(req); ok({ ok: false }); } }, wait); });
   const permission = () => (NATIVE ? nperm : Notification.permission);
-  const askPermission = () => (NATIVE ? native("permission", { ask: true }).then(r => (nperm = r.status || "denied")) : Notification.requestPermission());
+  // In the app, the phone's own answer: instant once decided, and no time limit while the person reads the prompt.
+  const askPermission = () => (NATIVE ? native("permission", { ask: true }, 6e5).then(r => (nperm = r.status || nperm)) : Notification.requestPermission());
   /* The alert's words, the same as sw.js shows on the web. */
   const timeStr = t => RM.fShort(new Date(t), RM.TZ);
   const short = u => String(u || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -26,6 +27,7 @@
     if (a.kind === "check") return { title: a.title + ": did you make it?", body: "Tap Done, or Not yet to pick another time." };
     if (a.kind === "nudge") return { title: a.title + " has started", body: "Nudge " + (a.n || 1) + " of 3. Tap to open." };
     if (a.kind === "replan") return { title: a.title, body: "You asked to be reminded now. Tap to open." };
+    if (a.last) return { title: a.title + " is starting now", body: "Open remmynd to keep this repeating reminder coming." };
     return { title: a.title + " is starting now", body: place ? "Tap to open " + place : "Tap to see the details" };
   }
   const MOBILE = /Mobi|Android|iPhone|iPad/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
@@ -41,6 +43,8 @@
   const rid = () => { const b = crypto.getRandomValues(new Uint8Array(16)); return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
   const hash = s => { let h = 5381; for (const c of s) h = (h * 33) ^ c.charCodeAt(0); return (h >>> 0).toString(36); };
   const rkeyOf = (title, start) => Math.round(start / 6e4).toString(36) + "-" + hash(title);
+  // A repeating reminder keeps the key of its first time; app.js passes it.
+  const keyOf = d => d.rkey || rkeyOf(d.r.t, d.start.getTime());
 
   /* ---------- server ---------- */
   let keyPromise = null;
@@ -63,7 +67,7 @@
   const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
   const ON = '<svg class="s-on" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const row = (sub, end, muted) => '<div class="srow' + (muted ? " muted" : "") + '">' + BELL + '<span class="stext"><b>Notification</b><span>' + sub + '</span></span>' + (end || "") + '</div>';
-  const when = d => d.morningAt ? "At " + esc(RM.fShort(d.morningAt, RM.TZ)) + ", after it starts" : "1 hour before, and at the start";
+  const when = d => d.r && d.r.r ? "At the start, each time" : d.morningAt ? "At " + esc(RM.fShort(d.morningAt, RM.TZ)) + ", after it starts" : "1 hour before, and at the start";
 
   async function renderRow(d) {
     const el = d.el;
@@ -77,7 +81,7 @@
       } else el.innerHTML = row("Not available in this browser", "", true);
       return;
     }
-    const rkey = rkeyOf(d.r.t, start);
+    const rkey = keyOf(d);
     const on = (await getAll()).some(a => a.rkey === rkey && !a.shown);
     if (on) {
       el.innerHTML = row(when(d), '<span class="s-ends"><button type="button" class="btn small" id="n-test">Test</button><button type="button" class="s-btn" id="n-off" aria-label="Notifications on. Turn them off">' + ON + '</button></span>');
@@ -102,11 +106,12 @@
   /* Remind me: turn notifications on where they are allowed. The permission prompt must start inside
    * the tap itself, so this asks before anything is awaited. */
   function remind(d, loud) {
-    if (!SUPPORTED || d.start.getTime() <= Date.now() + 30e3) return renderRow(d).then(() => false);
-    const perm = permission() === "default" ? askPermission() : Promise.resolve(permission());
+    if (!SUPPORTED || (!(d.r && d.r.r) && d.start.getTime() <= Date.now() + 30e3)) return renderRow(d).then(() => false);
+    // In the app, always ask the phone: an answer cached on this page can be out of date (allowed late, or in Settings).
+    const perm = NATIVE || permission() === "default" ? askPermission() : Promise.resolve(permission());
     return perm.then(async p => {
       if (p !== "granted") { await renderRow(d); return false; }
-      const rkey = rkeyOf(d.r.t, d.start.getTime());
+      const rkey = keyOf(d);
       if (!(await getAll()).some(a => a.rkey === rkey && !a.shown)) await turnOn(d, rkey, loud);
       await renderRow(d);
       return true;
@@ -163,7 +168,7 @@
 
   /* Not yet: drop what's waiting and bring it back once, at the chosen time. */
   async function replan(d, at) {
-    const rkey = rkeyOf(d.r.t, d.start.getTime());
+    const rkey = keyOf(d);
     await cancel(rkey);
     if (!SUPPORTED || permission() !== "granted") return false;
     const base = { rkey, title: d.r.t, start: d.start.getTime(), place: d.r.l || "", share: d.share, shown: false };
@@ -182,7 +187,7 @@
   }
 
   async function turnOn(d, rkey, loud) {
-    const alerts = await schedule(plan(d, rkey));
+    const alerts = await schedule(d.r && d.r.r ? (await import("/repeat.js")).plan(d, rkey, rid) : plan(d, rkey));
     if (!alerts.length) throw new Error("past");
     if (loud) RM.toast("You'll get a notification " + (d.morningAt ? "at " + RM.fShort(d.morningAt, RM.TZ) : alerts.length > 1 ? "1 hour before and at the start" : "at the start"));
   }
@@ -223,4 +228,6 @@
   window.addEventListener("rm:stack", e => renderRow(e.detail));
   if (window.__rmLast && window.__rmLast.type === "stack") renderRow(window.__rmLast.detail);
   refreshBadge();
+  // Repeats: on opening, one whose next time has come moves on to it, and its alerts are topped up (repeat.js).
+  if (DB) DB.getAll("reminders").then(rs => rs.some(x => x.rep && x.state === "held") && import("/repeat.js").then(m => m.tend()).then(moved => { if (moved && RM.refresh) RM.refresh(); refreshBadge(); })).catch(() => {});
 })();
