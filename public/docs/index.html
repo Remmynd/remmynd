@@ -76,6 +76,7 @@ https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and ev
         <tr><td><code>n</code></td><td>Notes</td><td>Optional</td></tr>
         <tr><td><code>h</code></td><td>Host</td><td>Optional</td></tr>
         <tr><td><code>z</code></td><td>The host's IANA time zone</td><td>Optional. The ticket shows the host's time; the preview prints the time in this zone</td></tr>
+        <tr><td><code>r</code></td><td>How it repeats</td><td>Optional. <code>d</code> every day, <code>3d</code> every 3 days, <code>w</code> every week, <code>2w</code> every 2 weeks, <code>w:1,2,3,4,5</code> every weekday (0 is Sunday), <code>m</code> every month, <code>y</code> every year. <code>s</code> stays the first time</td></tr>
       </tbody>
     </table>
     <p>The format is a public contract. New keys are optional, readers ignore keys they don't know, and old links keep working.</p>
@@ -114,6 +115,13 @@ https://remmynd.space/#eyJ0IjoiRGVtbyBkYXkiLCJzIjoiaHRxc3UifQ    private, and ev
         <tr><td><code>read_reminder_link</code></td><td>What a remmynd link holds: title, time, length, place, notes and host</td></tr>
       </tbody>
     </table>
+    <h3 id="connector-setup">Add it to your assistant</h3>
+    <ul>
+      <li><b>Assistants with a connector directory:</b> find remmynd there, or add a custom connector with the address above in the assistant's settings.</li>
+      <li><b>ChatGPT:</b> turn on developer mode in Settings, then create a connector with the address above.</li>
+      <li><b>Any other MCP client:</b> add a remote server with that address. There is no sign-in.</li>
+    </ul>
+    <p>Then ask in your own words: "Remind me about the dentist Tuesday at 4", or "Make a reminder for gym every weekday at 7am". Repeats come through as repeating links.</p>
     <p>It speaks MCP 2026-07-28 (stateless, per-request versions) and the earlier versions back to 2025-03-26, over Streamable HTTP. The tools only turn words into a link and a link back into words, with the same library as this site, so the links are identical. Nothing is stored or logged, and the connector asks no other host for anything.</p>
 
     <h2 id="library">In your code</h2>
