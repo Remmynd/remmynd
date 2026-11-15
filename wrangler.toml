@@ -78,5 +78,6 @@ VAPID_SUBJECT = "mailto:connect@zoof04.com"
 # App Store Server Notifications (version 2) at https://remmynd.space/api/pro/apple/notify.
 # Trying it on this machine: `npx wrangler dev --local-upstream localhost:8787`, so the Worker sees localhost (by
 # default it's told it runs on remmynd.space). Only then do POLAR_API (a stand-in for Polar) and STOREKIT_TEST = "1"
-# (Xcode's test purchases) in .dev.vars take effect, and checkout comes back to this machine.
+# (Xcode's test purchases) in .dev.vars take effect, and checkout comes back to this machine. For the iPhone app in the
+# simulator add `--local-protocol https`: the page's own security header upgrades every request to https.
 # --- end Pro ---

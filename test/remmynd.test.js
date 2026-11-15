@@ -3807,7 +3807,8 @@ test("remmynd Pro on the website: Polar's checkout carries the account, and its 
   assert.ok(acct.includes("const IN_APP = !!window.__rmNative;") && acct.includes("if (IN_APP) return head + '<p class=\"ac-none\">Get Pro in the app"), "inside the app the sheet never sells");
   assert.ok(acct.includes('api("/api/pro/checkout", { plan: what })') && acct.includes('api("/api/pro/restore", {})') && acct.includes('api("/api/pro/portal", {})'));
   assert.ok(app.includes('get("pro")==="done"') && app.includes("m.proDone()"), "back from checkout, the sheet asks for the purchase");
-  for (const f of ["async pro()", "async proApple(jws, move, renewal)", "async proRestore(jws, move, renewal)", "async proPortal()"]) assert.ok(nat.includes(f), "the app's " + f);
+  assert.ok(!nat.includes("/api/pro/portal") && !nat.includes("/api/pro/checkout"), "the app never opens the website's checkout or its payment page");
+  for (const f of ["async pro()", "async proApple(jws, move, renewal)", "async proRestore(jws, move, renewal)"]) assert.ok(nat.includes(f), "the app's " + f);
   const idx = readFileSync(join(root, "worker/index.js"), "utf8");
   assert.ok(idx.includes('url.pathname.startsWith("/api/pro/")') && idx.includes("proBeforeDelete(request, env, url)"));
   assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS pro ("));

@@ -124,7 +124,6 @@ export function boot({ R, TZ, holdImported, rkeyOf, replanOptions, unfloat, go, 
     async pro() { try { const r = await fetch("/api/pro", { credentials: "same-origin" }); return r.ok ? await r.json() : { signedIn: false }; } catch (e) { return null; } },
     async proApple(jws, move, renewal) { return post("/api/pro/apple", { jws, move: !!move, renewal: renewal || undefined }); },
     async proRestore(jws, move, renewal) { return post("/api/pro/restore", jws ? { jws, move: !!move, renewal: renewal || undefined } : {}); },
-    async proPortal() { return post("/api/pro/portal", {}); },
     /* The full reminder page, for its details, its plan and its call. */
     open(share) { go(share); return true; },
     home() { if (location.pathname !== "/" || location.hash) go("/"); return true; }
