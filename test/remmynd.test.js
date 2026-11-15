@@ -3413,3 +3413,12 @@ test("the app, natively: Apple's app-site file for passkeys and links, the app-o
   assert.ok(app.includes("(window.__rmNative?'<button type=\"button\" class=\"btn ink s-call\" id=\"s-call\">Video call for this</button>':'')"));
   assert.ok(app.includes('P.ask("call",{title:c.r.t,start:c.start.getTime(),dur:c.r.d||5,share:c.share})'));
 });
+
+test("the app is a paid product: no free or no-account lines inside it, the website unchanged", () => {
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), css = readFileSync(join(root, "public/app.css"), "utf8"), html = readFileSync(join(root, "public/index.html"), "utf8");
+  assert.ok(app.includes("'<b>remmynd</b><span>Reminders that make sure it happens.'+(window.__rmNative?'':' Free, no account needed, no tracking.')+'</span>'"), "the app's link preview drops the free line; the web keeps it");
+  assert.ok(css.includes(".native .rp-sub{display:none}"));
+  assert.ok(html.includes('<p class="rp-sub">No account. The reminder travels in the link.</p>'), "the website keeps it");
+  // Everything else that says free on the page is already hidden in the app.
+  for (const sel of ["#hero", ".facts", ".site-foot"]) assert.ok(css.includes(".native " + sel), sel + " is hidden in the app");
+});

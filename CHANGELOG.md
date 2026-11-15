@@ -6,6 +6,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- Inside the iPhone app, the page no longer repeats the website's free and no-account lines: the preview of a private link says only "Reminders that make sure it happens.", and the re-plan sheet's "No account" line is left out. The website keeps its wording.
+
 ### Added
 
 - remmynd for iPhone feels like an app: inside it (html.native) the page hides the website's hero, Try one, facts, footer, menu and links to website pages, and uses the system font. The website is unchanged.
