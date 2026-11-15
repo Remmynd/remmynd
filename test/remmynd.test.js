@@ -3060,7 +3060,7 @@ test("passkeys: registration and sign-in are checked with real signatures", asyn
 
 // The account store, in memory, with the same methods and rules as the D1 one.
 function memoryStore() {
-  const t = { users: new Map(), passkeys: new Map(), sessions: new Map(), codes: new Map(), challenges: new Map(), items: new Map(), mails: new Map(), sends: new Map() };
+  const t = { users: new Map(), passkeys: new Map(), sessions: new Map(), codes: new Map(), challenges: new Map(), items: new Map(), mails: new Map(), sends: new Map(), pro: new Map() };
   const ik = (u, k, key) => u + "|" + k + "|" + key;
   return { t,
     ready: async () => {},
@@ -3069,7 +3069,10 @@ function memoryStore() {
     createUser: async u => { t.users.set(u.id, { ...u, email_alerts: 1 }); },
     setEmailAlerts: async (id, on) => { const u = t.users.get(id); if (u) u.email_alerts = on ? 1 : 0; },
     stopEmails: async (id, token) => { const u = t.users.get(id); if (u && u.stop_token === token) u.email_alerts = 0; },
-    deleteUser: async id => { for (const k of ["passkeys", "sessions", "mails"]) for (const [x, v] of t[k]) if (v.user_id === id) t[k].delete(x); for (const [x, v] of t.items) if (v.user_id === id) t.items.delete(x); t.users.delete(id); },
+    deleteUser: async id => { for (const k of ["passkeys", "sessions", "mails"]) for (const [x, v] of t[k]) if (v.user_id === id) t[k].delete(x); for (const [x, v] of t.items) if (v.user_id === id) t.items.delete(x); for (const [x, v] of t.pro) if (v.user_id === id) t.pro.delete(x); t.users.delete(id); },
+    proOf: async id => [...t.pro.values()].filter(r => r.user_id === id).map(r => ({ ...r })),
+    proByRef: async (source, ref) => { const r = t.pro.get(source + "|" + ref); return r ? { ...r } : null; },
+    putPro: async p => { t.pro.set(p.source + "|" + p.ref, { source: p.source, ref: p.ref, user_id: p.userId, product: p.product, until: p.until, trial: p.trial ? 1 : 0, renews: p.renews ? 1 : 0, env: p.env || "", updated: p.updated, moved: p.moved || 0, voided: p.voided || 0 }); },
     passkeysOf: async id => [...t.passkeys.values()].filter(p => p.user_id === id).map(p => ({ id: p.id, name: p.name, created: p.created, last_used: p.last_used })),
     passkey: async id => t.passkeys.get(id) || null,
     addPasskey: async p => { t.passkeys.set(p.id, { id: p.id, user_id: p.userId, public_key: p.publicKey, alg: p.alg, sign_count: 0, name: p.name, created: p.created, last_used: null }); },
@@ -3659,5 +3662,305 @@ test("calendar feed and email in: one private address each, kept only as a hash,
   const acct = readFileSync(join(root, "public/account.js"), "utf8"), idx = readFileSync(join(root, "worker/index.js"), "utf8"), acc = readFileSync(join(root, "worker/account.js"), "utf8");
   assert.ok(acct.includes('feedRow("cal"') && acct.includes('feedRow("in"'));
   assert.ok(idx.includes('url.pathname.startsWith("/cal/")') && idx.includes("async email(message, env, ctx)"));
-  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds"]'));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro"]'));
+});
+
+/* remmynd Pro: an account with a session, as the account tests make one, for the Pro tests. */
+function proAccount(store, id, email, now) {
+  const token = (id + "-session-token").padEnd(32, "x");
+  store.t.users.set(id, { id, email, created: now, email_alerts: 1, stop_token: "s".repeat(24) });
+  store.t.sessions.set(createHash("sha256").update(token).digest("base64url"), { user_id: id, created: now, expires: now + 3650 * 864e5 }); // outlives the tests' jumps in time
+  return "rm_s=" + token;
+}
+
+test("remmynd Pro on the website: Polar's checkout carries the account, and its signed notices and Restore set one status", async () => {
+  const P = await import("../worker/pro.js");
+  const { createHmac } = await import("node:crypto");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-20T08:00:00Z");
+  const me = proAccount(store, "u1", "ana@example.com", now), other = proAccount(store, "u2", "ben@example.com", now);
+  const key = Buffer.from("a-32-byte-signing-key-for-tests!!"), secret = "whsec_" + key.toString("base64");
+  const env = { PRO_ON: "1", POLAR_ACCESS_TOKEN: "tok", POLAR_WEBHOOK_SECRET: secret, POLAR_PRODUCT_MONTHLY: "prod-m", POLAR_PRODUCT_YEARLY: "prod-y" };
+  // A stand-in for Polar: it records what it's asked and answers from `polar`.
+  const asked = [], polar = { state: null, checkout: 201 };
+  const fetchFn = async (u, init = {}) => {
+    const path = new URL(u).pathname, body = init.body ? JSON.parse(init.body) : null;
+    asked.push({ url: String(u), method: init.method || "GET", body, auth: init.headers.authorization });
+    if (path === "/v1/checkouts/") return polar.checkout === 422 && body.customer_email ? Response.json({ detail: "email" }, { status: 422 }) : Response.json({ id: "co_1", url: "https://polar.example/checkout/co_1" }, { status: 201 });
+    if (path.startsWith("/v1/customers/external/")) return polar.state ? Response.json(polar.state) : Response.json({ detail: "Not found" }, { status: 404 });
+    if (path === "/v1/customer-sessions/") return Response.json({ token: "t", customer_portal_url: "https://polar.example/portal/abc" }, { status: 201 });
+    if (path.startsWith("/v1/subscriptions/")) return new Response(null, { status: 200 });
+    return new Response("{}", { status: 404 });
+  };
+  const call = async (path, body, { cookie = me, origin = base, method = body === undefined ? "GET" : "POST", e = env, host = base } = {}) => {
+    const headers = { "content-type": "application/json" };
+    if (origin) headers.origin = origin === base ? host : origin;
+    if (cookie) headers.cookie = cookie;
+    const req = new Request(host + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await P.handlePro(req, e, new URL(req.url), { store, now, fetchFn });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+  const sub = (o = {}) => ({ id: "sub_1", status: "active", product_id: "prod-m", current_period_end: new Date(now + 30 * day).toISOString(), cancel_at_period_end: false, trial_start: null, trial_end: null, ...o });
+  const state = (subs, o = {}) => ({ id: "cus_1", external_id: "u1", email: "ana@example.com", active_subscriptions: subs, granted_benefits: [], ...o });
+  const notice = (data, { key: k = key, at = now, id = "msg_1" } = {}) => {
+    const text = JSON.stringify({ type: "customer.state_changed", timestamp: new Date(at).toISOString(), data }), ts = String(Math.floor(at / 1000));
+    return { text, headers: { "webhook-id": id, "webhook-timestamp": ts, "webhook-signature": "v1," + createHmac("sha256", k).update(id + "." + ts + "." + text).digest("base64") } };
+  };
+  const hook = async (n, e = env) => (await P.handlePro(new Request(base + "/api/pro/polar", { method: "POST", headers: n.headers, body: n.text }), e, new URL(base + "/api/pro/polar"), { store, now, fetchFn })).status;
+
+  // Where it stands, signed out and in. Pro shows only once it's on offer: to everyone with PRO_ON, to testers before.
+  let r = await call("/api/pro", undefined, { cookie: "" });
+  assert.deepEqual([r.body.signedIn, r.body.pro, r.body.offer, r.body.web, r.body.plans.monthly.price, r.body.plans.yearly.price], [false, false, true, true, "$9.99", "$79.99"]);
+  r = await call("/api/pro");
+  assert.deepEqual([r.body.signedIn, r.body.pro, r.body.trialOpen, r.body.trialDays], [true, false, true, 7]);
+  assert.match(r.body.appToken, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, "the account's token for Apple purchases is a UUID");
+  const quiet = { ...env, PRO_ON: undefined, PRO_TESTERS: "Ana@Example.com, zed@example.com" };
+  assert.equal((await call("/api/pro", undefined, { e: quiet })).body.offer, true, "a tester sees it before it opens");
+  assert.equal((await call("/api/pro", undefined, { e: quiet, cookie: other })).body.offer, false, "nobody else does");
+  assert.equal((await call("/api/pro/checkout", { plan: "monthly" }, { e: quiet, cookie: other })).status, 403);
+
+  // Checkout: made by this server, for this account. Signed in, from this site, POST.
+  assert.equal((await call("/api/pro/checkout", { plan: "yearly" }, { cookie: "" })).status, 401);
+  assert.equal((await call("/api/pro/checkout", { plan: "yearly" }, { origin: "https://evil.example" })).status, 403);
+  assert.equal((await call("/api/pro/checkout", undefined, { method: "GET" })).status, 405);
+  r = await call("/api/pro/checkout", { plan: "yearly" });
+  assert.deepEqual([r.status, r.body.url], [200, "https://polar.example/checkout/co_1"]);
+  let q = asked.pop();
+  assert.equal(q.url, "https://api.polar.sh/v1/checkouts/");
+  assert.equal(q.auth, "Bearer tok");
+  assert.deepEqual(q.body, { products: ["prod-y"], external_customer_id: "u1", customer_email: "ana@example.com", allow_trial: true, success_url: base + "/?pro=done", metadata: { account: "u1" } });
+  await call("/api/pro/checkout", { plan: "monthly" }, { e: { ...env, POLAR_SANDBOX: "1", POLAR_API: "http://evil.example" } });
+  assert.equal(asked.pop().url, "https://sandbox-api.polar.sh/v1/checkouts/", "the sandbox when asked; a stand-in address is ignored on the live site");
+  await call("/api/pro/checkout", { plan: "monthly" }, { e: { ...env, POLAR_API: "http://localhost:8799" }, host: "http://localhost:8788" });
+  assert.equal(asked.pop().url, "http://localhost:8799/v1/checkouts/", "a stand-in Polar only on a local dev server");
+  polar.checkout = 422;
+  assert.equal((await call("/api/pro/checkout", { plan: "monthly" })).status, 200, "an email Polar knows under another customer: tried again without it");
+  assert.equal(asked.pop().body.customer_email, undefined);
+  polar.checkout = 201;
+  assert.equal((await call("/api/pro/checkout", { plan: "monthly" }, { e: { ...env, POLAR_ACCESS_TOKEN: "" } })).status, 503);
+
+  // Polar's notice, signed: the trial starts and the account is Pro.
+  assert.equal(await hook(notice(state([sub({ status: "trialing", current_period_end: new Date(now + 7 * day).toISOString() })]))), 202);
+  r = await call("/api/pro");
+  assert.deepEqual([r.body.pro, r.body.source, r.body.plan, r.body.trial, r.body.renews, r.body.until, r.body.trialOpen], [true, "polar", "monthly", true, true, now + 7 * day, false]);
+  // Only Polar's own notices count: a wrong key, an old one, no secret.
+  const good = notice(state([sub()]));
+  assert.equal(await hook(notice(state([sub()]), { key: Buffer.from("someone-else") })), 403);
+  assert.equal(await hook(notice(state([sub()]), { at: now - 10 * 60e3 })), 403, "older than five minutes");
+  assert.equal(await hook({ text: good.text + " ", headers: good.headers }), 403, "a changed body");
+  assert.equal(await hook(good, { ...env, POLAR_WEBHOOK_SECRET: "" }), 403);
+  assert.equal(await hook(notice(state([sub()]), { key: Buffer.from("plain-older-secret") }), { ...env, POLAR_WEBHOOK_SECRET: "plain-older-secret" }), 202, "Polar's older secrets sign with the secret's own bytes");
+  // A notice about someone unknown, or about another product, changes nothing.
+  assert.equal(await hook(notice(state([sub({ id: "sub_x" })], { external_id: "nobody" }))), 202);
+  assert.equal(await hook(notice(state([sub({ id: "sub_9", product_id: "something-else" })], { external_id: "u2" }))), 202);
+  assert.equal((await call("/api/pro", undefined, { cookie: other })).body.pro, false);
+
+  // Paid: never twice, and no second trial.
+  assert.equal(await hook(good), 202);
+  r = await call("/api/pro/checkout", { plan: "yearly" });
+  assert.deepEqual([r.status, r.body.error, r.body.source], [409, "You already have Pro.", "polar"]);
+  // Cancelled: Pro to the end of the period, then off, with no grace.
+  await hook(notice(state([sub({ cancel_at_period_end: true })])));
+  r = await call("/api/pro");
+  assert.deepEqual([r.body.pro, r.body.renews], [true, false]);
+  now += 30 * day + 1000;
+  assert.equal((await call("/api/pro")).body.pro, false, "ends on its date");
+  await call("/api/pro/checkout", { plan: "monthly" });
+  assert.equal(asked.pop().body.allow_trial, false, "the free trial is for an account's first purchase");
+
+  // A payment that's late at renewal: Pro holds for three days, then stops. A refund in the middle of a period stops it at once.
+  await hook(notice(state([sub({ id: "sub_2", current_period_end: new Date(now + 30 * day).toISOString() })])));
+  now += 30 * day + 60e3;
+  await hook(notice(state([])));
+  assert.equal((await call("/api/pro")).body.pro, true, "gone at its date while set to renew: grace");
+  now += P.GRACE + 60e3;
+  assert.equal((await call("/api/pro")).body.pro, false);
+  await hook(notice(state([sub({ id: "sub_3", current_period_end: new Date(now + 30 * day).toISOString() })])));
+  now += 5 * day;
+  await hook(notice(state([])));
+  assert.equal((await call("/api/pro")).body.pro, false, "refunded or revoked: off now");
+
+  // Restore asks Polar directly, so a missed notice never locks anyone out. Only this account's own state applies.
+  polar.state = state([sub({ id: "sub_4", product_id: "prod-y", current_period_end: new Date(now + 365 * day).toISOString() })]);
+  r = await call("/api/pro/restore", {});
+  assert.deepEqual([r.status, r.body.pro, r.body.plan], [200, true, "yearly"]);
+  assert.equal(asked.pop().url, "https://api.polar.sh/v1/customers/external/u1/state");
+  r = await call("/api/pro/restore", {}, { cookie: other });
+  assert.equal(r.body.pro, false, "someone else's state is never applied");
+  polar.state = null;
+  assert.equal((await call("/api/pro/restore", {}, { cookie: other })).body.pro, false, "never bought: nothing found, no error");
+  // Manage: Polar's own page, for this account.
+  r = await call("/api/pro/portal", {});
+  assert.equal(r.body.url, "https://polar.example/portal/abc");
+  assert.deepEqual(asked.pop().body, { external_customer_id: "u1", return_url: base + "/" });
+
+  // Deleting the account ends the website purchase first, then everything goes.
+  asked.length = 0;
+  const del = new Request(base + "/api/account/delete", { method: "POST", headers: { origin: base, cookie: me } });
+  await P.proBeforeDelete(del, env, new URL(del.url), { store, now, fetchFn });
+  assert.deepEqual([asked[0].method, asked[0].url], ["DELETE", "https://api.polar.sh/v1/subscriptions/sub_4"]);
+  await store.deleteUser("u1");
+  assert.equal((await store.proOf("u1")).length, 0);
+
+  // The account sheet: sells it on the website only, never inside the app; the app's calls; the route; what's kept.
+  const acct = readFileSync(join(root, "public/account.js"), "utf8"), nat = readFileSync(join(root, "public/native.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8");
+  assert.ok(acct.includes("const IN_APP = !!window.__rmNative;") && acct.includes("if (IN_APP) return head + '<p class=\"ac-none\">Get Pro in the app"), "inside the app the sheet never sells");
+  assert.ok(acct.includes('api("/api/pro/checkout", { plan: what })') && acct.includes('api("/api/pro/restore", {})') && acct.includes('api("/api/pro/portal", {})'));
+  assert.ok(app.includes('get("pro")==="done"') && app.includes("m.proDone()"), "back from checkout, the sheet asks for the purchase");
+  assert.ok(!nat.includes("/api/pro/portal") && !nat.includes("/api/pro/checkout"), "the app never opens the website's checkout or its payment page");
+  for (const f of ["async pro()", "async proApple(jws, move, renewal)", "async proRestore(jws, move, renewal)"]) assert.ok(nat.includes(f), "the app's " + f);
+  const idx = readFileSync(join(root, "worker/index.js"), "utf8");
+  assert.ok(idx.includes('url.pathname.startsWith("/api/pro/")') && idx.includes("proBeforeDelete(request, env, url)"));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS pro ("));
+  assert.ok(!firstVisit({ cache: true }).some(f => /^account\./.test(f)), "the app's first visit loads none of it");
+});
+
+test("remmynd Pro in the app: a purchase Apple signed links to the account, follows renewals and refunds, and belongs to one account", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { createPrivateKey, sign: ecSign } = await import("node:crypto");
+  const P = await import("../worker/pro.js"), A = await import("../worker/apple.js");
+  // A chain built like the App Store's (a P-384 root, a marked intermediate, a marked P-256 leaf), made here with openssl.
+  const dir = mkdtempSync(join(tmpdir(), "rm-pro-"));
+  const ssl = (...a) => execFileSync("openssl", a, { cwd: dir, stdio: ["ignore", "pipe", "ignore"] });
+  let serial = 1;
+  const cert = (name, curve, ca, ext, hash = "sha384") => {
+    ssl("ecparam", "-name", curve, "-genkey", "-noout", "-out", name + ".key");
+    if (!ca) return ssl("req", "-new", "-x509", "-key", name + ".key", "-subj", "/CN=" + name, "-days", "3650", "-" + hash, "-out", name + ".pem");
+    ssl("req", "-new", "-key", name + ".key", "-subj", "/CN=" + name, "-out", name + ".csr");
+    writeFileSync(join(dir, name + ".ext"), ext + "\n");
+    ssl("x509", "-req", "-in", name + ".csr", "-CA", ca + ".pem", "-CAkey", ca + ".key", "-set_serial", String(serial++), "-days", "3650", "-" + hash, "-extfile", name + ".ext", "-out", name + ".pem");
+  };
+  cert("root", "secp384r1");
+  cert("inter", "secp384r1", "root", "basicConstraints=critical,CA:TRUE\n1.2.840.113635.100.6.2.1=DER:0500");
+  cert("leaf", "prime256v1", "inter", "1.2.840.113635.100.6.11.1=DER:0500");
+  cert("xcode", "prime256v1");
+  const der = n => ssl("x509", "-in", n + ".pem", "-outform", "DER");
+  const rootSha256 = createHash("sha256").update(der("root")).digest("hex");
+  const jws = (payload, chain = ["leaf", "inter", "root"], signer = "leaf") => {
+    const h = Buffer.from(JSON.stringify({ alg: "ES256", x5c: chain.map(n => der(n).toString("base64")) })).toString("base64url"), b = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    return h + "." + b + "." + ecSign("sha256", Buffer.from(h + "." + b), { key: createPrivateKey(readFileSync(join(dir, signer + ".key"))), dsaEncoding: "ieee-p1363" }).toString("base64url");
+  };
+
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  // The certificates above start now, so this test's clock does too: a fixed date would one day fall before them.
+  let now = Date.now() + 60000;
+  const ana = proAccount(store, "ua", "ana@example.com", now), ben = proAccount(store, "ub", "ben@example.com", now), cy = proAccount(store, "uc", "cy@example.com", now);
+  const tokenA = await P.appToken("ua");
+  const env = { PRO_ON: "1", POLAR_ACCESS_TOKEN: "tok", POLAR_WEBHOOK_SECRET: "s", POLAR_PRODUCT_MONTHLY: "prod-m", POLAR_PRODUCT_YEARLY: "prod-y" };
+  const tx = (o = {}) => ({ bundleId: "space.remmynd.app", environment: "Sandbox", productId: "space.remmynd.pro.yearly", transactionId: "t1", originalTransactionId: "o1",
+    type: "Auto-Renewable Subscription", expiresDate: now + 365 * day, appAccountToken: tokenA, ...o });
+  const call = async (path, body, { cookie = ana, e = env, host = base, root = rootSha256, method = body === undefined ? "GET" : "POST" } = {}) => {
+    const req = new Request(host + path, { method, headers: { "content-type": "application/json", origin: host, ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await P.handlePro(req, e, new URL(req.url), { store, now, rootSha256: root || undefined, fetchFn: async () => Response.json({ detail: "Not found" }, { status: 404 }) });
+    return { status: res.status, body: await res.json().catch(() => null) };
+  };
+  const notify = (type, txo, renewal, opt) => call("/api/pro/apple/notify", { signedPayload: jws({ notificationType: type, data: { bundleId: "space.remmynd.app", environment: "Sandbox",
+    signedTransactionInfo: jws(tx(txo)), ...(renewal ? { signedRenewalInfo: jws(renewal) } : {}) } }) }, { cookie: "", ...opt });
+
+  // Only what Apple signed, for this app and this product, counts.
+  assert.equal((await call("/api/pro/apple", { jws: jws(tx()) }, { root: null })).status, 403, "Apple's own root is pinned: this test chain is refused without the override");
+  assert.equal(A.APPLE_ROOT_G3_SHA256, "63343abfb89a6a03ebb57e9b3f5fa7be7c4f5c756f3017b3a8c488c3653e9179");
+  assert.equal((await call("/api/pro/apple", { jws: jws(tx({ bundleId: "com.other" })) })).status, 403);
+  assert.equal((await call("/api/pro/apple", { jws: jws(tx({ productId: "space.remmynd.call.30" })) })).body.error, "That purchase isn't remmynd Pro.");
+  assert.equal((await call("/api/pro/apple", { jws: jws(tx({ environment: "Xcode" })) })).status, 403, "test purchases never count on the live site");
+  assert.equal((await call("/api/pro/apple", { jws: "abc.def" })).status, 403);
+  assert.equal((await call("/api/pro/apple", {})).status, 400);
+  assert.equal((await call("/api/pro/apple", { jws: jws(tx()) }, { cookie: "" })).status, 401, "signed in first: Pro belongs to the account");
+  // A purchase read back long after it was signed still checks out: the certificates' dates are held to the day Apple
+  // signed, which the purchase itself carries. Without that date, or with one from the future, today's date decides.
+  const later = now + 3700 * day;
+  assert.equal((await A.verifyTransaction(jws(tx({ signedDate: now })), { now: later, rootSha256 })).originalTransactionId, "o1");
+  await assert.rejects(A.verifyTransaction(jws(tx()), { now: later, rootSha256 }), /expired/);
+  await assert.rejects(A.verifyTransaction(jws(tx({ signedDate: later + day })), { now: later, rootSha256 }), /expired/);
+  // Xcode's own test purchases (one certificate, signed on the Mac) only on a local dev server that asks for them.
+  const xc = jws(tx({ environment: "Xcode", originalTransactionId: "x1" }), ["xcode"], "xcode");
+  assert.equal((await call("/api/pro/apple", { jws: xc }, { e: { ...env, STOREKIT_TEST: "1" } })).status, 403);
+  assert.equal((await call("/api/pro/apple", { jws: xc }, { e: { ...env, STOREKIT_TEST: "1" }, host: "http://localhost:8788", cookie: cy })).status, 200);
+  store.t.pro.clear();
+
+  // Linked: Pro on the account, with its trial and its date.
+  let r = await call("/api/pro/apple", { jws: jws(tx({ offerType: 1, offerDiscountType: "FREE_TRIAL", expiresDate: now + 7 * day })) });
+  assert.deepEqual([r.status, r.body.pro, r.body.source, r.body.plan, r.body.trial, r.body.until], [200, true, "apple", "yearly", true, now + 7 * day]);
+  // Never twice: the website won't sell Pro to an account that has it through Apple.
+  r = await call("/api/pro/checkout", { plan: "monthly" });
+  assert.deepEqual([r.status, r.body.source], [409, "apple"]);
+  assert.match(r.body.error, /through Apple/);
+
+  // One purchase, one account. Someone else must ask to move it, and only once a week; its own account always gets it back.
+  r = await call("/api/pro/apple", { jws: jws(tx()) }, { cookie: ben });
+  assert.deepEqual([r.status, r.body.canMove, r.body.other], [409, true, "a•••@example.com"]);
+  r = await call("/api/pro/apple", { jws: jws(tx()), move: true }, { cookie: ben });
+  assert.deepEqual([r.status, r.body.pro], [200, true]);
+  assert.equal((await call("/api/pro")).body.pro, false, "moved: off the first account");
+  r = await call("/api/pro/apple", { jws: jws(tx()), move: true }, { cookie: cy });
+  assert.deepEqual([r.status, r.body.canMove], [409, false], "not again within a week");
+  r = await call("/api/pro/apple", { jws: jws(tx()) });
+  assert.deepEqual([r.status, r.body.pro], [200, true], "the account it was bought under gets it back without asking");
+  assert.equal((await call("/api/pro", undefined, { cookie: ben })).body.pro, false);
+
+  // Apple's notices keep it right when the app is closed: a renewal, turning renewal off, the end.
+  r = await notify("DID_RENEW", { transactionId: "t2", expiresDate: now + 730 * day });
+  assert.deepEqual([r.status, r.body.ok], [200, true]);
+  assert.equal((await call("/api/pro")).body.until, now + 730 * day);
+  // A trial ends when its first paid period starts, on the plan that renewed. The trial's purchase sent again changes nothing.
+  const fay = proAccount(store, "uf", "fay@example.com", now), tokenF = await P.appToken("uf");
+  const trial = { originalTransactionId: "o7", transactionId: "t70", appAccountToken: tokenF, offerType: 1, offerDiscountType: "FREE_TRIAL", expiresDate: now + 7 * day };
+  r = (await call("/api/pro/apple", { jws: jws(tx(trial)) }, { cookie: fay })).body;
+  assert.deepEqual([r.pro, r.trial, r.plan, r.until], [true, true, "yearly", now + 7 * day]);
+  await notify("DID_RENEW", { originalTransactionId: "o7", transactionId: "t71", appAccountToken: tokenF, productId: "space.remmynd.pro.monthly", expiresDate: now + 37 * day }, { autoRenewStatus: 1 });
+  r = (await call("/api/pro", undefined, { cookie: fay })).body;
+  assert.deepEqual([r.until, r.trial, r.plan], [now + 37 * day, false, "monthly"]);
+  r = (await call("/api/pro/apple", { jws: jws(tx(trial)) }, { cookie: fay })).body;
+  assert.deepEqual([r.until, r.trial, r.plan], [now + 37 * day, false, "monthly"]);
+  await notify("DID_CHANGE_RENEWAL_STATUS", { transactionId: "t2", expiresDate: now + 730 * day }, { autoRenewStatus: 0 });
+  assert.equal((await call("/api/pro")).body.renews, false);
+  now += 730 * day + 1000;
+  r = await call("/api/pro");
+  assert.deepEqual([r.body.signedIn, r.body.pro], [true, false], "ended on its date, with no grace once renewal was off");
+  await notify("SUBSCRIBED", { transactionId: "t3", expiresDate: now + 30 * day }, { autoRenewStatus: 1 });
+  assert.deepEqual([(await call("/api/pro")).body.pro, (await call("/api/pro")).body.renews], [true, true], "subscribed again");
+  // A payment that fails gets Apple's grace period, then our own three days.
+  await notify("DID_FAIL_TO_RENEW", { transactionId: "t3", expiresDate: now + 30 * day }, { autoRenewStatus: 1, gracePeriodExpiresDate: now + 46 * day });
+  assert.equal((await call("/api/pro")).body.until, now + 46 * day);
+  // A refund ends it at once, and the purchase as it was before the refund never counts again.
+  const before = jws(tx({ transactionId: "t3", expiresDate: now + 30 * day }));
+  await notify("REFUND", { transactionId: "t3", expiresDate: now + 30 * day, revocationDate: now });
+  assert.equal((await call("/api/pro")).body.pro, false);
+  r = await call("/api/pro/apple", { jws: before });
+  assert.deepEqual([r.status, r.body.pro], [200, false], "sent again after the refund: still off");
+  // Apple takes the refund back: that period counts again, and only that one.
+  await notify("REFUND_REVERSED", { transactionId: "t3", expiresDate: now + 30 * day }, { autoRenewStatus: 0 });
+  r = (await call("/api/pro")).body;
+  assert.deepEqual([r.pro, r.until, r.renews], [true, now + 30 * day, false]);
+  await notify("REFUND", { transactionId: "t3", expiresDate: now + 30 * day, revocationDate: now });
+  assert.equal((await call("/api/pro")).body.pro, false);
+  // A notice about a purchase no account has linked changes nothing; one Apple didn't sign is refused.
+  assert.equal((await notify("DID_RENEW", { originalTransactionId: "unknown" })).body.ignored, "not linked");
+  assert.equal((await notify("DID_RENEW", {}, null, { root: null })).status, 403);
+  assert.equal((await call("/api/pro/apple/notify", { nothing: 1 }, { cookie: "" })).status, 400);
+
+  // Restore from the app: what Apple signed is linked, and the website's side is asked too. Either one is enough.
+  r = await call("/api/pro/restore", { jws: jws(tx({ originalTransactionId: "o9", appAccountToken: undefined, productId: "space.remmynd.pro.monthly", expiresDate: now + 30 * day })) }, { cookie: cy });
+  assert.deepEqual([r.status, r.body.pro, r.body.source, r.body.plan], [200, true, "apple", "monthly"]);
+  r = await call("/api/pro/restore", { jws: jws(tx({ originalTransactionId: "o9", appAccountToken: undefined, productId: "space.remmynd.pro.monthly", expiresDate: now + 30 * day })) }, { cookie: ben });
+  assert.deepEqual([r.status, r.body.canMove], [409, true], "someone else's purchase isn't restored onto another account without asking");
+
+  // The app sends the renewal info Apple signed with the purchase, so a cancelled one reads "ends" from the first link,
+  // and a failed payment's grace period counts, even if Apple's notice never arrived.
+  const dee = proAccount(store, "ud", "dee@example.com", now), tokenD = await P.appToken("ud");
+  const mine = o => tx({ originalTransactionId: "o5", transactionId: "t9", appAccountToken: tokenD, expiresDate: now + 30 * day, ...o });
+  r = await call("/api/pro/apple", { jws: jws(mine()), renewal: jws({ originalTransactionId: "o5", autoRenewStatus: 0 }) }, { cookie: dee });
+  assert.deepEqual([r.status, r.body.pro, r.body.renews], [200, true, false]);
+  r = await call("/api/pro/apple", { jws: jws(mine()), renewal: jws({ originalTransactionId: "o5", autoRenewStatus: 1, gracePeriodExpiresDate: now + 36 * day }) }, { cookie: dee });
+  assert.deepEqual([r.body.renews, r.body.until], [true, now + 36 * day]);
+  // Renewal info for some other purchase, or not signed by Apple, is left out; the purchase itself still links.
+  r = await call("/api/pro/apple", { jws: jws(mine()), renewal: jws({ originalTransactionId: "o1", autoRenewStatus: 0 }) }, { cookie: dee });
+  assert.deepEqual([r.status, r.body.renews], [200, true]);
+  r = await call("/api/pro/apple", { jws: jws(mine()), renewal: jws({ originalTransactionId: "o5", autoRenewStatus: 0 }, ["xcode"], "xcode") }, { cookie: dee });
+  assert.deepEqual([r.status, r.body.renews], [200, true]);
+  // A purchase that already ended, linked for the first time, isn't Pro: grace is for renewals that are late, not for this.
+  const eve = proAccount(store, "ue", "eve@example.com", now);
+  r = await call("/api/pro/apple", { jws: jws(tx({ originalTransactionId: "o6", appAccountToken: undefined, expiresDate: now - day })) }, { cookie: eve });
+  assert.deepEqual([r.status, r.body.pro], [200, false]);
 });

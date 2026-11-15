@@ -62,3 +62,22 @@ namespace_id = "1001"
 VAPID_PUBLIC_KEY = "BL1wKLc-1cGG7qJ-NS6KxwImTFfFVmp1YppjL7mdyXNjfHOTdjx9ThEfUb1aDx_3E8ACyw2yJ_gL3txgDQeQ3wg"
 VAPID_SUBJECT = "mailto:connect@zoof04.com"
 # --- end push ---
+
+# --- remmynd Pro (worker/pro.js): one status on the account, paid on the website through Polar or in the iPhone app
+# through Apple. Until PRO_ON is "1", only the accounts in PRO_TESTERS see it. Uncomment and fill in to turn it on.
+# PRO_TESTERS = "you@example.com"
+# PRO_ON = "1"
+# POLAR_SANDBOX = "1"                      # Polar's sandbox. Remove it for real payments.
+# POLAR_PRODUCT_MONTHLY = "<the monthly product's id>"
+# POLAR_PRODUCT_YEARLY = "<the yearly product's id>"
+# Secrets, set with `npx wrangler secret put <name>`:
+#   POLAR_ACCESS_TOKEN     an organization access token: checkouts:write, customers:read, customer_sessions:write,
+#                          subscriptions:write
+#   POLAR_WEBHOOK_SECRET   the signing secret of the webhook that sends customer.state_changed to /api/pro/polar
+# Apple needs nothing here: purchases are checked against Apple's root certificate. In App Store Connect, point
+# App Store Server Notifications (version 2) at https://remmynd.space/api/pro/apple/notify.
+# Trying it on this machine: `npx wrangler dev --local-upstream localhost:8787`, so the Worker sees localhost (by
+# default it's told it runs on remmynd.space). Only then do POLAR_API (a stand-in for Polar) and STOREKIT_TEST = "1"
+# (Xcode's test purchases) in .dev.vars take effect, and checkout comes back to this machine. For the iPhone app in the
+# simulator add `--local-protocol https`: the page's own security header upgrades every request to https.
+# --- end Pro ---

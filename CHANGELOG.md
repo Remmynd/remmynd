@@ -13,6 +13,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- remmynd Pro, the plumbing: one status on the account, however it was paid. On the website the server makes a Polar checkout with the account's id on it, and Polar's signed notices (or Restore, which asks Polar directly) set the status; in the iPhone app the purchase Apple signed is checked up to Apple Root CA G3 and linked to the account, and Apple's server notifications follow renewals, cancellations and refunds. A purchase belongs to one account, nobody is sold Pro twice, the free trial is for an account's first purchase, and deleting the account ends a website purchase. Nothing is on offer until `PRO_ON` is set; before that only `PRO_TESTERS` see it.
 - Your calendar: signed-in accounts get a private calendar address (`/cal/<token>.ics`) to subscribe to in Apple, Google or Outlook Calendar. It holds the reminders you hold, with shared links only, repeats as repeating events in local time, and refreshes every few hours. New address replaces it; Turn off removes it.
 - Email in: forward a booking or an invite to your private `in-<token>@remmynd.space` address and it becomes a reminder in your account, read from the subject or the first lines. A reply says what was added, or why nothing was. The email is not stored.
 - My links shows how many will be reminded, for the links whose host turned the count on.

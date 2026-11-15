@@ -10,6 +10,7 @@ import { embedResponse } from "./embed.js";
 import { badgeResponse } from "./badge.js";
 import { handleAccount, sendDueMails } from "./account.js";
 import { handleFeeds, calendarResponse, receiveEmail } from "./feed.js";
+import { handlePro, proBeforeDelete } from "./pro.js";
 import { handleCount, cleanCounts } from "./count.js";
 import { appSiteResponse } from "./appsite.js";
 
@@ -34,6 +35,10 @@ export default {
     // Optional sign-in, sync and email reminders.
     // A signed-in account's calendar feed and email-in address (worker/feed.js).
     if (url.pathname.startsWith("/api/feeds")) return handleFeeds(request, env, url);
+    // remmynd Pro: one status on the account, paid on the website (Polar) or in the app (Apple) (worker/pro.js).
+    if (url.pathname === "/api/pro" || url.pathname.startsWith("/api/pro/")) return handlePro(request, env, url);
+    // Deleting an account ends its website purchase first, so nothing is billed for an account that's gone.
+    if (url.pathname === "/api/account/delete" && request.method === "POST") await proBeforeDelete(request, env, url).catch(() => {});
     if (url.pathname.startsWith("/cal/")) return calendarResponse(request, env, url);
     if (url.pathname.startsWith("/api/")) return handleAccount(request, env, url, ctx);
 

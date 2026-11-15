@@ -48,6 +48,9 @@ export const SCHEMA = [
   // The calendar feed and the email-in address: one random token each, kept only as a hash (worker/feed.js).
   "CREATE TABLE IF NOT EXISTS feeds (user_id TEXT NOT NULL, kind TEXT NOT NULL, token_hash TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY (user_id, kind))",
   "CREATE UNIQUE INDEX IF NOT EXISTS feeds_token ON feeds (token_hash)",
+  // remmynd Pro (worker/pro.js): one row per purchase, from Polar (the website) or Apple (the app), on the account.
+  "CREATE TABLE IF NOT EXISTS pro (source TEXT NOT NULL, ref TEXT NOT NULL, user_id TEXT NOT NULL, product TEXT NOT NULL, until INTEGER NOT NULL, trial INTEGER NOT NULL DEFAULT 0, renews INTEGER NOT NULL DEFAULT 1, env TEXT NOT NULL DEFAULT '', updated INTEGER NOT NULL, moved INTEGER NOT NULL DEFAULT 0, voided INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (source, ref))",
+  "CREATE INDEX IF NOT EXISTS pro_user ON pro (user_id)",
 ];
 
 /* ---------- storage: D1 in production, an in-memory stand-in in the tests ---------- */
@@ -64,7 +67,7 @@ export function d1Store(db) {
     createUser: u => run("INSERT INTO users (id, email, created, email_alerts, stop_token) VALUES (?, ?, ?, 1, ?)", u.id, u.email, u.created, u.stop_token),
     setEmailAlerts: (id, on) => run("UPDATE users SET email_alerts = ? WHERE id = ?", on ? 1 : 0, id),
     stopEmails: (id, token) => run("UPDATE users SET email_alerts = 0 WHERE id = ? AND stop_token = ?", id, token),
-    deleteUser: id => db.batch([...["passkeys", "sessions", "items", "mails", "feeds"].map(t => st("DELETE FROM " + t + " WHERE user_id = ?", id)), st("DELETE FROM users WHERE id = ?", id)]),
+    deleteUser: id => db.batch([...["passkeys", "sessions", "items", "mails", "feeds", "pro"].map(t => st("DELETE FROM " + t + " WHERE user_id = ?", id)), st("DELETE FROM users WHERE id = ?", id)]),
     passkeysOf: id => all("SELECT id, name, created, last_used FROM passkeys WHERE user_id = ? ORDER BY created", id),
     passkey: id => one("SELECT * FROM passkeys WHERE id = ?", id),
     addPasskey: p => run("INSERT INTO passkeys (id, user_id, public_key, alg, sign_count, name, created) VALUES (?, ?, ?, ?, 0, ?, ?)", p.id, p.userId, p.publicKey, p.alg, p.name, p.created),
@@ -86,6 +89,10 @@ export function d1Store(db) {
     countItems: async userId => (await one("SELECT COUNT(*) AS n FROM items WHERE user_id = ? AND deleted = 0", userId))?.n || 0,
     putItems: (userId, list) => list.length ? db.batch(list.map(x => st("INSERT INTO items (user_id, kind, key, data, updated, deleted) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, kind, key) DO UPDATE SET data = excluded.data, updated = excluded.updated, deleted = excluded.deleted WHERE excluded.updated >= items.updated", userId, x.kind, x.key, x.data, x.updated, x.deleted ? 1 : 0))) : null,
     reminders: userId => all("SELECT key, data FROM items WHERE user_id = ? AND kind = 'reminder' AND deleted = 0", userId),
+    proOf: userId => all("SELECT * FROM pro WHERE user_id = ?", userId),
+    proByRef: (source, ref) => one("SELECT * FROM pro WHERE source = ? AND ref = ?", source, ref),
+    putPro: p => run("INSERT INTO pro (source, ref, user_id, product, until, trial, renews, env, updated, moved, voided) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(source, ref) DO UPDATE SET user_id = excluded.user_id, product = excluded.product, until = excluded.until, trial = excluded.trial, renews = excluded.renews, env = excluded.env, updated = excluded.updated, moved = excluded.moved, voided = excluded.voided",
+      p.source, p.ref, p.userId, p.product, p.until, p.trial ? 1 : 0, p.renews ? 1 : 0, p.env || "", p.updated, p.moved || 0, p.voided || 0),
     feedOf: (userId, kind) => one("SELECT * FROM feeds WHERE user_id = ? AND kind = ?", userId, kind),
     feedByToken: (kind, h) => one("SELECT * FROM feeds WHERE kind = ? AND token_hash = ?", kind, h),
     setFeed: (userId, kind, h, now) => run("INSERT INTO feeds (user_id, kind, token_hash, created) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, kind) DO UPDATE SET token_hash = excluded.token_hash, created = excluded.created", userId, kind, h, now),

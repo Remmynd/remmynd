@@ -9,6 +9,8 @@ export function boot({ R, TZ, holdImported, rkeyOf, replanOptions, unfloat, go, 
   const find = async k => (await all()).find(x => x.rkey === k);
   const repeats = () => import("/repeat.js");
   const after = () => { try { refresh(); } catch (e) {} };
+  // A change on this site's own API, as the account sheet makes one. Answers what the server said, with ok and status.
+  const post = async (path, body) => { try { const r = await fetch(path, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); return { ...j, ok: r.ok, status: r.status }; } catch (e) { return { ok: false, status: 0, error: "No connection. Try again." }; } };
   const payload = s => { s = String(s); const i = s.indexOf("/r/"); return i >= 0 ? s.slice(i + 3).split(/[?#/]/)[0] : s.slice(s.indexOf("#") + 1); };
   // A repeat shows the time it comes round now; a one-off its own time.
   const occ = e => { const m = e.durationMinutes * 6e4; return !e.repeat || e.start.getTime() + m > Date.now() ? e.start : R.nextOccurrence(e.start, e.repeat, { after: Date.now() - m, timeZone: e.timeZone || TZ }) || e.start; };
@@ -117,6 +119,11 @@ export function boot({ R, TZ, holdImported, rkeyOf, replanOptions, unfloat, go, 
       }));
       return out.filter(Boolean).sort((a, b) => a.start - b.start);
     },
+    /* remmynd Pro (worker/pro.js). The app buys through Apple and sends what Apple signed; the account's status comes
+     * back the same however it was paid, so a website purchase shows in the app and Restore finds either. */
+    async pro() { try { const r = await fetch("/api/pro", { credentials: "same-origin" }); return r.ok ? await r.json() : { signedIn: false }; } catch (e) { return null; } },
+    async proApple(jws, move, renewal) { return post("/api/pro/apple", { jws, move: !!move, renewal: renewal || undefined }); },
+    async proRestore(jws, move, renewal) { return post("/api/pro/restore", jws ? { jws, move: !!move, renewal: renewal || undefined } : {}); },
     /* The full reminder page, for its details, its plan and its call. */
     open(share) { go(share); return true; },
     home() { if (location.pathname !== "/" || location.hash) go("/"); return true; }
