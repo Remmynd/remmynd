@@ -45,6 +45,9 @@ export const SCHEMA = [
   "CREATE INDEX IF NOT EXISTS mails_at ON mails (at)",
   "CREATE INDEX IF NOT EXISTS mails_user_key ON mails (user_id, key)",
   "CREATE TABLE IF NOT EXISTS sends (hour INTEGER PRIMARY KEY, n INTEGER NOT NULL)",
+  // The calendar feed and the email-in address: one random token each, kept only as a hash (worker/feed.js).
+  "CREATE TABLE IF NOT EXISTS feeds (user_id TEXT NOT NULL, kind TEXT NOT NULL, token_hash TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY (user_id, kind))",
+  "CREATE UNIQUE INDEX IF NOT EXISTS feeds_token ON feeds (token_hash)",
 ];
 
 /* ---------- storage: D1 in production, an in-memory stand-in in the tests ---------- */
@@ -61,7 +64,7 @@ export function d1Store(db) {
     createUser: u => run("INSERT INTO users (id, email, created, email_alerts, stop_token) VALUES (?, ?, ?, 1, ?)", u.id, u.email, u.created, u.stop_token),
     setEmailAlerts: (id, on) => run("UPDATE users SET email_alerts = ? WHERE id = ?", on ? 1 : 0, id),
     stopEmails: (id, token) => run("UPDATE users SET email_alerts = 0 WHERE id = ? AND stop_token = ?", id, token),
-    deleteUser: id => db.batch([...["passkeys", "sessions", "items", "mails"].map(t => st("DELETE FROM " + t + " WHERE user_id = ?", id)), st("DELETE FROM users WHERE id = ?", id)]),
+    deleteUser: id => db.batch([...["passkeys", "sessions", "items", "mails", "feeds"].map(t => st("DELETE FROM " + t + " WHERE user_id = ?", id)), st("DELETE FROM users WHERE id = ?", id)]),
     passkeysOf: id => all("SELECT id, name, created, last_used FROM passkeys WHERE user_id = ? ORDER BY created", id),
     passkey: id => one("SELECT * FROM passkeys WHERE id = ?", id),
     addPasskey: p => run("INSERT INTO passkeys (id, user_id, public_key, alg, sign_count, name, created) VALUES (?, ?, ?, ?, 0, ?, ?)", p.id, p.userId, p.publicKey, p.alg, p.name, p.created),
@@ -83,6 +86,10 @@ export function d1Store(db) {
     countItems: async userId => (await one("SELECT COUNT(*) AS n FROM items WHERE user_id = ? AND deleted = 0", userId))?.n || 0,
     putItems: (userId, list) => list.length ? db.batch(list.map(x => st("INSERT INTO items (user_id, kind, key, data, updated, deleted) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, kind, key) DO UPDATE SET data = excluded.data, updated = excluded.updated, deleted = excluded.deleted WHERE excluded.updated >= items.updated", userId, x.kind, x.key, x.data, x.updated, x.deleted ? 1 : 0))) : null,
     reminders: userId => all("SELECT key, data FROM items WHERE user_id = ? AND kind = 'reminder' AND deleted = 0", userId),
+    feedOf: (userId, kind) => one("SELECT * FROM feeds WHERE user_id = ? AND kind = ?", userId, kind),
+    feedByToken: (kind, h) => one("SELECT * FROM feeds WHERE kind = ? AND token_hash = ?", kind, h),
+    setFeed: (userId, kind, h, now) => run("INSERT INTO feeds (user_id, kind, token_hash, created) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, kind) DO UPDATE SET token_hash = excluded.token_hash, created = excluded.created", userId, kind, h, now),
+    deleteFeed: (userId, kind) => run("DELETE FROM feeds WHERE user_id = ? AND kind = ?", userId, kind),
     setMails: (userId, key, list) => db.batch([st("DELETE FROM mails WHERE user_id = ? AND key = ?", userId, key), ...list.map(m => st("INSERT INTO mails (id, user_id, key, at, kind) VALUES (?, ?, ?, ?, ?)", m.id, userId, key, m.at, m.kind))]),
     clearMails: userId => run("DELETE FROM mails WHERE user_id = ?", userId),
     dueMails: now => all("SELECT m.id, m.kind, m.at, i.data, u.email, u.email_alerts, u.id AS user_id, u.stop_token FROM mails m JOIN users u ON u.id = m.user_id LEFT JOIN items i ON i.user_id = m.user_id AND i.kind = 'reminder' AND i.key = m.key AND i.deleted = 0 WHERE m.at <= ? ORDER BY m.at LIMIT 100", now),
@@ -158,7 +165,7 @@ async function readJSON(request, limit = 16384) {
 const sixDigits = () => { const a = new Uint32Array(1); do crypto.getRandomValues(a); while (a[0] >= 4294000000); return String(a[0] % 1e6).padStart(6, "0"); };
 const cleanEmail = e => typeof e === "string" && e.length <= 254 && EMAIL.test(e.trim()) ? e.trim().toLowerCase() : null;
 
-async function signedIn(request, store, now) {
+export async function signedIn(request, store, now) {
   const m = /(?:^|;\s*)rm_s=([A-Za-z0-9_-]{20,100})/.exec(request.headers.get("cookie") || "");
   if (!m) return null;
   const h = await hash(m[1]), s = await store.session(h);

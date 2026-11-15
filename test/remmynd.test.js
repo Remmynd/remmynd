@@ -3590,3 +3590,74 @@ test("launch countdown: the card for a landing page, and the launch kit that mak
   assert.ok(readFileSync(join(root, "public/hosts/index.html"), "utf8").includes('href="/launch">Make a launch countdown</a>'), "For hosts leads to the kit");
   assert.ok(!firstVisit({ cache: true }).some(f => /^launch/.test(f)), "the app's first visit loads none of the kit");
 });
+
+test("calendar feed and email in: one private address each, kept only as a hash, for signed-in accounts", async () => {
+  const F = await import("../worker/feed.js");
+  const now = Date.parse("2026-11-15T10:00:00Z"), day = 864e5;
+  // A store in memory with only what the feed and email-in use.
+  const feeds = new Map(), items = [], mails = [], sessions = new Map();
+  const store = {
+    ready: async () => {},
+    session: async h => sessions.get(h) || null, extendSession: async () => {}, userById: async id => id === "u1" ? { id: "u1", email: "a@example.com", email_alerts: 1 } : null,
+    feedOf: async (u, k) => feeds.get(u + k) || null, feedByToken: async (k, h) => [...feeds.values()].find(f => f.kind === k && f.token_hash === h) || null,
+    setFeed: async (u, k, h) => feeds.set(u + k, { user_id: u, kind: k, token_hash: h }), deleteFeed: async (u, k) => feeds.delete(u + k),
+    reminders: async () => items.map(i => ({ key: i.key, data: i.data })), putItems: async (u, list) => items.push(...list), setMails: async (u, k, list) => mails.push(...list)
+  };
+  const token = "s".repeat(40), sh = (await import("node:crypto")).createHash("sha256").update(token).digest("base64url");
+  sessions.set(sh, { user_id: "u1", expires: now + 30 * day });
+  const call = (path, body, extra = {}) => F.handleFeeds(new Request("https://remmynd.space" + path, { method: "POST", headers: { origin: "https://remmynd.space", cookie: "rm_s=" + token, "content-type": "application/json", ...extra }, body: JSON.stringify(body) }), {}, new URL("https://remmynd.space" + path), { store, now });
+
+  // The addresses: made on first ask, shown once, only their hash kept; a new one stops the old.
+  let r = await (await call("/api/feeds", { kind: "cal" })).json();
+  assert.match(r.address, /^webcal:\/\/remmynd\.space\/cal\/[A-Za-z0-9_-]{32}\.ics$/);
+  const calToken = r.address.match(/cal\/(.{32})\.ics/)[1];
+  assert.ok(![...feeds.values()].some(f => JSON.stringify(f).includes(calToken)), "only the hash is kept");
+  const inbox = (await (await call("/api/feeds", { kind: "in" })).json()).address;
+  assert.match(inbox, /^in-[a-z0-9]{32}@remmynd\.space$/, "lower case, as email addresses are read");
+  assert.equal((await call("/api/feeds", { kind: "cal" }, { origin: "https://evil.example" })).status, 403, "only from this site");
+  assert.equal((await F.handleFeeds(new Request("https://remmynd.space/api/feeds", { method: "POST", headers: { origin: "https://remmynd.space" }, body: "{}" }), {}, new URL("https://remmynd.space/api/feeds"), { store, now })).status, 401, "signed in only");
+  assert.equal((await call("/api/feeds", { kind: "x" })).status, 400);
+
+  // The calendar: held, shared reminders; repeats as repeating events in local time; private links never.
+  items.push(
+    { key: "gym", data: JSON.stringify({ rkey: "gym", title: "Gym, early", start: now + day, first: now + day, dur: 60, rep: "w:1,2,3,4,5", z: "Asia/Kolkata", state: "held", share: "https://remmynd.space/r/gym" }) },
+    { key: "secret", data: JSON.stringify({ rkey: "secret", title: "Secret", start: now + day, dur: 30, state: "held", share: "https://remmynd.space/#abc" }) },
+    { key: "kept", data: JSON.stringify({ rkey: "kept", title: "Kept", start: now + day, dur: 30, state: "kept", share: "https://remmynd.space/r/k" }) });
+  let res = await F.calendarResponse(new Request("https://remmynd.space/cal/" + calToken + ".ics"), {}, new URL("https://remmynd.space/cal/" + calToken + ".ics"), { store, now });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "text/calendar; charset=utf-8");
+  const ics = await res.text();
+  assert.ok(ics.includes("SUMMARY:Gym\\, early") && ics.includes("RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR") && ics.includes("DTSTART;TZID=Asia/Kolkata:20261116T153000"));
+  assert.ok(!ics.includes("Secret") && !ics.includes("SUMMARY:Kept"), "no private links, nothing done");
+  assert.ok(ics.includes("REFRESH-INTERVAL;VALUE=DURATION:PT3H"));
+  r = await (await call("/api/feeds/reset", { kind: "cal" })).json();
+  res = await F.calendarResponse(new Request("https://remmynd.space/cal/" + calToken + ".ics"), {}, new URL("https://remmynd.space/cal/" + calToken + ".ics"), { store, now });
+  assert.equal(res.status, 404, "the old address stops at once");
+
+  // Email in: the subject read like the capture bar; where it has no time, the body's first line that does.
+  const mail = (subject, body) => "From: Lu <x@lu.ma>\r\nSubject: " + subject + "\r\nContent-Type: text/plain\r\n\r\n" + body;
+  let e = F.reminderFromEmail(mail("Fwd: Dentist Tue 4pm", "See you then"), { now: new Date(now), timeZone: "Europe/London" });
+  assert.deepEqual([e.title, e.start.toISOString()], ["Dentist", "2026-11-17T16:00:00.000Z"]);
+  e = F.reminderFromEmail(mail("Your booking: Demo day", "> old quote Mon 9am\r\nWhen: Friday 5pm\r\nWhere: lu.ma/demo"), { now: new Date(now), timeZone: "Europe/London" });
+  assert.deepEqual([e.title, e.start.toISOString()], ["Your booking: Demo day", "2026-11-20T17:00:00.000Z"], "the subject names it, the body times it, quotes skipped");
+  assert.equal(F.reminderFromEmail(mail("Hello", "No time here"), { now: new Date(now) }), null);
+  assert.equal(F.emailText("Subject: =?utf-8?B?" + Buffer.from("Café Fri 5pm").toString("base64") + "?=\r\n\r\nx").subject, "Café Fri 5pm", "encoded subjects are read");
+
+  // Delivered: into the account, with its email alerts, and a reply; an unknown address is refused.
+  const sent = [], inTok = inbox.slice(3, 35);
+  const got = await F.receiveEmail({ to: "in-" + inTok + "@remmynd.space" }, {}, { store, raw: mail("Dentist Tue 4pm", ""), now, mailer: async m => { sent.push(m); return 202; } });
+  assert.ok(got && items.some(i => i.key === got.rkey && JSON.parse(i.data).from === "email"));
+  assert.ok(mails.length >= 1, "its email alerts are scheduled");
+  assert.match(sent[0].subject, /^Added: Dentist/);
+  let rejected = "";
+  await F.receiveEmail({ to: "in-" + "z".repeat(32) + "@remmynd.space", setReject: m => (rejected = m) }, {}, { store, raw: "" });
+  assert.match(rejected, /isn't in use/);
+  await F.receiveEmail({ to: "in-" + inTok + "@remmynd.space" }, {}, { store, raw: mail("Hello", "nothing"), now, mailer: async m => { sent.push(m); return 202; } });
+  assert.match(sent[1].subject, /couldn't find a time/, "no time: nothing added, and a reply says why");
+
+  // The account sheet offers both; the Worker routes them; the schema has the table; deleting an account deletes them.
+  const acct = readFileSync(join(root, "public/account.js"), "utf8"), idx = readFileSync(join(root, "worker/index.js"), "utf8"), acc = readFileSync(join(root, "worker/account.js"), "utf8");
+  assert.ok(acct.includes('feedRow("cal"') && acct.includes('feedRow("in"'));
+  assert.ok(idx.includes('url.pathname.startsWith("/cal/")') && idx.includes("async email(message, env, ctx)"));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds"]'));
+});

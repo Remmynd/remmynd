@@ -13,6 +13,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- Your calendar: signed-in accounts get a private calendar address (`/cal/<token>.ics`) to subscribe to in Apple, Google or Outlook Calendar. It holds the reminders you hold, with shared links only, repeats as repeating events in local time, and refreshes every few hours. New address replaces it; Turn off removes it.
+- Email in: forward a booking or an invite to your private `in-<token>@remmynd.space` address and it becomes a reminder in your account, read from the subject or the first lines. A reply says what was added, or why nothing was. The email is not stored.
 - My links shows how many will be reminded, for the links whose host turned the count on.
 - Inside the iPhone app only: the page can preview a reminder link, hold it with its alerts and its count (as Remind me does), and list the links made on this device with their counts, for the app's Save sheet and Your launches.
 - The launch countdown: a card for a landing page (`/embed/<link>?size=launch`) with days, hours, minutes and seconds that tick, how many will be reminded when the host turned the count on, Remind me, and Google, Apple and Outlook calendars. It fits a phone at 400 pixels high.

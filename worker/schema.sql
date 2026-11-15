@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS mails (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, ke
 CREATE INDEX IF NOT EXISTS mails_at ON mails (at);
 CREATE INDEX IF NOT EXISTS mails_user_key ON mails (user_id, key);
 CREATE TABLE IF NOT EXISTS sends (hour INTEGER PRIMARY KEY, n INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS feeds (user_id TEXT NOT NULL, kind TEXT NOT NULL, token_hash TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY (user_id, kind));
+CREATE UNIQUE INDEX IF NOT EXISTS feeds_token ON feeds (token_hash);
 
 -- Public counts, only for reminders whose host switched them on. One number per reminder.
 -- worker/count.js creates this on first use too. No names, no addresses, no device ids.

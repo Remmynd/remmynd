@@ -35,3 +35,6 @@
 .ac-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ac-danger{background:var(--moment-tint);border-color:transparent;color:var(--on-moment-tint)}
 .ac-card .linkish{justify-self:center;display:inline-flex;align-items:center}
+.ac-addr{margin:0;padding:10px 12px;border-radius:12px;background:var(--well);overflow-wrap:anywhere}
+.ac-addr code{font:12px/1.5 "Geist Mono",ui-monospace,monospace;color:var(--ink)}
+.ac-row a.btn{display:inline-flex;align-items:center;text-decoration:none}
