@@ -13,7 +13,7 @@
   const SUPPORTED = !!NATIVE || ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window && RM.OWN);
   const waits = new Map(); let nperm = "default";
   window.__rmNativeReply = (req, result) => { const w = waits.get(req); if (w) { waits.delete(req); w(result || {}); } };
-  const native = (type, payload = {}) => new Promise(ok => { const req = rid(); waits.set(req, ok); try { NATIVE.postMessage({ type, req, ...payload }); } catch (e) { waits.delete(req); return ok({ ok: false }); } setTimeout(() => { if (waits.has(req)) { waits.delete(req); ok({ ok: false }); } }, 15000); });
+  const native = (type, payload = {}, wait = 15000) => new Promise(ok => { const req = rid(); waits.set(req, ok); try { NATIVE.postMessage({ type, req, ...payload }); } catch (e) { waits.delete(req); return ok({ ok: false }); } setTimeout(() => { if (waits.has(req)) { waits.delete(req); ok({ ok: false }); } }, wait); });
   const permission = () => (NATIVE ? nperm : Notification.permission);
   const askPermission = () => (NATIVE ? native("permission", { ask: true }).then(r => (nperm = r.status || "denied")) : Notification.requestPermission());
   /* The alert's words, the same as sw.js shows on the web. */
@@ -218,7 +218,7 @@
     try { n ? await navigator.setAppBadge(n) : await navigator.clearAppBadge(); } catch (e) {}
   }
 
-  window.__rmPush = { remind, renderRow, cancel, replan, setNudge, native: !!NATIVE };
+  window.__rmPush = { remind, renderRow, cancel, replan, setNudge, native: !!NATIVE, ask: NATIVE ? native : null };
   if (NATIVE) native("permission", { ask: false }).then(r => { nperm = r.status || "default"; });
   window.addEventListener("rm:stack", e => renderRow(e.detail));
   if (window.__rmLast && window.__rmLast.type === "stack") renderRow(window.__rmLast.detail);

@@ -8,6 +8,13 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- remmynd for iPhone feels like an app: inside it (html.native) the page hides the website's hero, Try one, facts, footer, menu and links to website pages, and uses the system font. The website is unchanged.
+- Passkeys in the iPhone app: remmynd.space serves Apple's app-site file (`/.well-known/apple-app-site-association`) naming the app for webcredentials, and for applinks, so shared reminder links and `/new` links open in the app when it's installed.
+- Talk in the iPhone app uses the phone's own speech recognizer through the bridge; what it hears lands in the bar, and a line with a time becomes the link.
+- "Video call for this" on a held reminder in the iPhone app opens the app's own Calls screen, filled in.
+
+### Added
+
 - Groundwork for remmynd for iPhone: inside the app (it sets `window.__rmNative` and listens on `webkit.messageHandlers.remmynd`), alerts are the phone's own notifications. push.js hands each alert, with the same words sw.js uses, to the app instead of the push server; Done and Not yet on an alert open the reminder with `?act=`; the app icon's badge and the Home Screen widget's "next reminder" come from the same place. The page counts as installed there, so no Home Screen prompts. On the web nothing changes.
 
 ### Added
