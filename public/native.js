@@ -9,6 +9,12 @@ export function boot({ R, TZ, holdImported, rkeyOf, replanOptions, unfloat, go, 
   const find = async k => (await all()).find(x => x.rkey === k);
   const repeats = () => import("/repeat.js");
   const after = () => { try { refresh(); } catch (e) {} };
+  const payload = s => { s = String(s); const i = s.indexOf("/r/"); return i >= 0 ? s.slice(i + 3).split(/[?#/]/)[0] : s.slice(s.indexOf("#") + 1); };
+  // A repeat shows the time it comes round now; a one-off its own time.
+  const occ = e => { const m = e.durationMinutes * 6e4; return !e.repeat || e.start.getTime() + m > Date.now() ? e.start : R.nextOccurrence(e.start, e.repeat, { after: Date.now() - m, timeZone: e.timeZone || TZ }) || e.start; };
+  // The public count: only a shared link whose host turned it on. A private link never reaches the server.
+  const counts = (share, e) => !!e.count && !String(share).includes("#");
+  const countOf = async (share, e) => { if (!counts(share, e)) return null; try { const r = await fetch("/count/" + payload(share)); return r.ok ? ((await r.json()).n || 0) : 0; } catch (x) { return null; } };
   window.__rmApp = {
     /* Every reminder held on this phone, with the ids of the alerts still waiting, and for a repeat its rule in
      * words and its next times. Repeats whose next time has come move on first. */
@@ -66,6 +72,51 @@ export function boot({ R, TZ, holdImported, rkeyOf, replanOptions, unfloat, go, 
       after(); return { ok: true, alerts: !!ok };
     },
     async remove(k) { unfloat(k); await DB().del("reminders", k).catch(() => {}); if (P()) await P().cancel(k).catch(() => {}); after(); return { ok: true }; },
+    /* A shared or private reminder link, for the app's Save sheet: what it is, when it comes round now, how many will
+     * be reminded (when its host turned the count on), and whether it's already held here. */
+    async preview(share) {
+      const e = R.decode(String(share || ""));
+      if (!e) return { ok: false };
+      const rkey = rkeyOf(e.title, e.start), rec = (await all()).find(x => x.rkey === rkey);
+      return { ok: true, rkey, title: e.title, start: occ(e).getTime(), dur: e.durationMinutes, place: e.location || "", host: e.host || "", notes: e.notes || "",
+        repeat: e.repeat ? R.describeRepeat(e.repeat) : "", counted: counts(share, e), count: await countOf(share, e), held: !!rec && rec.state === "held" };
+    },
+    /* Remind me, from the Save sheet: held here with its alerts, as Remind me on the page holds it, and counted once
+     * on this device when its host turned the count on. */
+    async hold(share) {
+      share = String(share || "");
+      const e = R.decode(share);
+      if (!e) return { ok: false, error: "That isn't a remmynd link." };
+      const start = occ(e), rkey = rkeyOf(e.title, e.start), have = (await all()).find(x => x.rkey === rkey);
+      if (have && have.state === "held") return { ok: true, have: true, rkey };
+      if (start.getTime() + e.durationMinutes * 6e4 <= Date.now()) return { ok: false, error: "This one has already ended." };
+      let rec = { rkey, title: e.title, start: start.getTime(), dur: e.durationMinutes, place: e.location || "", host: e.host || "", z: e.timeZone || "", share,
+        state: "held", nudge: false, cal: null, heldAt: Date.now(), doneAt: null, replanAt: null, rep: e.repeat || "", first: e.start.getTime() };
+      await DB().put("reminders", rec);
+      if (counts(share, e)) {
+        let done = {};
+        try { done = JSON.parse(localStorage.getItem("rm:counted") || "{}") || {}; } catch (x) {}
+        if (!done[rkey]) try {
+          const r = await fetch("/count/" + payload(share), { method: "POST" }), j = r.ok ? await r.json() : null;
+          if (j && j.you) { done[rkey] = j.you; localStorage.setItem("rm:counted", JSON.stringify(done)); rec = { ...rec, you: j.you }; await DB().put("reminders", rec); }
+        } catch (x) {}
+      }
+      if (P()) await Promise.resolve(P().remind(ndOf(rec), false)).catch(() => {});
+      after(); return { ok: true, rkey };
+    },
+    /* The links made on this device (shared, not private), from 7 days ago on, with how many will be reminded. */
+    async launches() {
+      const week = Date.now() - 7 * 864e5;
+      const links = (await DB().getAll("links").catch(() => [])).filter(l => !l.private && l.share);
+      const out = await Promise.all(links.map(async l => {
+        const e = R.decode(l.share);
+        if (!e) return null;
+        const start = occ(e).getTime();
+        if (start + e.durationMinutes * 6e4 < week) return null;
+        return { share: l.share, title: l.title || e.title, start, dur: e.durationMinutes, counted: counts(l.share, e), count: await countOf(l.share, e), repeat: e.repeat ? R.describeRepeat(e.repeat) : "" };
+      }));
+      return out.filter(Boolean).sort((a, b) => a.start - b.start);
+    },
     /* The full reminder page, for its details, its plan and its call. */
     open(share) { go(share); return true; },
     home() { if (location.pathname !== "/" || location.hash) go("/"); return true; }

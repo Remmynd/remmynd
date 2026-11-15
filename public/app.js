@@ -472,9 +472,13 @@ function upRow(x,now){const later=x.replanAt>now,t=later?x.replanAt:x.start,end=
     '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub2)+'</i></span>'+chip+'</a>'+MORE(x.title)+'</div>'};}
 function linkRow(x,now){const d=new Date(x.start);
   return{g:groupOf(x.start,now,TZ),t:x.start,html:'<div class="li n3" data-share="'+esc(x.share)+'">'+ACTS([["copy","Copy"],["edit","Edit"],["delete","Delete"]])+
-    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(d,x.start<now?"missed":"open",28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(fDate(d,TZ)+" · "+fShort(d,TZ)+(x.private?" · private":""))+'</i></span></a>'+MORE(x.title)+
+    '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(d,x.start<now?"missed":"open",28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(fDate(d,TZ)+" · "+fShort(d,TZ)+(x.private?" · private":"")+(CNT.get(payloadOf(x.share))!=null?" · "+CNT.get(payloadOf(x.share))+" reminded":""))+'</i></span></a>'+MORE(x.title)+
     (lastCall(x.start,now,TZ)?'<button type="button" class="li-last" data-act="last">'+esc(lastCall(x.start,now,TZ))+'</button>':'')+'</div>'};}
-async function loadLists(){const DB=window.remmyndDB;if(!DB)return;try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}
+/* My links: how many will be reminded, for the links whose host turned the count on, read once per visit. */
+const CNT=new Map();
+function readCounts(){for(const x of L.links||[]){const p=payloadOf(x.share),r=!x.private&&dec(p);if(!r||r.c!==1||CNT.has(p))continue;CNT.set(p,null);
+  fetch("/count/"+p).then(a=>a.ok?a.json():null).then(j=>{if(j){CNT.set(p,j.n);if(D.mode==="lists"&&L.tab!=="coming")renderLists();}}).catch(()=>{});}}
+async function loadLists(){const DB=window.remmyndDB;if(!DB)return;try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}readCounts();
   L.recs=L.recs.filter(x=>!PEND.has("r:"+x.rkey));L.links=L.links.filter(x=>!PEND.has("l:"+x.share));L.has=!!(L.recs.length||L.links.length);}
 async function renderLists(focusAt){await loadLists();const now=Date.now(),up=L.tab==="coming";
   $("#tab-coming").setAttribute("aria-current",up?"page":"false");$("#tab-links").setAttribute("aria-current",up?"false":"page");
