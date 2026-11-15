@@ -26,6 +26,9 @@ CREATE INDEX IF NOT EXISTS mails_user_key ON mails (user_id, key);
 CREATE TABLE IF NOT EXISTS sends (hour INTEGER PRIMARY KEY, n INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS feeds (user_id TEXT NOT NULL, kind TEXT NOT NULL, token_hash TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY (user_id, kind));
 CREATE UNIQUE INDEX IF NOT EXISTS feeds_token ON feeds (token_hash);
+-- remmynd Pro: one row per purchase, from Polar (the website) or Apple (the app). No card, no address.
+CREATE TABLE IF NOT EXISTS pro (source TEXT NOT NULL, ref TEXT NOT NULL, user_id TEXT NOT NULL, product TEXT NOT NULL, until INTEGER NOT NULL, trial INTEGER NOT NULL DEFAULT 0, renews INTEGER NOT NULL DEFAULT 1, env TEXT NOT NULL DEFAULT '', updated INTEGER NOT NULL, moved INTEGER NOT NULL DEFAULT 0, voided INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (source, ref));
+CREATE INDEX IF NOT EXISTS pro_user ON pro (user_id);
 
 -- Public counts, only for reminders whose host switched them on. One number per reminder.
 -- worker/count.js creates this on first use too. No names, no addresses, no device ids.

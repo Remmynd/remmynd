@@ -9,6 +9,7 @@ const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const RM = () => window.__rm || {};
 const toast = m => RM().toast ? RM().toast(m) : null;
 let ME = null, view = "signin", pendingEmail = "", lastSync = 0, deleteArmed = false;
+let PRO = null, proAsked = false;
 
 /* ---------- talking to the server (same origin only) ---------- */
 async function api(path, body) {
@@ -75,19 +76,72 @@ function render() {
       '<span class="switch"><input type="checkbox" id="ac-mail" role="switch" aria-labelledby="ac-ml" aria-describedby="ac-md"' + (ME.emailAlerts ? " checked" : "") + '><span></span></span></label>' +
       '<div class="label">Passkeys</div><div class="ac-keys">' + (keys.length ? keys.map(k => '<div class="ac-key">' + KEY + '<span><b>' + esc(k.name) + '</b><i>Added ' + esc(day(k.created)) + '</i></span><button type="button" class="btn small" data-key="' + esc(k.id) + '">Remove</button></div>').join("") : '<p class="ac-none">No passkey yet. You sign in with a code by email.</p>') + '</div>' +
       (PASSKEYS ? '<button type="button" class="btn ac-wide" id="ac-add">' + KEY + 'Add a passkey</button>' : '') +
+      proBlock() +
       '<div class="label">Your calendar</div><p class="ac-none">Subscribe in Apple, Google or Outlook Calendar: the reminders you hold show there, repeats included.</p>' +
       feedRow("cal", "Get my calendar address") +
       '<div class="label">Email in</div><p class="ac-none">Forward a booking or an invite to your own address and it becomes a reminder.</p>' +
       feedRow("in", "Get my email address") +
       '<p class="ac-fine" id="ac-sync">' + (lastSync ? "Synced " + new Date(lastSync).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) + "." : "Syncing…") + ' Private links stay on this device.</p>' +
-      '<div class="ac-row"><button type="button" class="btn" id="ac-out">Sign out</button><button type="button" class="btn ac-danger" id="ac-del">' + (deleteArmed ? "Tap again to delete everything" : "Delete account") + '</button></div>';
+      '<div class="ac-row"><button type="button" class="btn" id="ac-out">Sign out</button><button type="button" class="btn ac-danger" id="ac-del">' + (deleteArmed ? "Tap again to delete everything" : "Delete account") + '</button></div>' +
+      (deleteArmed && PRO && PRO.pro && PRO.source === "apple" ? '<p class="ac-fine">You have Pro through Apple. Deleting the account doesn\'t stop Apple\'s billing: cancel it first in your iPhone\'s Settings, under your name, then Subscriptions.</p>' : '') +
+      (deleteArmed && PRO && PRO.pro && PRO.source === "polar" ? '<p class="ac-fine">Your Pro ends with the account, and nothing more is billed.</p>' : '');
     $("#ac-mail").addEventListener("change", async e => { try { ME = await api("/api/account/settings", { emailAlerts: e.target.checked }); announce(); toast(ME.emailAlerts ? "Email reminders on" : "Email reminders off"); } catch (err) { e.target.checked = !e.target.checked; toast(err.message); } });
     b.querySelectorAll("[data-key]").forEach(x => x.addEventListener("click", async () => { try { ME = await api("/api/passkeys/delete", { id: x.dataset.key }); render(); toast("Passkey removed"); } catch (err) { toast(err.message); } }));
     if (PASSKEYS) $("#ac-add").addEventListener("click", addPasskey);
     b.querySelectorAll("[data-feed]").forEach(x => x.addEventListener("click", () => feed(x.dataset.feed, x.dataset.act)));
+    b.querySelectorAll("[data-pro]").forEach(x => x.addEventListener("click", () => proAct(x.dataset.pro, x)));
+    if (!proAsked) { proAsked = true; loadPro().then(() => { if (view === "account" && !$("#acct").hidden) render(); }); }
     $("#ac-out").addEventListener("click", signOut);
     $("#ac-del").addEventListener("click", deleteAccount);
   }
+}
+
+/* ---------- remmynd Pro (worker/pro.js) ----------
+ * Pro is one status on the account, however it was paid: here through Polar, or in the iPhone app through Apple.
+ * Inside the app this sheet never sells it (the app's own Settings does, through Apple); it only says where it stands. */
+const IN_APP = !!window.__rmNative;
+async function loadPro() { try { PRO = await api("/api/pro"); } catch (e) { PRO = null; } return PRO; }
+function proBlock() {
+  const p = PRO;
+  if (!p || !p.signedIn || (!p.pro && !p.offer)) return "";
+  const head = '<div class="label">Pro</div>';
+  if (p.pro) {
+    const via = p.source === "apple" ? "Paid through Apple" : "Paid on the website";
+    const line = (p.trial ? "Free trial. " : "") + (p.renews ? "Renews " : "Ends ") + day(p.until) + ". " + via + ".";
+    return head + '<p class="ac-none"><b>Pro is on.</b> ' + esc(line) + '</p><div class="ac-row">' +
+      (p.source === "polar" && !IN_APP ? '<button type="button" class="btn small" data-pro="manage">Manage or cancel</button>' : '') +
+      '<button type="button" class="btn small" data-pro="restore">Refresh</button></div>' +
+      (p.source === "apple" ? '<p class="ac-fine">Manage or cancel it in your iPhone\'s Settings, under your name, then Subscriptions.</p>' : '');
+  }
+  if (IN_APP) return head + '<p class="ac-none">Get Pro in the app\'s Settings tab. Paid already? It shows here once you\'re signed in.</p><div class="ac-row"><button type="button" class="btn small" data-pro="restore">Restore</button></div>';
+  if (!p.web) return "";
+  const trial = p.trialOpen ? p.trialDays + " days free, then " : "";
+  return head + '<p class="ac-none">For people who run launches. ' + esc(trial ? trial.charAt(0).toUpperCase() + trial.slice(1) : "") + esc(p.plans.monthly.price + " a month or " + p.plans.yearly.price + " a year") + '. Cancel any time.</p>' +
+    '<div class="ac-row"><button type="button" class="btn ink" data-pro="yearly">Yearly · ' + esc(p.plans.yearly.price) + '</button><button type="button" class="btn" data-pro="monthly">Monthly · ' + esc(p.plans.monthly.price) + '</button></div>' +
+    '<p class="ac-fine">Paid already, here or in the iPhone app? <button type="button" class="ac-link" data-pro="restore">Restore it</button>. Payment is handled by Polar.</p>';
+}
+async function proAct(what, button) {
+  button.disabled = true;
+  try {
+    if (what === "monthly" || what === "yearly") { const r = await api("/api/pro/checkout", { plan: what }); location.assign(r.url); return; }
+    if (what === "manage") { const r = await api("/api/pro/portal", {}); location.assign(r.url); return; }
+    const was = !!(PRO && PRO.pro);
+    PRO = await api("/api/pro/restore", {});
+    render();
+    toast(PRO.pro ? (was ? "Pro is on" : "Pro is on. Restored.") : "No Pro purchase was found for this account.");
+  } catch (e) { toast(e.message); button.disabled = false; if (/already have Pro/.test(e.message)) { await loadPro(); render(); } }
+}
+/* Back from Polar's checkout (/?pro=done): ask Polar now, so Pro shows at once even if its notice is still on its way. */
+export async function proDone() {
+  await open();
+  if (!ME || !ME.signedIn) return;
+  for (let i = 0; i < 4; i++) {
+    try { PRO = await api("/api/pro/restore", {}); } catch (e) {}
+    if (PRO && PRO.pro) break;
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  proAsked = true; render();
+  toast(PRO && PRO.pro ? "Pro is on. Thank you." : "The payment is still going through. Tap Restore in a minute.");
 }
 
 /* ---------- the calendar feed and the email-in address (worker/feed.js) ----------
@@ -148,6 +202,7 @@ async function addPasskey() {
   } catch (err) { if (err && err.name !== "NotAllowedError") toast(err.message || "The passkey couldn't be added."); }
 }
 function signedInNow() {
+  PRO = null; proAsked = false; // another account, another Pro status
   setFlag(true); announce(); watch();
   view = PASSKEYS && !(ME.passkeys || []).length ? "welcome" : "account"; render();
   toast(ME.isNew ? "Welcome. Your reminders will sync now." : "Signed in");
@@ -155,11 +210,11 @@ function signedInNow() {
 }
 async function signOut() {
   try { await api("/api/auth/signout", {}); } catch (e) {}
-  ME = { signedIn: false }; setFlag(false); announce(); view = "signin"; close(); toast("Signed out. Your reminders stay on this device.");
+  ME = { signedIn: false }; PRO = null; proAsked = false; setFlag(false); announce(); view = "signin"; close(); toast("Signed out. Your reminders stay on this device.");
 }
 async function deleteAccount() {
   if (!deleteArmed) { deleteArmed = true; return render(); }
-  try { await api("/api/account/delete", {}); ME = { signedIn: false }; setFlag(false); announce(); view = "signin"; close(); toast("Account deleted. Reminders on this device stay here."); }
+  try { await api("/api/account/delete", {}); ME = { signedIn: false }; PRO = null; proAsked = false; setFlag(false); announce(); view = "signin"; close(); toast("Account deleted. Reminders on this device stay here."); }
   catch (err) { toast(err.message); }
 }
 

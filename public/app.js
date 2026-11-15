@@ -644,6 +644,8 @@ function openAccount(){closeMenu();import("/account.js").then(m=>m.open()).catch
 acctBtn.addEventListener("click",openAccount);
 addEventListener("rm:account",e=>{ACC=e.detail||{signedIn:false};acctBtn.textContent=ACC.signedIn?"Your account":"Sign in to sync and get email";if(S.held)renderBottom();});
 try{if(localStorage.getItem("rm:acct")==="1")import("/account.js").then(m=>m.boot()).catch(()=>{});}catch(e){}
+/* Back from paying for Pro on the website (/?pro=done): the account sheet opens and asks for the purchase at once. */
+if(new URLSearchParams(location.search).get("pro")==="done"){history.replaceState(null,"",location.pathname+location.hash);import("/account.js").then(m=>m.proDone()).catch(()=>{});}
 /* ---------- calendar import: an .ics file read on this device (calimport.js, loaded only then) ---------- */
 const ICS_FILE=f=>!!f&&(/\.ics$/i.test(f.name||"")||/^text\/calendar\b/i.test(f.type||""));
 function openImport(files,from){closeMenu();import("/calimport.js").then(m=>m.open({files,timeZone:TZ,hold:holdImported,toast,from,refresh:()=>loadLists().then(()=>{if(D.mode==="lists"&&!$("#home").hidden)renderLists();else if(D.mode==="home")setMode("home");})}))
