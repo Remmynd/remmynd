@@ -3661,3 +3661,62 @@ test("calendar feed and email in: one private address each, kept only as a hash,
   assert.ok(idx.includes('url.pathname.startsWith("/cal/")') && idx.includes("async email(message, env, ctx)"));
   assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds"]'));
 });
+
+test("remmynd Plus on the launch countdown: a checked Plus purchase signs the card, and the remmynd line comes off", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { createPrivateKey, sign: ecSign } = await import("node:crypto");
+  const P = await import("../worker/plus.js"), A = await import("../worker/apple.js");
+  const { launchHTML } = await import("../worker/embed.js");
+  // A chain built like the App Store's (P-384 root, marked intermediate, marked P-256 leaf), made here with openssl.
+  const dir = mkdtempSync(join(tmpdir(), "rm-plus-"));
+  const ssl = (...a) => execFileSync("openssl", a, { cwd: dir, stdio: ["ignore", "pipe", "ignore"] });
+  let serial = 1;
+  const cert = (name, curve, ca, ext, hash) => {
+    ssl("ecparam", "-name", curve, "-genkey", "-noout", "-out", name + ".key");
+    if (!ca) return ssl("req", "-new", "-x509", "-key", name + ".key", "-subj", "/CN=" + name, "-days", "3650", "-sha384", "-out", name + ".pem");
+    ssl("req", "-new", "-key", name + ".key", "-subj", "/CN=" + name, "-out", name + ".csr");
+    writeFileSync(join(dir, name + ".ext"), ext + "\n");
+    ssl("x509", "-req", "-in", name + ".csr", "-CA", ca + ".pem", "-CAkey", ca + ".key", "-set_serial", String(serial++), "-days", "30", "-" + hash, "-extfile", name + ".ext", "-out", name + ".pem");
+  };
+  cert("root", "secp384r1");
+  cert("inter", "secp384r1", "root", "1.2.840.113635.100.6.2.1=DER:0500", "sha384");
+  cert("leaf", "prime256v1", "inter", "1.2.840.113635.100.6.11.1=DER:0500", "sha384");
+  const der = n => ssl("x509", "-in", n + ".pem", "-outform", "DER");
+  const rootSha256 = createHash("sha256").update(der("root")).digest("hex");
+  const now = Date.now();
+  const jws = tx => {
+    const h = Buffer.from(JSON.stringify({ alg: "ES256", x5c: ["leaf", "inter", "root"].map(n => der(n).toString("base64")) })).toString("base64url");
+    const b = Buffer.from(JSON.stringify({ bundleId: "space.remmynd.app", environment: "Sandbox", productId: "space.remmynd.plus.monthly", expiresDate: now + 20 * 864e5, ...tx })).toString("base64url");
+    return h + "." + b + "." + ecSign("sha256", Buffer.from(h + "." + b), { key: createPrivateKey(readFileSync(join(dir, "leaf.key"))), dsaEncoding: "ieee-p1363" }).toString("base64url");
+  };
+  const code = R.createLink({ title: "Demo day", start: new Date(now + 5 * 864e5), timeZone: "UTC" }).split("/r/")[1];
+  const env = { PLUS_SECRET: "test-secret" };
+  const ask = (body, e = env) => P.plusCardResponse(new Request("https://remmynd.space/api/plus/card", { method: "POST", body: JSON.stringify(body) }), e, { now, rootSha256 });
+
+  // Plus, checked to the root: a mark good until a few days past the subscription's end.
+  let res = await ask({ code, jws: jws() });
+  assert.equal(res.status, 200);
+  const { p } = await res.json();
+  assert.match(p, /^[0-9a-z]+\.[A-Za-z0-9_-]{16}$/);
+  assert.equal(await P.plusCard(env, code, p, now), true);
+  assert.equal(await P.plusCard(env, code + "x", p, now), false, "the mark is for this link only");
+  assert.equal(await P.plusCard(env, code, p, now + 30 * 864e5), false, "and runs out with Plus");
+  assert.equal(await P.plusCard({}, code, p, now), false, "off without PLUS_SECRET");
+  // Not Plus: refused.
+  assert.equal((await ask({ code, jws: jws({ productId: "space.remmynd.call.30" }) })).status, 403, "a single call isn't Plus");
+  assert.equal((await ask({ code, jws: jws({ expiresDate: now - 1 }) })).status, 402, "an ended subscription");
+  assert.equal((await ask({ code, jws: jws({ bundleId: "com.other" }) })).status, 403);
+  assert.equal((await P.plusCardResponse(new Request("https://remmynd.space/api/plus/card", { method: "POST", body: JSON.stringify({ code, jws: jws() }) }), env, { now })).status, 403, "Apple's real root is pinned: a test chain is refused");
+  assert.equal((await ask({ code, jws: jws() }, {})).status, 503);
+  // The card: with the mark, no remmynd line; the store-checking file holds no App Attest code (that stays in Calls).
+  const r = R.decode("https://remmynd.space/r/" + code);
+  assert.ok(launchHTML(r, { link: "x", origin: "https://remmynd.space" }).includes("Make yours with remmynd"));
+  assert.ok(!launchHTML(r, { link: "x", origin: "https://remmynd.space", plus: true }).includes("Make yours with remmynd"));
+  const worker = (await import("../worker/index.js")).default;
+  const card = q => worker.fetch(new Request("https://remmynd.space/embed/" + code + "?size=launch" + q), { ...shellEnv(), PLUS_SECRET: "test-secret" }).then(x => x.text());
+  assert.ok(!(await card("&p=" + p)).includes("Make yours with remmynd"), "a marked card");
+  assert.ok((await card("&p=" + p.replace(/.$/, c => c === "A" ? "B" : "A"))).includes("Make yours with remmynd"), "a forged mark doesn't work");
+  assert.equal(A.APPLE_ROOT_G3_SHA256, "63343abfb89a6a03ebb57e9b3f5fa7be7c4f5c756f3017b3a8c488c3653e9179");
+  assert.ok(!readFileSync(join(root, "worker/apple.js"), "utf8").includes("attest"));
+});

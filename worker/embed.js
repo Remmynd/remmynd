@@ -20,6 +20,7 @@ import { countdown } from "../public/clock.js";
 import { qrSVG } from "../public/qr.js";
 import { escapeHTML } from "./preview.js";
 import { readCount } from "./count.js";
+import { plusCard } from "./plus.js";
 
 const MAX_PAYLOAD = 2000;
 const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
@@ -60,7 +61,7 @@ const CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-w
 const b64 = o => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 /** The launch countdown for a landing page (?size=launch). */
-export function launchHTML(r, { link, origin, theme = "", example = false, now = Date.now(), count = 0, counted = false }) {
+export function launchHTML(r, { link, origin, theme = "", example = false, now = Date.now(), count = 0, counted = false, plus = false }) {
   const zone = r.timeZone || "UTC", start = r.start.getTime(), end = start + r.durationMinutes * 60000;
   const title = escapeHTML(r.title), href = escapeHTML(link), when = escapeHTML(describeWhen(r.start, zone));
   const [d, h, m, s] = launchUnits(start, now);
@@ -82,7 +83,7 @@ export function launchHTML(r, { link, origin, theme = "", example = false, now =
     '<div class="el-actions"><a class="em-btn" href="' + href + '" target="_blank" rel="noopener" aria-label="Remind me about ' + title + '">' + BELL + "Remind me</a>" +
     '<a class="el-cal" href="' + escapeHTML(google) + '" target="_blank" rel="noopener">' + CAL + "Google Calendar</a>" +
     '<a class="el-cal" href="' + escapeHTML(ics) + '" target="_blank" rel="noopener">Apple · Outlook</a></div>\n' +
-    '<a class="em-by" href="' + escapeHTML(origin) + '/launch" target="_blank" rel="noopener">' + MARK + "Make yours with remmynd</a>\n</main>\n" +
+    (plus ? "" : '<a class="em-by" href="' + escapeHTML(origin) + '/launch" target="_blank" rel="noopener">' + MARK + "Make yours with remmynd</a>\n") + "</main>\n" +
     '<script type="module" src="/embed.js"></script>\n</body>\n</html>\n';
 }
 
@@ -127,6 +128,8 @@ export async function embedResponse(request, env, url) {
   if (!r) return new Response("Not a remmynd reminder", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
   // The public count, when the host turned it on: one read, kept for a minute.
   const count = r.count && !example ? await readCount(env, p) : 0;
-  const html = launch ? launchHTML(r, { link, origin: url.origin, theme, example, count, counted: !!r.count || example }) : embedHTML(r, { link, origin: url.origin, theme, example, screen, count });
+  // remmynd Plus: a signed ?p= takes the remmynd line off the launch countdown (worker/plus.js).
+  const plus = launch && !example && await plusCard(env, p, url.searchParams.get("p"));
+  const html = launch ? launchHTML(r, { link, origin: url.origin, theme, example, count, counted: !!r.count || example, plus }) : embedHTML(r, { link, origin: url.origin, theme, example, screen, count });
   return new Response(request.method === "HEAD" ? null : html, { headers: HEADERS });
 }

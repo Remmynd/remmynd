@@ -13,6 +13,7 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- remmynd Plus on the launch countdown: the iPhone app sends a link with the Plus subscription Apple signed; `/api/plus/card` checks it up to Apple Root CA G3 and answers a short mark for `?p=`, good until a few days past the subscription's end, that takes the "Make yours with remmynd" line off that card. Nothing is stored; it's off until `PLUS_SECRET` is set.
 - Your calendar: signed-in accounts get a private calendar address (`/cal/<token>.ics`) to subscribe to in Apple, Google or Outlook Calendar. It holds the reminders you hold, with shared links only, repeats as repeating events in local time, and refreshes every few hours. New address replaces it; Turn off removes it.
 - Email in: forward a booking or an invite to your private `in-<token>@remmynd.space` address and it becomes a reminder in your account, read from the subject or the first lines. A reply says what was added, or why nothing was. The email is not stored.
 - My links shows how many will be reminded, for the links whose host turned the count on.

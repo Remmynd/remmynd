@@ -10,6 +10,7 @@ import { embedResponse } from "./embed.js";
 import { badgeResponse } from "./badge.js";
 import { handleAccount, sendDueMails } from "./account.js";
 import { handleFeeds, calendarResponse, receiveEmail } from "./feed.js";
+import { plusCardResponse } from "./plus.js";
 import { handleCount, cleanCounts } from "./count.js";
 import { appSiteResponse } from "./appsite.js";
 
@@ -34,6 +35,7 @@ export default {
     // Optional sign-in, sync and email reminders.
     // A signed-in account's calendar feed and email-in address (worker/feed.js).
     if (url.pathname.startsWith("/api/feeds")) return handleFeeds(request, env, url);
+    if (url.pathname === "/api/plus/card") return plusCardResponse(request, env);
     if (url.pathname.startsWith("/cal/")) return calendarResponse(request, env, url);
     if (url.pathname.startsWith("/api/")) return handleAccount(request, env, url, ctx);
 
