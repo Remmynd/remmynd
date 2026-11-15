@@ -579,3 +579,14 @@ pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--card);border:1px solid
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+
+/* Inside remmynd for iPhone (html.native, set by the app before any script runs): the app, not the website. No
+   marketing, no website pages, no footer; the system font; no grey flash on tap. The website itself is unchanged. */
+.native .s-call{width:100%;margin-top:10px}
+html.native{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;overscroll-behavior:none}
+.native #hero,.native #try,.native .facts,.native .site-foot,.native .menu-btn,.native #view .fine,.native #nav-right[href="/#example"],.native a.row-link[href^="/hosts"],.native #home-link{display:none!important}
+.native .top{min-height:0}
+.native #lists::before{content:"Reminders";display:block;margin:6px 0 14px;font:700 34px/1.1 var(--font);letter-spacing:-.02em;color:var(--ink)}
+.native *{-webkit-tap-highlight-color:transparent}
+.native body{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.native input,.native textarea,.native [contenteditable]{-webkit-user-select:text;user-select:text}

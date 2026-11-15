@@ -140,6 +140,7 @@ function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
     '<div id="s-notify"></div>'+
     emailRow(c)+floatRow()+'</div>'+
     '<div class="s-actions two s-pass"><button type="button" class="btn" id="s-story">'+I.story+'Add to story</button><button type="button" class="btn" id="s-pass">'+I.pass+'Pass it on</button></div>'+
+    (window.__rmNative?'<button type="button" class="btn ink s-call" id="s-call">Video call for this</button>':'')+
     '<label class="plan" for="s-plan"><span class="opt-text"><b>My plan</b><span>Say when and where. Your alerts repeat it back.</span></span><input id="s-plan" type="text" maxlength="120" enterkeyhint="done" autocomplete="off" placeholder="At my desk, 5 minutes early" value="'+esc(rec.plan||"")+'"></label>'+
     '<label class="opt-row"><span class="opt-text"><b id="nudge-l">Nudge me until I\'m in</b><span id="nudge-d">Up to 3 nudges, 10 minutes apart.</span></span><span class="switch"><input type="checkbox" id="s-nudge" role="switch" aria-labelledby="nudge-l" aria-describedby="nudge-d"'+(rec.nudge?" checked":"")+'><span></span></span></label>'+
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
@@ -195,6 +196,8 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#s-story",x=>x.addEventListener("click",()=>{const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(c.share).then(()=>true,()=>false):Promise.resolve(false);
     import("/story.js").then(m=>m.open({ev:{title:c.r.t,start:c.start},link:c.share,timeZone:TZ,joiner:true,you:S.rec&&S.rec.you,copied,copy,toast,from:x})).catch(()=>toast("Couldn't open it here. Try again."));}));
   on("#s-pass",x=>x.addEventListener("click",()=>{if(navigator.share)navigator.share({title:c.r.t,url:c.share}).catch(e=>{if(!e||e.name!=="AbortError")copy(c.share,"Link copied");});else copy(c.share,"Link copied");}));
+  /* In the app: the native Calls screen, filled in with this reminder's title, time and length. */
+  on("#s-call",x=>x.addEventListener("click",()=>{const P=window.__rmPush;if(P&&P.ask)P.ask("call",{title:c.r.t,start:c.start.getTime(),dur:c.r.d||5,share:c.share});}));
   on("#s-add-b",x=>x.addEventListener("click",()=>{if(!openSheet())toast("Open remmynd.space in Safari or Chrome to install it");}));
   if(S.held&&b.querySelector("#s-notify")){c.nd.el=b.querySelector("#s-notify");window.__rmLast={type:"stack",detail:c.nd};window.dispatchEvent(new CustomEvent("rm:stack",{detail:c.nd}));refreshInstall();}
   else window.__rmLast={type:"ticket"};}
@@ -415,8 +418,14 @@ $("#f-story").addEventListener("click",e=>{const m=D.made,b=e.currentTarget;if(!
   import("/story.js").then(x=>x.open({ev:m.ev,link:m.link,timeZone:TZ,copied,copy,toast,from:b})).catch(()=>toast("Couldn't open it here. Try again."));});
 /* Talk: tap the mic, say the reminder, stop (talk.js, loaded on the first tap). Where it can't show, the line under the bar points to the keyboard's own mic. */
 const T={btn:$("#talk"),hint:$("#cap-hint")};
-if(canTalk(window))T.btn.hidden=false;else if(MOBILE){T.hint.textContent="Type it, or use your keyboard's mic.";T.hint.classList.add("idle");T.hint.hidden=false;}
-T.btn.addEventListener("click",()=>{T.btn.classList.remove("mark");import("/talk.js").then(m=>m.toggle({input:C.input,form:C.form,btn:T.btn,hint:T.hint,make,timed,parse:R.parse,at:d=>fShort(d,TZ),timeZone:TZ})).catch(()=>toast("Couldn't open it here. Try again."));});
+/* In remmynd for iPhone, Talk is the phone's own speech recognizer: the app listens, shows what it hears, and hands the words back. */
+const NATIVE_TALK=!!window.__rmNative;
+function nativeTalk(){const P=window.__rmPush;if(!P||!P.ask)return toast("Couldn't open the mic. Try again.");T.btn.setAttribute("aria-pressed","true");
+  window.__rmNativeTalk=t=>{C.input.value=t;C.input.dispatchEvent(new Event("input"));};
+  P.ask("talk",{lang:navigator.language||"en-US"},180000).then(r=>{T.btn.setAttribute("aria-pressed","false");const t=String(r&&r.text||"").trim();
+    if(!t){if(r&&r.error)toast(r.error);return;}C.input.value=t;C.input.dispatchEvent(new Event("input"));if(timed(R.parse(t,{timeZone:TZ})))make(t);});}
+if(NATIVE_TALK||canTalk(window))T.btn.hidden=false;else if(MOBILE){T.hint.textContent="Type it, or use your keyboard's mic.";T.hint.classList.add("idle");T.hint.hidden=false;}
+T.btn.addEventListener("click",()=>{T.btn.classList.remove("mark");if(NATIVE_TALK)return nativeTalk();import("/talk.js").then(m=>m.toggle({input:C.input,form:C.form,btn:T.btn,hint:T.hint,make,timed,parse:R.parse,at:d=>fShort(d,TZ),timeZone:TZ})).catch(()=>toast("Couldn't open it here. Try again."));});
 /* /?talk=1, the Talk shortcut on the app's icon: the bar is focused and the mic marked. Listening still waits for a tap. */
 if(new URLSearchParams(location.search).get("talk")==="1"){history.replaceState(null,"","/"+location.hash);if(!T.btn.hidden)T.btn.classList.add("mark");setTimeout(()=>C.input.focus());}
 /* The live badge and the Discord line: livebadge.js, loaded only when asked for. */

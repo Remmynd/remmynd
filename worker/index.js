@@ -10,6 +10,7 @@ import { embedResponse } from "./embed.js";
 import { badgeResponse } from "./badge.js";
 import { handleAccount, sendDueMails } from "./account.js";
 import { handleCount, cleanCounts } from "./count.js";
+import { appSiteResponse } from "./appsite.js";
 
 const PRESETS = new Set(["example"]);
 
@@ -61,6 +62,10 @@ export default {
 
     // Public numbers for the For hosts page (GitHub stars, npm downloads), fetched here and cached.
     if (url.pathname === "/stats") return statsResponse(request, env, ctx);
+
+    // Apple's app-site file: remmynd for iPhone may use passkeys for this site (webcredentials), and opens
+    // shared reminder links itself when it's installed (applinks). Public by design; nothing about anyone in it.
+    if (url.pathname === "/.well-known/apple-app-site-association") return appSiteResponse(request);
 
     // Named pages: /example → /#example
     const name = url.pathname.replace(/^\/+|\/+$/g, "");

@@ -2005,7 +2005,7 @@ test("talk: tap the mic, say it, and a line with a time becomes the link (ADDEND
   assert.equal(canTalk({ SpeechRecognition: API, webkitSpeechRecognition: API, isSecureContext: true, navigator: {} }), true, "Chrome");
   assert.equal(canTalk({ SpeechRecognition: API, isSecureContext: false, navigator: {} }), false, "not off https");
   assert.ok(html.includes('<button type="button" class="cap-talk" id="talk" aria-label="Talk" aria-pressed="false" hidden>'), "hidden until the check passes");
-  assert.ok(app.includes('if(canTalk(window))T.btn.hidden=false;else if(MOBILE){T.hint.textContent="Type it, or use your keyboard\'s mic.";T.hint.classList.add("idle");T.hint.hidden=false;}'));
+  assert.ok(app.includes('if(NATIVE_TALK||canTalk(window))T.btn.hidden=false;else if(MOBILE){T.hint.textContent="Type it, or use your keyboard\'s mic.";T.hint.classList.add("idle");T.hint.hidden=false;}'), "the app's own Talk aside, the web rule is unchanged");
   assert.ok(app.includes('import("/talk.js").then(m=>m.toggle({input:C.input,form:C.form,btn:T.btn,hint:T.hint,make,timed,parse:R.parse,at:d=>fShort(d,TZ),timeZone:TZ}))'), "loaded on the tap");
 
   // Made by itself only with a clock time or "in 20 minutes". A day alone, or a part of the day, waits in the bar.
@@ -3380,4 +3380,36 @@ test("the app: inside remmynd for iPhone, alerts go to the phone through the bri
   assert.equal(pick({}), null);
   assert.equal(pick({ __rmNative: { platform: "ios" }, webkit: { messageHandlers: { remmynd: "handler" } } }), "handler");
   assert.equal(pick({ webkit: { messageHandlers: { remmynd: "handler" } } }), null, "a handler without the flag isn't the app");
+});
+
+test("the app, natively: Apple's app-site file for passkeys and links, the app-only look, Talk and video calls through the bridge", async () => {
+  const worker = (await import("../worker/index.js")).default, W = await import("../worker/appsite.js");
+  // The Worker's main module may export only handlers (workerd refuses anything else), so the app-site data lives apart.
+  assert.deepEqual(Object.keys(await import("../worker/index.js")).sort(), ["default"], "worker/index.js exports only its handler");
+  // Passkeys inside remmynd for iPhone need this file: the app may use credentials for remmynd.space.
+  const res = await worker.fetch(new Request("https://remmynd.space/.well-known/apple-app-site-association"), shellEnv());
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "application/json", "served as JSON, with no redirect and no extension");
+  const site = await res.json();
+  assert.deepEqual(site.webcredentials, { apps: ["TT8BA4JZW6.space.remmynd.app"] });
+  assert.deepEqual(site.applinks.details[0].appIDs, ["TT8BA4JZW6.space.remmynd.app"]);
+  assert.deepEqual(site.applinks.details[0].components.map(c => c["/"]), ["/r/*", "/new", "/new/*"], "shared reminders and /new links open in the app");
+  assert.equal(W.IOS_APP, "TT8BA4JZW6.space.remmynd.app");
+  assert.equal((await worker.fetch(new Request("https://remmynd.space/.well-known/apple-app-site-association", { method: "POST" }), shellEnv())).status, 405);
+  assert.doesNotMatch(JSON.stringify(site), /@|email|user/i, "nothing about anyone in it");
+  // The app-only look: chrome hidden under html.native, the website untouched.
+  const css = readFileSync(join(root, "public/app.css"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8"), push = readFileSync(join(root, "public/push.js"), "utf8");
+  assert.ok(css.includes('.native #hero,.native #try,.native .facts,.native .site-foot,.native .menu-btn,.native #view .fine,.native #nav-right[href="/#example"],.native a.row-link[href^="/hosts"],.native #home-link{display:none!important}'));
+  assert.ok(css.includes("html.native{--font:-apple-system,BlinkMacSystemFont,"), "the system font in the app");
+  const block = css.slice(css.indexOf("/* Inside remmynd for iPhone"));
+  for (const rule of block.split("}").filter(r => /\{/.test(r) && !/^\s*\/\*/.test(r.trim().replace(/\/\*[\s\S]*?\*\//g, "").trim() ? "" : "/*"))) assert.match(rule.replace(/\/\*[\s\S]*?\*\//g, ""), /\.native/, "every rule in the app block is app-only: " + rule.trim().slice(0, 60));
+  // Talk in the app goes to the phone's own speech recognizer, and a line with a time is made, as Enter makes it.
+  assert.ok(app.includes("if(NATIVE_TALK||canTalk(window))T.btn.hidden=false;"), "the mic shows in the app even where the web's speech API doesn't work");
+  assert.ok(app.includes('if(NATIVE_TALK)return nativeTalk();import("/talk.js")'), "the app path never loads talk.js");
+  assert.ok(app.includes('P.ask("talk",{lang:navigator.language||"en-US"},180000)'));
+  assert.ok(app.includes("if(timed(R.parse(t,{timeZone:TZ})))make(t);"));
+  assert.ok(push.includes("ask: NATIVE ? native : null"), "only the app gets the bridge");
+  // Video call on a held reminder, in the app only.
+  assert.ok(app.includes("(window.__rmNative?'<button type=\"button\" class=\"btn ink s-call\" id=\"s-call\">Video call for this</button>':'')"));
+  assert.ok(app.includes('P.ask("call",{title:c.r.t,start:c.start.getTime(),dur:c.r.d||5,share:c.share})'));
 });
