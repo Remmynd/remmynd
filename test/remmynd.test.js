@@ -2556,7 +2556,7 @@ test("sleep-safe: the 9 AM alert reads as already started", async () => {
 
 /* ---------- step 8: the website ---------- */
 
-const PAGES = ["why", "hosts", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog"];
+const PAGES = ["why", "hosts", "launch", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog"];
 const pageFile = p => p === "404" ? "public/404.html" : "public/" + p + "/index.html";
 const readPage = p => readFileSync(join(root, pageFile(p)), "utf8");
 const squash = s => s.replace(/\s+/g, " ").replace(/> </g, "><").trim();
@@ -2912,6 +2912,8 @@ test("security: a strict content security policy, HSTS and security.txt", () => 
     let js = readFileSync(join(root, "public", f), "utf8");
     // The one exception: embedHTML() in the library writes a snippet for other sites' pages, sized with a style attribute.
     if (f === "remmynd.js") js = js.replace(/export function embedHTML\([\s\S]*?\n\}\n/, "");
+    // And the launch kit's copy of the same for the launch countdown: text to copy, never put in the page.
+    if (f === "launch.js") js = js.replace(/function launchSnippet\([\s\S]*?\n\}\n/, "");
     assert.doesNotMatch(js, /setAttribute\(\s*["']style|\sstyle=\\?["']|\beval\(|new Function\(/, "public/" + f + " writes nothing the policy would block");
   }
   assert.match(headers, /^  Strict-Transport-Security: max-age=31536000; includeSubDomains$/m);
@@ -3541,4 +3543,50 @@ test("repeats through the connector: from a line, as a rule, and read back", asy
   assert.equal(out.isError, true);
   out = await tool("make_reminder_from_text", { text: "Dentist Tue 4pm", time_zone: "Europe/London", now: "2026-11-11T10:00:00Z" });
   assert.equal(out.structuredContent.repeat, "", "a one-off says so with an empty string");
+});
+
+test("launch countdown: the card for a landing page, and the launch kit that makes it from one line", async () => {
+  const worker = (await import("../worker/index.js")).default;
+  const { launchHTML, launchUnits, EMBED_CSP } = await import("../worker/embed.js");
+  const env = shellEnv();
+  const get = (path, init) => worker.fetch(new Request("https://remmynd.space" + path, init), env);
+  const ev = { title: "Demo <day>", start: "2027-03-05T18:00", timeZone: "Asia/Kolkata", durationMinutes: 90, host: "North<wind>", location: "https://lu.ma/demo" };
+  const code = R.createLink(ev).split("/r/")[1], counted = R.createLink({ ...ev, count: true }).split("/r/")[1];
+
+  // The card: four numbers, the title and time, Remind me, Add to calendar, and the way back to the kit.
+  const res = await get("/embed/" + code + "?size=launch&theme=dark");
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-security-policy"), EMBED_CSP, "the same strict policy as the small card");
+  const html = await res.text();
+  assert.match(html, /class="em em-launch"/);
+  assert.match(html, /<html lang="en" data-theme="dark">/);
+  for (const u of ["d", "h", "m", "s"]) assert.ok(html.includes('data-u="' + u + '"'), "the " + u + " unit");
+  assert.ok(html.includes("Demo &lt;day&gt;") && html.includes("From North&lt;wind&gt;") && !html.includes("<day>"), "the title and host are escaped");
+  assert.ok(html.includes('href="https://remmynd.space/r/' + code + '"'), "Remind me opens the reminder");
+  assert.ok(html.includes("https://calendar.google.com/calendar/render?action=TEMPLATE"), "Google Calendar");
+  assert.ok(html.includes('href="https://remmynd.space/ics?d='), "Apple and Outlook through the calendar file");
+  assert.ok(html.includes('href="https://remmynd.space/launch"') && html.includes("Make yours with remmynd"), "every card leads back to the kit");
+  assert.ok(!html.includes("el-count"), "no count line unless the host turned the count on");
+  assert.match(await (await get("/embed/" + counted + "?size=launch")).text(), /Be among the first to get reminded/, "the count on, under 10: an invitation, not a small number");
+  assert.match(await (await get("/embed/example?size=launch")).text(), /em-launch[^>]*data-example/);
+
+  // How many will be reminded, from 10, as on the small card.
+  const r = R.decode(R.createLink({ ...ev, count: true }));
+  const shown = launchHTML(r, { link: "https://remmynd.space/r/x", origin: "https://remmynd.space", count: 312, counted: true, now: r.start.getTime() - 864e5 });
+  assert.match(shown, /<b>312<\/b> people will be reminded/);
+  assert.match(launchHTML(r, { link: "x", origin: "https://remmynd.space", now: r.start.getTime() + 60e3 }), /<p class="el-live">Live now<\/p>/, "from the start: Live now");
+  assert.match(launchHTML(r, { link: "x", origin: "https://remmynd.space", now: r.start.getTime() + 2 * 36e5 }), /<p class="el-live">Ended<\/p>/, "after the end: Ended");
+  assert.deepEqual(launchUnits(1e9, 1e9 - (2 * 86400 + 3 * 3600 + 4 * 60 + 5) * 1000), [2, 3, 4, 5]);
+  assert.deepEqual(launchUnits(1e9, 1e9 + 5000), [0, 0, 0, 0], "never below zero");
+
+  // The kit: one line in, the card previewed from the real link, the snippets filled in, the link kept in My links.
+  const page = readFileSync(join(root, "public/launch/index.html"), "utf8"), js = readFileSync(join(root, "public/launch.js"), "utf8");
+  assert.ok(page.includes('id="lk-line"') && page.includes('id="lk-count" type="checkbox" checked'), "one line, and the count on by default");
+  assert.ok(page.includes('src="/embed/example?size=launch"'), "the preview starts with the example");
+  assert.ok(page.includes('<script type="module" src="/launch.js"></script>') && page.includes('<script src="/db.js" defer></script>'));
+  assert.ok(js.includes('import * as R from "/remmynd.js"') && js.includes("R.createLink(ev"), "the link is made on the device, with the library");
+  for (const f of ["R.embedHTML(link)", "R.liveBadgeHTML(link)", "R.liveBadgeMarkdown(link)", "R.discordLine(link)", 'import("/qr.js")']) assert.ok(js.includes(f), "the kit offers " + f);
+  assert.ok(js.includes('window.remmyndDB.put("links"'), "kept in My links");
+  assert.ok(readFileSync(join(root, "public/hosts/index.html"), "utf8").includes('href="/launch">Make a launch countdown</a>'), "For hosts leads to the kit");
+  assert.ok(!firstVisit({ cache: true }).some(f => /^launch/.test(f)), "the app's first visit loads none of the kit");
 });

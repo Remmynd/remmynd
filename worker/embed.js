@@ -8,11 +8,13 @@
 // Worker writes its first value, so the card is right before its script runs; embed.js keeps it
 // current. ?screen=1 is the layout for large screens, streams and the last slide of a talk: the
 // ring, the title, the countdown in large type and a QR code of the link, with no button.
+// ?size=launch is the launch countdown for a landing page: days, hours, minutes and seconds that tick,
+// how many will be reminded (when the host turned the count on), Remind me and Add to calendar.
 //
 // Like /r/, the reminder is read from the address only to draw the card. Nothing is stored, logged
 // or cached. ?theme=light or ?theme=dark pins a theme; without it the card follows the system.
 // Private links (/#…) never reach a server, so they can't be embedded.
-import { decode, describeWhen, countLabel, countRings } from "../lib/remmynd.js";
+import { decode, describeWhen, countLabel, countRings, googleCalendarUrl } from "../lib/remmynd.js";
 import { ringSVG, ringLabel } from "../public/ring.js";
 import { countdown } from "../public/clock.js";
 import { qrSVG } from "../public/qr.js";
@@ -48,6 +50,42 @@ function nextFriday(now = new Date()) {
 const rings = n => [[54.5, .95], [58, .55], [61.5, .3]].slice(0, countRings(n)).map(([r, o]) => '<circle class="r-count" cx="60" cy="60" r="' + r + '" stroke-opacity="' + o + '"/>').join("");
 const withRings = (svg, n) => countLabel(n) ? svg.replace(/<\/svg>$/, rings(n) + "</svg>") : svg;
 
+/* The launch countdown's four numbers: days, hours, minutes, seconds left. */
+export function launchUnits(start, now = Date.now()) {
+  const t = Math.max(0, Math.ceil((start - now) / 1000));
+  return [Math.floor(t / 86400), Math.floor(t % 86400 / 3600), Math.floor(t % 3600 / 60), t % 60];
+}
+const two = n => String(n).padStart(2, "0");
+const CAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
+const b64 = o => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(o)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/** The launch countdown for a landing page (?size=launch). */
+export function launchHTML(r, { link, origin, theme = "", example = false, now = Date.now(), count = 0, counted = false }) {
+  const zone = r.timeZone || "UTC", start = r.start.getTime(), end = start + r.durationMinutes * 60000;
+  const title = escapeHTML(r.title), href = escapeHTML(link), when = escapeHTML(describeWhen(r.start, zone));
+  const [d, h, m, s] = launchUnits(start, now);
+  const unit = (k, v, label) => '<span class="el-unit"><b data-u="' + k + '">' + v + '</b><i>' + label + "</i></span>";
+  const live = now >= end ? "Ended" : now >= start ? "Live now" : "";
+  const clock = '<div class="el-clock" role="timer" aria-label="Time left"' + (live ? " hidden" : "") + ">" +
+    unit("d", d, d === 1 ? "day" : "days") + unit("h", two(h), "hours") + unit("m", two(m), "minutes") + unit("s", two(s), "seconds") + "</div>" +
+    '<p class="el-live"' + (live ? "" : " hidden") + ">" + live + "</p>";
+  // How many will be reminded: only when the host turned the count on, and from 10, as everywhere else.
+  const n = countLabel(count) ? count.toLocaleString("en-US") : "";
+  const tally = counted ? '<p class="el-count">' + (n ? "<b>" + n + "</b> people will be reminded" : "Be among the first to get reminded") + "</p>" : "";
+  const google = example ? link : googleCalendarUrl(r, { base: origin + "/" });
+  const ics = example ? link : origin + "/ics?d=" + b64({ t: r.title, s: Math.round(start / 60000).toString(36), d: r.durationMinutes, l: r.location || "", n: r.notes || "", u: link, k: Math.round(start / 60000).toString(36), o: r.title });
+  return '<!doctype html>\n<html lang="en"' + (theme ? ' data-theme="' + theme + '"' : "") + '>\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n' +
+    '<meta name="robots" content="noindex">\n<title>' + title + ' · remmynd</title>\n<link rel="stylesheet" href="/embed.css">\n</head>\n<body class="launch">\n' +
+    '<main class="em em-launch" data-start="' + start + '" data-end="' + end + '"' + (example ? " data-example" : "") + '>\n' +
+    '<div class="el-head"><span class="em-label">' + (r.host ? "From " + escapeHTML(r.host) : "Launching") + '</span><h1 class="em-title">' + title + '</h1><p class="em-when">' + when + "</p></div>\n" +
+    clock + "\n" + tally + "\n" +
+    '<div class="el-actions"><a class="em-btn" href="' + href + '" target="_blank" rel="noopener" aria-label="Remind me about ' + title + '">' + BELL + "Remind me</a>" +
+    '<a class="el-cal" href="' + escapeHTML(google) + '" target="_blank" rel="noopener">' + CAL + "Google Calendar</a>" +
+    '<a class="el-cal" href="' + escapeHTML(ics) + '" target="_blank" rel="noopener">Apple · Outlook</a></div>\n' +
+    '<a class="em-by" href="' + escapeHTML(origin) + '/launch" target="_blank" rel="noopener">' + MARK + "Make yours with remmynd</a>\n</main>\n" +
+    '<script type="module" src="/embed.js"></script>\n</body>\n</html>\n';
+}
+
 export function embedHTML(r, { link, origin, theme = "", example = false, now = Date.now(), screen = false, count = 0 }) {
   const zone = r.timeZone || "UTC", start = r.start.getTime(), end = start + r.durationMinutes * 60000;
   const state = now >= end ? "missed" : now >= start ? "now" : start - now <= 36e5 ? "soon" : "open";
@@ -77,7 +115,7 @@ export function embedHTML(r, { link, origin, theme = "", example = false, now = 
 export async function embedResponse(request, env, url) {
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   const p = url.pathname.slice("/embed/".length).replace(/\/+$/, "");
-  const t = url.searchParams.get("theme"), theme = t === "light" || t === "dark" ? t : "", screen = url.searchParams.get("screen") === "1";
+  const t = url.searchParams.get("theme"), theme = t === "light" || t === "dark" ? t : "", screen = url.searchParams.get("screen") === "1", launch = url.searchParams.get("size") === "launch";
   let r, link, example = false;
   if (p === "example") {
     example = true; link = url.origin + "/example";
@@ -89,5 +127,6 @@ export async function embedResponse(request, env, url) {
   if (!r) return new Response("Not a remmynd reminder", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
   // The public count, when the host turned it on: one read, kept for a minute.
   const count = r.count && !example ? await readCount(env, p) : 0;
-  return new Response(request.method === "HEAD" ? null : embedHTML(r, { link, origin: url.origin, theme, example, screen, count }), { headers: HEADERS });
+  const html = launch ? launchHTML(r, { link, origin: url.origin, theme, example, count, counted: !!r.count || example }) : embedHTML(r, { link, origin: url.origin, theme, example, screen, count });
+  return new Response(request.method === "HEAD" ? null : html, { headers: HEADERS });
 }

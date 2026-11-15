@@ -13,6 +13,8 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ### Added
 
+- The launch countdown: a card for a landing page (`/embed/<link>?size=launch`) with days, hours, minutes and seconds that tick, how many will be reminded when the host turned the count on, Remind me, and Google, Apple and Outlook calendars. It fits a phone at 400 pixels high.
+- The launch kit (`/launch`): one line in, a launch countdown out, previewed from the real link, with the countdown, the small card, the live badge, Markdown, the Discord line and a QR code ready to copy. The link is made on the device and kept in My links. For hosts leads to it.
 - Repeating reminders. "Gym every weekday 7am", "Pay rent monthly on the 1st 9am", "Mum's birthday every year Mar 3", "every Tue and Thu", "every 2 weeks", "daily" and "every evening" all read as repeats. The link carries the rule in a new optional key, `r` (`d`, `3d`, `w`, `2w`, `w:1,2,3,4,5`, `m`, `y`); older readers see a one-off, as the format promises. Done keeps that time and moves the reminder on to the next; alerts cover the next 7 times, up to 14 days ahead, and are topped up whenever remmynd opens. Calendar files and Google Calendar links repeat too, in local time, so they never drift with daylight saving. The library adds `describeRepeat`, `repeatRRule` and `nextOccurrence`; `parse` returns `repeat`.
 - The connector for AI assistants reads and makes repeating reminders, and every answer says how it repeats. The docs say how to add it to an assistant.
 - Inside the iPhone app only, the calls the native Today screen uses moved to `native.js`, which the website never downloads.

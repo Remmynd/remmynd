@@ -1,0 +1,19 @@
+/* The launch kit page (/launch): the form, the preview and the snippets. Loaded only on this page. */
+.lk-form{display:grid;gap:14px;margin-top:8px;max-width:520px}
+.lk-field{display:grid;gap:6px}
+.lk-field input{font:inherit;font-size:17px;padding:14px 16px;border-radius:14px;border:1px solid var(--hairline);background:var(--card);color:var(--ink)}
+.lk-field input:focus{outline:2px solid var(--ink);outline-offset:1px}
+.lk-check{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--ink-2)}
+.lk-check input{width:18px;height:18px;accent-color:var(--ink)}
+.lk-read{margin:0;min-height:1.4em;font:500 14px/1.4 "Geist Mono",ui-monospace,monospace;color:var(--ink-2)}
+.lk-read.bad{color:var(--on-tint)}
+.lk-preview iframe{display:block;width:100%;max-width:560px;height:400px;border:0}
+.lk-link{display:flex;flex-wrap:wrap;align-items:center;gap:12px;font:500 15px/1.4 "Geist Mono",ui-monospace,monospace;overflow-wrap:anywhere}
+.lk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px;margin-top:24px}
+.lk-snip{display:grid;gap:10px;align-content:start;padding:20px;border-radius:22px;background:var(--card);border:1px solid var(--hairline)}
+.lk-snip h3{margin:0;font-size:17px}
+.lk-snip p{margin:0;color:var(--ink-2);font-size:14px}
+.lk-snip pre,.lk-snip pre code{color:var(--ink)}
+.lk-snip pre{margin:0;padding:12px 14px;border-radius:12px;background:var(--well);font:12px/1.5 "Geist Mono",ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto}
+.lk-snip .btns{display:flex;flex-wrap:wrap;gap:8px}
+.lk-qr svg{display:block;width:160px;height:auto;border-radius:12px}
