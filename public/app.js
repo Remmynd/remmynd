@@ -368,6 +368,13 @@ C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.lin
 /* Smart paste: a long paste or an image can be read by the browser's own on-device AI, where it has one (smartpaste.js, loaded only then). */
 C.input.addEventListener("paste",e=>{const d=e.clipboardData;if(!d||!("LanguageModel" in self))return;const t=d.getData("text/plain")||"",image=[...d.files].find(f=>/^image\//.test(f.type))||null;
   if(image||t.length>80||/\n/.test(t.trim()))import("/smartpaste.js").then(m=>m.offer({text:t,image,form:C.form,put:newOne,toast,R,timeZone:TZ})).catch(()=>{});});
+/* A reminder from a photo: a poster, an invite, a screenshot, read by the same on-device AI, and only where the browser has it
+ * (the iPhone app has its own camera). Choosing a photo is asking to read it, so it starts at once. Dropping one on the bar does the same. */
+const PH={btn:$("#photo"),in:$("#photo-in")},readPhoto=image=>import("/smartpaste.js").then(m=>m.offer({image,auto:true,form:C.form,put:newOne,toast,R,timeZone:TZ})).catch(()=>toast("Couldn't read photos here."));
+/* Shown only once the browser says it can read images on this device: a button that can only say no is worse than none. */
+if("LanguageModel" in self&&!window.__rmNative)LanguageModel.availability({expectedInputs:[{type:"text",languages:["en"]},{type:"image"}],expectedOutputs:[{type:"text",languages:["en"]}]}).then(a=>{if(a!=="unavailable")PH.btn.hidden=false;}).catch(()=>{});
+PH.btn.addEventListener("click",()=>PH.in.click());
+PH.in.addEventListener("change",()=>{const f=PH.in.files&&PH.in.files[0];PH.in.value="";if(f&&/^image\//.test(f.type))readPhoto(f);});
 C.form.addEventListener("submit",e=>{e.preventDefault();make();});
 /* Chips: What, Where and Note open a small editor; When opens the device's own date and time picker. */
 const EDIT={title:"What",place:"Where",notes:"Note"};
@@ -665,7 +672,8 @@ impIn.addEventListener("change",()=>{const fs=[...impIn.files].filter(ICS_FILE);
 /* Drop a calendar file anywhere on the page. */
 document.addEventListener("dragover",e=>{if(![...(e.dataTransfer&&e.dataTransfer.items)||[]].some(i=>i.kind==="file"))return;e.preventDefault();C.form.classList.add("dropping");});
 document.addEventListener("dragleave",e=>{if(!e.relatedTarget)C.form.classList.remove("dropping");});
-document.addEventListener("drop",e=>{C.form.classList.remove("dropping");const fs=[...(e.dataTransfer&&e.dataTransfer.files)||[]].filter(ICS_FILE);if(!fs.length)return;e.preventDefault();openImport(fs,C.input);});
+document.addEventListener("drop",e=>{C.form.classList.remove("dropping");const all=[...(e.dataTransfer&&e.dataTransfer.files)||[]],fs=all.filter(ICS_FILE),img=all.find(f=>/^image\//.test(f.type));
+  if(!fs.length&&img&&!PH.btn.hidden){e.preventDefault();return readPhoto(img);}if(!fs.length)return;e.preventDefault();openImport(fs,C.input);});
 /* ---------- Ctrl or Cmd + K: search and commands, loaded the first time it's asked for ---------- */
 const go=h=>{const u=new URL(h,location.href);if(u.origin!==location.origin||!/^\/(r\/|$)/.test(u.pathname))return location.assign(u.href);S.back=true;history.pushState(null,"",u.pathname+u.search+u.hash);route();};
 const newOne=t=>{if(!$("#view").hidden)go("/");if(t){C.input.value=t;C.input.dispatchEvent(new Event("input"));}C.input.focus();};
