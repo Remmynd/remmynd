@@ -77,6 +77,7 @@ function render() {
       '<div class="label">Passkeys</div><div class="ac-keys">' + (keys.length ? keys.map(k => '<div class="ac-key">' + KEY + '<span><b>' + esc(k.name) + '</b><i>Added ' + esc(day(k.created)) + '</i></span><button type="button" class="btn small" data-key="' + esc(k.id) + '">Remove</button></div>').join("") : '<p class="ac-none">No passkey yet. You sign in with a code by email.</p>') + '</div>' +
       (PASSKEYS ? '<button type="button" class="btn ac-wide" id="ac-add">' + KEY + 'Add a passkey</button>' : '') +
       proBlock() +
+      '<div class="label">Your page</div><p class="ac-none">A public page for your launches, with a countdown and a button that goes live on time.</p><a class="btn ac-wide" href="/host">Open your page</a>' +
       '<div class="label">Your calendar</div><p class="ac-none">Subscribe in Apple, Google or Outlook Calendar: the reminders you hold show there, repeats included.</p>' +
       feedRow("cal", "Get my calendar address") +
       '<div class="label">Email in</div><p class="ac-none">Forward a booking or an invite to your own address and it becomes a reminder.</p>' +

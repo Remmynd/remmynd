@@ -2556,7 +2556,7 @@ test("sleep-safe: the 9 AM alert reads as already started", async () => {
 
 /* ---------- step 8: the website ---------- */
 
-const PAGES = ["why", "hosts", "launch", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog"];
+const PAGES = ["why", "hosts", "launch", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog", "host"];
 const pageFile = p => p === "404" ? "public/404.html" : "public/" + p + "/index.html";
 const readPage = p => readFileSync(join(root, pageFile(p)), "utf8");
 const squash = s => s.replace(/\s+/g, " ").replace(/> </g, "><").trim();
@@ -3060,7 +3060,7 @@ test("passkeys: registration and sign-in are checked with real signatures", asyn
 
 // The account store, in memory, with the same methods and rules as the D1 one.
 function memoryStore() {
-  const t = { users: new Map(), passkeys: new Map(), sessions: new Map(), codes: new Map(), challenges: new Map(), items: new Map(), mails: new Map(), sends: new Map(), pro: new Map() };
+  const t = { users: new Map(), passkeys: new Map(), sessions: new Map(), codes: new Map(), challenges: new Map(), items: new Map(), mails: new Map(), sends: new Map(), pro: new Map(), hosts: new Map(), launches: new Map() };
   const ik = (u, k, key) => u + "|" + k + "|" + key;
   return { t,
     ready: async () => {},
@@ -3070,6 +3070,12 @@ function memoryStore() {
     setEmailAlerts: async (id, on) => { const u = t.users.get(id); if (u) u.email_alerts = on ? 1 : 0; },
     stopEmails: async (id, token) => { const u = t.users.get(id); if (u && u.stop_token === token) u.email_alerts = 0; },
     deleteUser: async id => { for (const k of ["passkeys", "sessions", "mails"]) for (const [x, v] of t[k]) if (v.user_id === id) t[k].delete(x); for (const [x, v] of t.items) if (v.user_id === id) t.items.delete(x); for (const [x, v] of t.pro) if (v.user_id === id) t.pro.delete(x); t.users.delete(id); },
+    hostOf: async id => t.hosts.get(id) ? { ...t.hosts.get(id) } : null,
+    hostByHandle: async h => { const r = [...t.hosts.values()].find(x => x.handle === h); return r ? { ...r } : null; },
+    putHost: async h => { if ([...t.hosts.values()].some(x => x.handle === h.handle && x.user_id !== h.user_id)) throw new Error("UNIQUE"); t.hosts.set(h.user_id, { ...h }); },
+    launchesOf: async id => [...t.launches.values()].filter(l => l.user_id === id).sort((a, b) => a.start - b.start).map(l => ({ ...l })),
+    putLaunch: async l => { t.launches.set(l.id, { ...l, count: l.count ? 1 : 0 }); },
+    deleteLaunch: async (u, id) => { const l = t.launches.get(id); if (l && l.user_id === u) t.launches.delete(id); },
     proOf: async id => [...t.pro.values()].filter(r => r.user_id === id).map(r => ({ ...r })),
     proByRef: async (source, ref) => { const r = t.pro.get(source + "|" + ref); return r ? { ...r } : null; },
     putPro: async p => { t.pro.set(p.source + "|" + p.ref, { source: p.source, ref: p.ref, user_id: p.userId, product: p.product, until: p.until, trial: p.trial ? 1 : 0, renews: p.renews ? 1 : 0, env: p.env || "", updated: p.updated, moved: p.moved || 0, voided: p.voided || 0 }); },
@@ -3662,7 +3668,7 @@ test("calendar feed and email in: one private address each, kept only as a hash,
   const acct = readFileSync(join(root, "public/account.js"), "utf8"), idx = readFileSync(join(root, "worker/index.js"), "utf8"), acc = readFileSync(join(root, "worker/account.js"), "utf8");
   assert.ok(acct.includes('feedRow("cal"') && acct.includes('feedRow("in"'));
   assert.ok(idx.includes('url.pathname.startsWith("/cal/")') && idx.includes("async email(message, env, ctx)"));
-  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro"]'));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro", "hosts", "launches"]'));
 });
 
 /* remmynd Pro: an account with a session, as the account tests make one, for the Pro tests. */
@@ -3963,4 +3969,116 @@ test("remmynd Pro in the app: a purchase Apple signed links to the account, foll
   const eve = proAccount(store, "ue", "eve@example.com", now);
   r = await call("/api/pro/apple", { jws: jws(tx({ originalTransactionId: "o6", appAccountToken: undefined, expiresDate: now - day })) }, { cookie: eve });
   assert.deepEqual([r.status, r.body.pro], [200, false]);
+});
+
+test("host pages: a handle, launches with a countdown, and a button that goes live on time", async () => {
+  const H = await import("../worker/hosts.js");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const maya = proAccount(store, "um", "maya@example.com", now), sam = proAccount(store, "us", "sam@example.com", now);
+  const call = async (path, body, { cookie = maya, origin = base, method = body === undefined ? "GET" : "POST" } = {}) => {
+    const req = new Request(base + path, { method, headers: { "content-type": "application/json", origin, ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await H.handleHost(req, {}, new URL(req.url), { store, now });
+    return { status: res.status, body: await res.json() };
+  };
+  const tpl = readFileSync(join(root, "public/at/index.html"), "utf8");
+  const env = { ASSETS: { fetch: async () => new Response(tpl, { headers: { "content-security-policy": "default-src 'self'" } }) } };
+  const view = async (path, d = {}) => { const res = await H.hostPageResponse(new Request(base + path), env, new URL(base + path), { store, now, counts: { ready: async () => {}, get: async () => 42 }, ...d }); return { status: res.status, html: res.status === 301 ? res.headers.get("location") : await res.text(), csp: res.headers.get("content-security-policy") }; };
+
+  // Handles: the rules, the reserved words, one per person.
+  assert.equal(H.handleProblem("ab"), "A handle is 3 to 30 letters, numbers, - or _, starting with a letter or number.");
+  for (const h of ["admin", "api", "launch", "remmynd", "host"]) assert.match(H.handleProblem(h), /reserved/, h);
+  assert.equal(H.handleProblem("maya-chen_2"), null);
+  assert.deepEqual(await call("/api/host"), { status: 200, body: { signedIn: true, host: null, launches: [] } });
+  assert.equal((await call("/api/host", undefined, { cookie: "" })).body.signedIn, false);
+  assert.equal((await call("/api/host", { handle: "maya" }, { cookie: "" })).status, 401, "signed in first");
+  assert.equal((await call("/api/host", { handle: "maya" }, { origin: "https://evil.example" })).status, 403, "this site only");
+  assert.equal((await call("/api/host/launch", { title: "X", start: now + day })).body.error, "Claim your page first.");
+  let r = await call("/api/host", { handle: "@Maya", name: "Maya Chen", bio: "Building Orbit.", link: "orbit.app" });
+  assert.deepEqual(r.body.host, { handle: "maya", name: "Maya Chen", bio: "Building Orbit.", link: "https://orbit.app/", url: base + "/@maya" });
+  assert.equal((await call("/api/host", { handle: "maya" }, { cookie: sam })).status, 409, "a handle is one person's");
+  assert.equal((await call("/api/host", { handle: "maya", link: "javascript:alert(1)" })).status, 400, "a link is a web address");
+
+  // Launches: checked, given a slug, theirs only.
+  const start = Date.parse("2026-11-26T00:30:00Z"); // Wed Nov 25, 7:30 PM in New York
+  r = await call("/api/host/launch", { title: "Orbit on Product Hunt", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit", count: true });
+  assert.equal(r.status, 200);
+  const l = r.body.launches[0];
+  assert.deepEqual([l.slug, l.url, l.dest, l.destName, l.count, l.dur], ["orbit-on-product-hunt", base + "/@maya/orbit-on-product-hunt", "https://producthunt.com/posts/orbit", "Product Hunt", true, 60]);
+  assert.match(l.link, /^https:\/\/remmynd\.space\/r\//, "Remind me is an ordinary shared link");
+  assert.deepEqual(R.decode(l.link), { ...R.decode(l.link), title: "Orbit on Product Hunt", host: "Maya Chen", location: "https://producthunt.com/posts/orbit", timeZone: "America/New_York" });
+  assert.equal((await call("/api/host/launch", { title: "Orbit on Product Hunt", start: start + day, tz: "America/New_York" })).body.launches[1].slug, "orbit-on-product-hunt-2", "slugs don't collide");
+  for (const [bad, why] of [[{ title: "", start }, /title/], [{ title: "X", start: "soon" }, /date/], [{ title: "X", start, dest: "javascript:alert(1)" }, /web address/], [{ title: "X", start, dur: 5000 }, /24 hours/]])
+    assert.match((await call("/api/host/launch", bad)).body.error, why);
+  proAccount(store, "us", "sam@example.com", now);
+  await call("/api/host", { handle: "sam" }, { cookie: sam });
+  assert.equal((await call("/api/host/launch", { id: l.id, title: "Mine now", start }, { cookie: sam })).status, 404, "nobody else can change it");
+  assert.equal((await call("/api/host/launch/delete", { id: l.id }, { cookie: sam })).status, 404, "or delete it");
+  r = await call("/api/host/launch", { id: l.id, title: "Orbit 1.0 on Product Hunt", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit", count: true });
+  assert.deepEqual([r.body.launches[0].title, r.body.launches[0].slug], ["Orbit 1.0 on Product Hunt", "orbit-on-product-hunt"], "a change keeps its address");
+
+  // The launch page: drawn on the server, in the launch's own zone, with the preview tags.
+  let p = await view("/@maya/orbit-on-product-hunt");
+  assert.equal(p.status, 200);
+  assert.equal(p.csp, "default-src 'self'", "the site's security headers carry over");
+  assert.match(p.html, /<title>Orbit 1\.0 on Product Hunt by Maya Chen<\/title>/);
+  assert.match(p.html, /<meta property="og:description" content="Wed, Nov 25 · 7:30 PM EST\. Tap Remind me so you don&#39;t miss it\.">/);
+  assert.match(p.html, /<link rel="canonical" href="https:\/\/remmynd\.space\/@maya\/orbit-on-product-hunt">/);
+  assert.match(p.html, /data-phase="before"/);
+  assert.match(p.html, /<b data-u="d">9<\/b>.*<b data-u="h">07<\/b>.*<b data-u="m">30<\/b>.*<b data-u="s">00<\/b>/s, "9 days, 7 hours and 30 minutes to go");
+  assert.match(p.html, /<span class="p-before">Go to Product Hunt<\/span><span class="p-live">It's live: go now<\/span>/);
+  assert.match(p.html, /<b>42<\/b> people will be reminded/, "the count, when the host turned it on");
+  assert.match(p.html, /href="\/ics\?d=[A-Za-z0-9_-]+"/);
+  // Live from the start, ended after; the server says so before any script runs.
+  now = start + 60e3;
+  p = await view("/@maya/orbit-on-product-hunt");
+  assert.match(p.html, /data-phase="live"/);
+  assert.match(p.html, /content="Live now\. /);
+  now = start + 61 * 60e3;
+  assert.match((await view("/@maya/orbit-on-product-hunt")).html, /data-phase="ended"/);
+  now = Date.parse("2026-11-16T17:00:00Z");
+
+  // The host's page: the next launch with its clock, then the rest.
+  p = await view("/@maya");
+  assert.match(p.html, /<h1>Maya Chen<\/h1><p class="at-handle">@maya<\/p><p class="at-bio">Building Orbit\.<\/p>/);
+  assert.match(p.html, /id="at-next">Next<\/h2><article class="at-launch"/);
+  assert.match(p.html, /Coming up/);
+  // Text is text: nothing a host types becomes markup.
+  await call("/api/host", { handle: "maya", name: "<script>alert(1)</script>", bio: '"><img src=x onerror=alert(1)>' });
+  p = await view("/@maya");
+  assert.ok(!p.html.includes("<script>alert(1)") && !p.html.includes("<img src=x"), "escaped");
+  assert.match(p.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  // Addresses: one spelling, and a real 404 for what isn't there.
+  assert.deepEqual([(await view("/@MAYA")).status, (await view("/@MAYA")).html], [301, base + "/@maya"]);
+  assert.equal((await view("/@maya/nope")).status, 404);
+  assert.equal((await view("/@nobody")).status, 404);
+  assert.equal((await view("/@a")).status, 404);
+  assert.equal((await view("/@maya/x/y")).status, 404);
+  // Deleting takes the page down; deleting the account takes everything.
+  await call("/api/host/launch/delete", { id: l.id });
+  assert.equal((await view("/@maya/orbit-on-product-hunt")).status, 404);
+  assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes('"pro", "hosts", "launches"]'));
+
+  // The helpers.
+  assert.equal(H.safeLink("producthunt.com/posts/x"), "https://producthunt.com/posts/x");
+  for (const bad of ["javascript:alert(1)", "data:text/html,x", "ftp://x.com", "https://user:pw@x.com", "localhost"]) assert.equal(H.safeLink(bad), null, bad);
+  assert.equal(H.safeLink(""), "");
+  assert.deepEqual(["apps.apple.com/app/x", "youtu.be/x", "lu.ma/x", "example.org/x"].map(u => H.destName("https://" + u)), ["the App Store", "YouTube", "Luma", "example.org"]);
+  assert.equal(H.whenText(Date.parse("2027-01-08T15:00:00Z"), "America/Los_Angeles", now), "Fri, Jan 8, 2027 · 7:00 AM PST", "another year says so");
+  assert.equal(H.slugFor("Café Launch!!", new Set()), "cafe-launch");
+  assert.deepEqual(H.clockParts(90061000), { d: 1, h: 1, m: 1, s: 1 });
+});
+
+test("host pages on the website: the template, the clock, Your page, and the way in", () => {
+  const at = readFileSync(join(root, "public/at.js"), "utf8"), host = readFileSync(join(root, "public/host.js"), "utf8"), idx = readFileSync(join(root, "worker/index.js"), "utf8");
+  assert.ok(idx.includes('url.pathname.startsWith("/@")') && idx.includes('url.pathname === "/api/host" || url.pathname.startsWith("/api/host/")'));
+  assert.ok(idx.includes('if (url.pathname === "/at" || url.pathname === "/at/")'), "the bare template isn't a page");
+  assert.match(readFileSync(join(root, "public/at/index.html"), "utf8"), /<section class="sec at-wrap" id="at">[\s\S]*<\/section>\s*<\/main>/, "the part the Worker fills");
+  assert.ok(at.includes('el.dataset.phase = phase') && at.includes('"Live now"'), "the clock turns to Live now at the start without a reload");
+  assert.ok(!/fetch\(/.test(at), "the page's clock asks nothing of anyone");
+  assert.ok(host.includes('api("/api/host/launch"') && host.includes('import("/account.js").then(m => m.open())'));
+  assert.ok(!/confirm\(|alert\(|prompt\(/.test(host + at), "no browser pop-ups: delete asks twice in the page");
+  assert.ok(readFileSync(join(root, "public/account.js"), "utf8").includes('<a class="btn ac-wide" href="/host">Open your page</a>'));
+  assert.ok(readFileSync(join(root, "public/launch/index.html"), "utf8").includes('<a href="/host">Put it on your page</a>'));
+  assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes("are public at remmynd.space/@your-handle"));
 });
