@@ -5,10 +5,7 @@
   "use strict";
   const RM = window.__rm;
   if (!RM) return;
-  /* ---------- inside remmynd for iPhone: alerts are the phone's own notifications, through a bridge ----------
-   * The app sets window.__rmNative before any script runs and listens on webkit.messageHandlers.remmynd. Each
-   * message carries a request id; the app answers with window.__rmNativeReply(id, result). No server, no push
-   * address: the alerts, with their words, go straight to the phone. */
+  /* ---------- inside remmynd for iPhone: the phone's own notifications, through window.__rmNative (replies via __rmNativeReply) ---------- */
   const NATIVE = window.__rmNative && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.remmynd ? window.webkit.messageHandlers.remmynd : null;
   const SUPPORTED = !!NATIVE || ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window && RM.OWN);
   const waits = new Map(); let nperm = "default";
@@ -118,9 +115,7 @@
     }).catch(async () => { if (loud) RM.toast("Couldn't turn on notifications. Try again."); await renderRow(d); return false; });
   }
 
-  /* The alerts for a held reminder: 1 hour before and at the start; one check when it ends (start plus
-   * its length, or 30 minutes if the link has none) asking "did you make it?"; and, with the nudge
-   * switch on, nudges 10, 20 and 30 minutes after the start. Overnight (sleep-safe) it's one morning alert. */
+  /* A held reminder's alerts: 1 hour before, at the start, a check at the end, and nudges if on. Overnight: one morning alert. */
   function plan(d, rkey) {
     const start = d.start.getTime(), base = { rkey, title: d.r.t, start, place: d.r.l || "", share: d.share, shown: false, ...(d.r.u ? { launch: d.r.u } : {}) };
     if (d.morningAt) return [{ ...base, id: rid(), at: d.morningAt.getTime(), kind: "after" }];

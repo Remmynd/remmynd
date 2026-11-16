@@ -148,8 +148,7 @@ function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
     '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+
     '<button type="button" class="linkish s-remove" id="s-remove">Remove this reminder</button>'+VIA();}
-/* Follow through (step 5): before it starts the stack; from the start, Open the link, Not yet and Done;
- * after Not yet, the stack again until the new time; then the same question. */
+/* Follow through: the stack before the start; Open, Not yet and Done from it. */
 function phase(c){const now=Date.now(),r=S.rec||{};if(r.state==="kept")return"kept";if(r.state==="dropped")return"dropped";
   if(r.replanAt>now)return"later";if(now>=c.start.getTime()||r.replanAt)return"due";return"before";}
 const mapsUrl=place=>(IOS||MAC_SAFARI?"https://maps.apple.com/?q=":"https://www.google.com/maps/search/?api=1&query=")+encodeURIComponent(place);
@@ -303,7 +302,7 @@ function later(key,run,undo,msg){PEND.set(key,{run,t:setTimeout(()=>{PEND.delete
 function keep(key){const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);$("#toast").classList.remove("show","act");}
 addEventListener("pagehide",()=>{for(const[k,p]of PEND){clearTimeout(p.t);PEND.delete(k);p.run();}});
 const forgetRec=k=>{if(window.remmyndDB)window.remmyndDB.del("reminders",k).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(k).catch(()=>{});};
-/* copy(): done runs only once it has really copied. quiet: nobody pressed Copy (Talk, /new?q=), so a browser that refuses without a tap gets no fallback and no message. */
+/* copy(): done runs only once it copied; quiet skips the fallback when nobody tapped. */
 function copy(text,msg,done,quiet){const ok=()=>{toast(msg||"Copied");if(done)done();};const fb=()=>{if(quiet)return;const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy")?ok():toast("Select the text and copy it");}catch(e){toast("Select the text and copy it");}ta.remove();};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,fb);else fb();}
 async function shareIt(data,msg){if(navigator.share){try{await navigator.share(data);toast(msg);return;}catch(e){if(e&&e.name==="AbortError")return;}}copy(data.url,"Link copied. Paste it into Reminders or Notes.");}
@@ -320,9 +319,9 @@ const D={line:"",set:{},made:null,mode:"home",base:"home",editing:null,replace:n
 const short=u=>String(u||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
 const webish=s=>/^(https?:\/\/|www\.)|^[\w-]+(\.[\w-]+)+(\/|$)/i.test(s);
 const nextHour=()=>new Date(Math.ceil((Date.now()+1)/36e5)*36e5);
-/* Talk shows only where the browser can listen: not without the API, not off https, and not in the iPhone Home Screen app, where speech recognition doesn't work. */
+/* Talk: only where the browser can listen (not in the iPhone Home Screen app). */
 const canTalk=w=>!!(w.SpeechRecognition||w.webkitSpeechRecognition)&&w.isSecureContext===true&&w.navigator.standalone!==true;
-/* A line with a clock time or "in 20 minutes" in it. Talk and /new?q= make the link by themselves only then; a day alone, or a part of the day, stays in the bar. */
+/* A clock time or "in 20 minutes": only then do Talk and /new?q= make the link by themselves. */
 const timed=p=>p.tokens.some(t=>t.type==="relative"||t.type==="time"&&!/^(?:this |in the )?(?:morning|afternoon|evening|night)$/i.test(t.text));
 function draft(){const p=R.parse(D.line,{timeZone:TZ});return Object.assign({title:p.title,start:p.start,dur:p.dur,place:p.place,notes:"",repeat:p.repeat},D.set);}
 function whenText(d){return fDate(d,TZ)+" · "+fShort(d,TZ);}
@@ -357,7 +356,7 @@ function renderPane(){if(D.mode==="draft")return renderDraft();if(D.mode==="list
   renderTicket(C.prev,{t:x.title,s:pack(x.start),...(x.durationMinutes&&x.durationMinutes!==60?{d:x.durationMinutes}:{}),...(x.location?{l:x.location}:{}),...(x.notes?{n:x.notes}:{}),z:TZ},{interactive:false});}
 function renderMaker(){renderPane();}
 function clearDraft(){swap(()=>{D.line="";D.set={};D.replace=null;C.input.value="";closeEdit();setMode(D.made?"ready":D.base);renderMaker();});}
-/* The switch to the preview waits for the view transition; a link made meanwhile (Talk, /new?q=) wins, so the preview never comes back over the ready screen. */
+/* The preview waits for the view transition; a link made meanwhile wins. */
 C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.line.trim()||Object.keys(D.set).length);
   if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{if(D.mode==="draft"){setMode("draft");renderDraft();}});}
   else if(typing)renderDraft();
@@ -365,6 +364,12 @@ C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.lin
 /* Smart paste: a long paste or an image can be read by the browser's own on-device AI, where it has one (smartpaste.js, loaded only then). */
 C.input.addEventListener("paste",e=>{const d=e.clipboardData;if(!d||!("LanguageModel" in self))return;const t=d.getData("text/plain")||"",image=[...d.files].find(f=>/^image\//.test(f.type))||null;
   if(image||t.length>80||/\n/.test(t.trim()))import("/smartpaste.js").then(m=>m.offer({text:t,image,form:C.form,put:newOne,toast,R,timeZone:TZ})).catch(()=>{});});
+/* A reminder from a photo, read by on-device AI where the browser has it. Choosing or dropping one starts reading. */
+const PH={btn:$("#photo"),in:$("#photo-in")},readPhoto=image=>import("/smartpaste.js").then(m=>m.offer({image,auto:true,form:C.form,put:newOne,toast,R,timeZone:TZ})).catch(()=>toast("Couldn't read photos here."));
+/* Shown only once the browser says it can read images on this device: a button that can only say no is worse than none. */
+if("LanguageModel" in self&&!window.__rmNative)LanguageModel.availability({expectedInputs:[{type:"text",languages:["en"]},{type:"image"}],expectedOutputs:[{type:"text",languages:["en"]}]}).then(a=>{if(a!=="unavailable")PH.btn.hidden=false;}).catch(()=>{});
+PH.btn.addEventListener("click",()=>PH.in.click());
+PH.in.addEventListener("change",()=>{const f=PH.in.files&&PH.in.files[0];PH.in.value="";if(f&&/^image\//.test(f.type))readPhoto(f);});
 C.form.addEventListener("submit",e=>{e.preventDefault();make();});
 /* Chips: What, Where and Note open a small editor; When opens the device's own date and time picker. */
 const EDIT={title:"What",place:"Where",notes:"Note"};
@@ -555,7 +560,7 @@ function route(){if(location.href===routed)return;routed=location.href;const p=l
   if(p==="/share"||p==="/share/")return fromShare();
   const h=decodeURIComponent(location.hash.slice(1));if(h==="coming-up"||h==="links")return showLists(h==="links"?"links":"coming");
   const preset=PRESETS.get(h);if(typeof preset==="function")return showView(preset(),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
-/* /new?t=…&at=… lands here only when the time has no zone. Read it in this device's zone with the library itself, then show the /r/ link. /new?q=<line> lands here too. */
+/* /new?t=…&at=… without a zone, or /new?q=<line>: read in this device's zone, then show the /r/ link. */
 function fromNew(){const q=new URLSearchParams(location.search),line=(q.get("q")||"").replace(/\s+/g," ").trim().slice(0,600);
   /* /new?q=<line>: the line in the bar, read like anything typed there. With a time in it, the link is made, as Talk does. */
   if(line){intoBar(line);const p=R.parse(line,{timeZone:TZ});if(timed(p))make(null,true);return;}
@@ -676,7 +681,8 @@ impIn.addEventListener("change",()=>{const fs=[...impIn.files].filter(ICS_FILE);
 /* Drop a calendar file anywhere on the page. */
 document.addEventListener("dragover",e=>{if(![...(e.dataTransfer&&e.dataTransfer.items)||[]].some(i=>i.kind==="file"))return;e.preventDefault();C.form.classList.add("dropping");});
 document.addEventListener("dragleave",e=>{if(!e.relatedTarget)C.form.classList.remove("dropping");});
-document.addEventListener("drop",e=>{C.form.classList.remove("dropping");const fs=[...(e.dataTransfer&&e.dataTransfer.files)||[]].filter(ICS_FILE);if(!fs.length)return;e.preventDefault();openImport(fs,C.input);});
+document.addEventListener("drop",e=>{C.form.classList.remove("dropping");const all=[...(e.dataTransfer&&e.dataTransfer.files)||[]],fs=all.filter(ICS_FILE),img=all.find(f=>/^image\//.test(f.type));
+  if(!fs.length&&img&&!PH.btn.hidden){e.preventDefault();return readPhoto(img);}if(!fs.length)return;e.preventDefault();openImport(fs,C.input);});
 /* ---------- Ctrl or Cmd + K: search and commands, loaded the first time it's asked for ---------- */
 const go=h=>{const u=new URL(h,location.href);if(u.origin!==location.origin||!/^\/(r\/|$)/.test(u.pathname))return location.assign(u.href);S.back=true;history.pushState(null,"",u.pathname+u.search+u.hash);route();};
 const newOne=t=>{if(!$("#view").hidden)go("/");if(t){C.input.value=t;C.input.dispatchEvent(new Event("input"));}C.input.focus();};
