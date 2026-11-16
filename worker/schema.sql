@@ -40,3 +40,9 @@ CREATE TABLE IF NOT EXISTS counts (
   win_n INTEGER NOT NULL    -- joins in that minute
 );
 CREATE INDEX IF NOT EXISTS counts_ends ON counts (ends);
+
+-- Host pages (worker/hosts.js; account.js creates these on first use too). Public by the host's choice: a handle,
+-- a name, a line and a link, and the launches they publish. Deleted with the account.
+CREATE TABLE IF NOT EXISTS hosts (user_id TEXT PRIMARY KEY, handle TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', link TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL, updated INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS launches (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, start INTEGER NOT NULL, dur INTEGER NOT NULL DEFAULT 60, tz TEXT NOT NULL, dest TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, updated INTEGER NOT NULL, UNIQUE (user_id, slug));
+CREATE INDEX IF NOT EXISTS launches_user ON launches (user_id, start);
