@@ -11,6 +11,8 @@
 //   POST /api/follow/state { handles, endpoint? }   which of these this device or account follows, and the counts
 //   POST /api/follow/inbox { endpoint }             the notes waiting for this device (the service worker asks)
 //   GET  /api/follow/feed?handles=a,b               public: the upcoming launches of these hosts (the iPhone app asks)
+//   GET  /api/follow/host?handle=a                  public: a host's page as data (what /@handle shows), for the iPhone app
+//   POST /api/follow/mine { endpoint? }             which hosts this device or account follows (the iPhone app asks)
 //   GET  /api/follow/stop?u=&h=&t=                  the link in a follow email: stop emails from that host
 import { signedIn, d1Store, resendMailer, page, button } from "./account.js";
 import { validEndpoint } from "./push.js";
@@ -147,6 +149,19 @@ export async function handleFollow(request, env, url, deps = {}) {
     }
     return json({ launches: launches.sort((a, b) => a.start - b.start) });
   }
+  // A host's page as data, for the iPhone app: exactly what /@handle shows, and nothing more.
+  if (path === "/api/follow/host") {
+    const h = (url.searchParams.get("handle") || "").toLowerCase().replace(/^@/, "");
+    const host = HANDLE.test(h) ? await store.hostByHandle(h) : null;
+    if (!host) return json({ error: "There's no host with that handle." }, 404);
+    const plan = await planOf(env, store, host.user_id, now);
+    const color = plan.pro && store.brandOf ? await store.brandOf(host.user_id) : "";
+    const launches = (await store.launchesOf(host.user_id)).filter(l => phaseOf(l, now) !== "ended").map(l => {
+      const v = launchView(host, l, url.origin);
+      return { id: l.id, title: l.title, start: l.start, dur: l.dur, url: v.url, dest: l.dest, link: v.link, count: !!l.count, live: phaseOf(l, now) === "live" };
+    });
+    return json({ host: { handle: host.handle, name: host.name || "", bio: host.bio || "", link: host.link || "", url: url.origin + "/@" + host.handle, color, followers: await store.followCount(host.user_id) }, launches });
+  }
   if (path === "/api/follow/stop") {
     const u = url.searchParams.get("u") || "", h = (url.searchParams.get("h") || "").toLowerCase(), t = url.searchParams.get("t") || "";
     const user = /^[A-Za-z0-9_-]{8,64}$/.test(u) ? await store.userById(u) : null, host = HANDLE.test(h) ? await store.hostByHandle(h) : null;
@@ -162,6 +177,12 @@ export async function handleFollow(request, env, url, deps = {}) {
   const endpoint = validEndpoint(body.endpoint) ? body.endpoint : null;
   const s = await signedIn(request, store, now), user = s ? s.user : null;
 
+  if (path === "/api/follow/mine") {
+    if (!endpoint && !user) return json({ handles: [] });
+    const handles = [];
+    for (const id of new Set((await store.followsBy(endpoint, user && user.id)).map(f => f.host_id))) { const h = await store.hostOf(id); if (h) handles.push(h.handle); }
+    return json({ handles: handles.sort() });
+  }
   if (path === "/api/follow/inbox") {
     if (!endpoint) return json({ notes: [] });
     const msgs = await store.takeInbox(endpoint, now - DAY);

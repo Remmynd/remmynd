@@ -4314,6 +4314,17 @@ test("follow: a phone or an account follows a host, hears each launch once, and 
   r = await follow("/api/follow/feed?handles=maya,nobody,%3Cx%3E");
   assert.deepEqual(r.body.launches.map(x => [x.id, x.host, x.title, x.start, x.url]), [[l.id, "Maya Chen", "Orbit launch!", start, base + "/@maya/" + l.slug]]);
   assert.deepEqual((await follow("/api/follow/feed")).body.launches, []);
+  // The iPhone app: a host's page as data, and which hosts this account follows.
+  r = await follow("/api/follow/host?handle=%40Maya");
+  assert.equal(r.body.host.name, "Maya Chen");
+  assert.equal(r.body.host.url, base + "/@maya");
+  assert.equal(typeof r.body.host.followers, "number");
+  assert.deepEqual(r.body.launches.map(x => [x.id, x.title, x.start, x.live]), [[l.id, "Orbit launch!", start, false]]);
+  assert.equal((await follow("/api/follow/host?handle=nobody")).status, 404);
+  assert.equal((await follow("/api/follow/host?handle=%3Cx%3E")).status, 404);
+  assert.deepEqual((await follow("/api/follow/mine", {}, { cookie: lee })).body.handles, ["maya"]);
+  assert.deepEqual((await follow("/api/follow/mine", {})).body.handles, [], "nobody, nothing");
+  assert.deepEqual((await follow("/api/follow/mine", { endpoint: phone })).body.handles, ["maya"], "a phone that follows");
 
   // Going live: told once at the start, to the phones, never by email.
   store.t.followMsgs.clear();
