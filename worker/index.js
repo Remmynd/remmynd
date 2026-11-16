@@ -47,6 +47,7 @@ export default {
     // Host pages: the API, and the public pages at /@handle and /@handle/<slug>. The bare template isn't a page.
     if (url.pathname === "/api/host" || url.pathname.startsWith("/api/host/")) return handleHost(request, env, url);
     if (url.pathname === "/api/launch") return launchStateResponse(request, env, url);
+    if (url.pathname === "/api/launch/go") return handleHost(request, env, url);
     if (url.pathname.startsWith("/api/chat/")) return handleChat(request, env, url);
     if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);
     if (url.pathname === "/api/follow" || url.pathname.startsWith("/api/follow/") || url.pathname === "/api/unfollow") return handleFollow(request, env, url);

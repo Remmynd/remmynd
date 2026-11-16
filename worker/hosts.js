@@ -12,6 +12,13 @@
 //   POST /api/host { handle, name, bio, link }                     claim or change the handle and profile
 //   POST /api/host/launch { id?, title, start, dur, tz, dest, count }   publish a launch, or change one
 //   POST /api/host/launch/delete { id }
+//   POST /api/host/brand { color }    Pro: the accent colour of the host's pages, one of BRAND_COLORS ("" for remmynd's)
+//   POST /api/launch/go { id }        public, this site only: someone tapped "It's live: go now" (a number per launch and day)
+//
+// Plans (worker/pro.js planOf): once Pro is on offer, a free host has one live launch at a time, can't move or rename
+// a launch after someone saved it, reaches their first 100 followers, sees only the saved count, and their pages
+// carry a "Made with remmynd" line. Pro lifts all of that and adds an accent colour. Before Pro is on offer, nobody
+// is limited. Every check is here, from the account's own Pro status.
 //   GET  /api/launch?ids=a,b,c        public: what each launch is now (time, title, link), or that it was cancelled.
 //                                     Devices that saved a launch ask this to follow a change; it says nothing about who asks.
 //
@@ -25,6 +32,7 @@ import { encode, googleCalendarUrl, LAUNCH_ID } from "../lib/remmynd.js";
 import { escapeHTML as esc } from "./preview.js";
 import { readCount } from "./count.js";
 import { tally } from "./numbers.js";
+import { planOf, FREE } from "./pro.js";
 
 export const HANDLE = /^[a-z0-9][a-z0-9_-]{2,29}$/;
 /** Words the site uses, or that would look like it speaks for remmynd. */
@@ -32,6 +40,16 @@ export const RESERVED = new Set(("about account admin api app apps at auth b blo
   "help home host hosts install ios android launch launches login logout mcp me new news open press pricing privacy pro push r " +
   "remmynd roadmap root security settings share signin signup stats status support team terms why www zoof04 official staff").split(" "));
 export const MAX_LAUNCHES = 50;
+/** Accent colours a Pro host can pick: each one has a light and a dark shade in public/at.css that reads well. */
+export const BRAND_COLORS = ["amber", "coral", "rose", "violet", "blue", "teal", "green", "graphite"];
+const dayOf = t => new Date(t).toISOString().slice(0, 10);
+const needPro = (error, status = 402) => json({ error, need: "pro" }, status);
+/** How many have saved a launch: devices holding its alerts, or its public count, whichever is more. */
+async function savedBy(env, store, id, deps) {
+  const holders = store.launchHolders ? await store.launchHolders(id) : 0;
+  const counted = await readCount(env, encode({ title: "x", start: new Date(0), launch: id }), { store: deps.counts }).catch(() => 0);
+  return Math.max(holders, counted);
+}
 const DAY = 864e5;
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 const isZone = z => { try { new Intl.DateTimeFormat("en-US", { timeZone: z }); return !!z; } catch { return false; } };
@@ -169,10 +187,29 @@ export async function handleHost(request, env, url, deps = {}) {
   const out = async () => {
     const host = await store.hostOf(user.id);
     if (!host) return { signedIn: true, host: null, launches: [] };
-    const launches = (await store.launchesOf(user.id)).map(l => launchView(host, l, url.origin));
-    return { signedIn: true, host: { handle: host.handle, name: host.name, bio: host.bio, link: host.link, url: url.origin + "/@" + host.handle, followers: store.followCount ? await store.followCount(user.id) : 0 }, launches };
+    const raw = await store.launchesOf(user.id), launches = raw.map(l => launchView(host, l, url.origin));
+    const plan = await planOf(env, store, user, now), full = plan.pro || !plan.limited;
+    // The numbers: the saved count for everyone; saves and "go now" taps by day for Pro (and for all before Pro is on offer).
+    const stats = {};
+    for (const l of raw) stats[l.id] = { saved: await savedBy(env, store, l.id, deps) };
+    if (full && store.launchDays) {
+      const since = dayOf(now - 29 * DAY);
+      for (const r of await store.launchDays(raw.map(l => l.id), since)) { const s = stats[r.launch]; if (!s) continue; (s.days ||= []).push({ day: r.day, alerts: r.alerts, gos: r.gos }); s.alerts = (s.alerts || 0) + r.alerts; s.gos = (s.gos || 0) + r.gos; }
+      for (const id in stats) { stats[id].days ||= []; stats[id].alerts ||= 0; stats[id].gos ||= 0; stats[id].days.sort((a, b) => a.day < b.day ? -1 : 1); }
+    }
+    return { signedIn: true, plan: { ...plan, full, free: FREE, colors: BRAND_COLORS },
+      host: { handle: host.handle, name: host.name, bio: host.bio, link: host.link, url: url.origin + "/@" + host.handle, followers: store.followCount ? await store.followCount(user.id) : 0, color: plan.pro && store.brandOf ? await store.brandOf(user.id) : "" },
+      launches, stats };
   };
   if (path === "/api/host" && (request.method === "GET" || request.method === "HEAD")) return json(user ? await out() : { signedIn: false });
+  // "It's live: go now" was tapped: one more for this launch today, while it's live. Public, this site only, says nothing about who.
+  if (path === "/api/launch/go" && request.method === "POST") {
+    if (request.headers.get("origin") !== url.origin) return json({ error: "Cross-site requests aren't allowed." }, 403);
+    let id = ""; try { id = String((JSON.parse((await request.text()).slice(0, 512)) || {}).id || ""); } catch {}
+    const [l] = LAUNCH_ID.test(id) && store.launchesByIds ? await store.launchesByIds([id]) : [];
+    if (l && phaseOf(l, now) === "live" && store.addLaunchDay) await store.addLaunchDay(id, dayOf(now), "gos");
+    return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+  }
   if (request.method !== "POST") return json({ error: "Use POST." }, 405);
   if (request.headers.get("origin") !== url.origin) return json({ error: "Cross-site requests aren't allowed." }, 403);
   if (!user) return json({ error: "Sign in first." }, 401);
@@ -190,13 +227,25 @@ export async function handleHost(request, env, url, deps = {}) {
   }
   const host = await store.hostOf(user.id);
   if (!host) return json({ error: "Claim your page first." }, 400);
-  const mine = await store.launchesOf(user.id);
+  const mine = await store.launchesOf(user.id), plan = await planOf(env, store, user, now);
+  if (path === "/api/host/brand") {
+    if (!plan.pro) return needPro("Your own colour comes with Pro.");
+    const color = body.color === "" || body.color == null ? "" : String(body.color);
+    if (color && !BRAND_COLORS.includes(color)) return json({ error: "Pick one of the colours." }, 400);
+    await store.putBrand(user.id, color);
+    return json(await out());
+  }
   if (path === "/api/host/launch") {
     const l = cleanLaunch(body, now);
     if (l.problem) return json({ error: l.problem }, 400);
     const was = body.id ? mine.find(x => x.id === body.id) : null;
     if (body.id && !was) return json({ error: "That launch isn't yours, or it was deleted." }, 404);
     if (!was && mine.length >= MAX_LAUNCHES) return json({ error: "That's " + MAX_LAUNCHES + " launches. Delete an old one first." }, 429);
+    if (plan.limited && !was && mine.filter(x => phaseOf(x, now) !== "ended").length >= FREE.live)
+      return needPro("On the free plan you have one live launch at a time. Pro has no limit, or cancel the one you have.");
+    const changes = was && (was.start !== l.start || was.dur !== l.dur || was.title !== l.title || was.dest !== l.dest);
+    if (plan.limited && changes && await savedBy(env, store, was.id, deps) > 0)
+      return needPro("People have saved this launch, so on the free plan it can't move or change now. Pro lets you change it any time, and everyone who saved it follows.");
     const id = was ? was.id : crypto.randomUUID().replace(/-/g, "").slice(0, 16);
     const slug = was ? was.slug : slugFor(l.title, new Set(mine.map(x => x.slug)));
     await store.putLaunch({ id, user_id: user.id, slug, ...l, created: was ? was.created : now, updated: now });
@@ -206,7 +255,7 @@ export async function handleHost(request, env, url, deps = {}) {
     // A new launch, still to come: the host's followers hear about it (worker/follows.js).
     let told = 0;
     if (!was) await tally(env, "launch.published", 1, now);
-    if (!was && l.start > now) { const { tellFollowers } = await import("./follows.js"); const t = await tellFollowers(store, host, { id, ...l }, "announce", now); told = t.pushed + t.mailed; }
+    if (!was && l.start > now) { const { tellFollowers } = await import("./follows.js"); const t = await tellFollowers(store, host, { id, ...l }, "announce", now, plan.limited ? FREE.reach : Infinity); told = t.pushed + t.mailed; }
     return json({ ...(await out()), id, followed: !!moved, told });
   }
   if (path === "/api/host/launch/delete") {
@@ -250,7 +299,7 @@ export function launchHTML(host, l, v, now, { n = 0, big = true, followers = nul
     '<span class="p-before">Go to ' + esc(v.destName) + '</span><span class="p-live">It\'s live: go now</span><span class="p-ended">Visit ' + esc(v.destName) + '</span>' + ARROW + '</a>' : "";
   const count = l.count && n > 0 ? '<p class="at-count"><b>' + n.toLocaleString("en-US") + '</b> ' + (n === 1 ? "person" : "people") + ' will be reminded</p>' : "";
   const title = big ? '<h1 class="at-title">' + esc(l.title) + '</h1>' : '<h2 class="at-title"><a href="' + esc(v.url) + '">' + esc(l.title) + '</a></h2>';
-  return '<article class="at-launch' + (big ? " big" : "") + '" data-phase="' + phaseOf(l, now) + '" data-start="' + l.start + '" data-end="' + (l.start + l.dur * 60e3) + '">' +
+  return '<article class="at-launch' + (big ? " big" : "") + '" data-id="' + esc(l.id) + '" data-phase="' + phaseOf(l, now) + '" data-start="' + l.start + '" data-end="' + (l.start + l.dur * 60e3) + '">' +
     (big ? '<p class="at-by"><a href="/@' + esc(host.handle) + '">' + esc(host.name || "@" + host.handle) + '</a> is launching</p>' : "") + title +
     '<p class="at-when"><time datetime="' + new Date(l.start).toISOString() + '">' + esc(whenText(l.start, l.tz, now)) + '</time></p>' +
     clockHTML(l, now) + count +
@@ -313,11 +362,16 @@ export async function hostPageResponse(request, env, url, deps = {}) {
   if (!host || parts.length > 2) return missing();
   const launches = await store.launchesOf(host.user_id);
   const who = host.name || "@" + host.handle;
+  // Pro: the host's colour, and no remmynd line. Free: remmynd's colours, and a line that says where the page came from.
+  const plan = await planOf(env, store, host.user_id, now);
+  const color = plan.pro && store.brandOf ? await store.brandOf(host.user_id) : "";
+  const dress = html => '<div class="at-brand' + (BRAND_COLORS.includes(color) ? " at-c-" + color : "") + '">' + html +
+    (plan.pro ? "" : '<p class="at-made"><a href="/launch">Made with remmynd. Make your own launch page</a></p>') + '</div>';
   if (!slug) {
     const next = launches.find(l => phaseOf(l, now) !== "ended");
     return page(env, url, { title: who + " · remmynd", canonical: url.origin + "/@" + host.handle,
       description: host.bio || (next ? "Next: " + next.title + ", " + whenText(next.start, next.tz, now) + ". Tap Remind me so you don't miss it." : "Launches by " + who + " on remmynd."),
-      html: hostHTML(host, launches, url.origin, now, store.followCount ? await store.followCount(host.user_id) : 0) });
+      html: dress(hostHTML(host, launches, url.origin, now, store.followCount ? await store.followCount(host.user_id) : 0)) });
   }
   const l = launches.find(x => x.slug === slug);
   if (!l) {
@@ -332,5 +386,5 @@ export async function hostPageResponse(request, env, url, deps = {}) {
   const ph = phaseOf(l, now);
   return page(env, url, { title: l.title + " by " + who, canonical: v.url,
     description: (ph === "live" ? "Live now. " : ph === "ended" ? "This launch has happened. " : "") + whenText(l.start, l.tz, now) + "." + (ph === "before" ? " Tap Remind me so you don't miss it." : ""),
-    html: launchHTML(host, l, v, now, { n, followers: store.followCount ? await store.followCount(host.user_id) : 0 }) });
+    html: dress(launchHTML(host, l, v, now, { n, followers: store.followCount ? await store.followCount(host.user_id) : 0 })) });
 }

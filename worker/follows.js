@@ -17,6 +17,7 @@ import { validEndpoint } from "./push.js";
 import { HANDLE, launchView, whenText, phaseOf } from "./hosts.js";
 import { escapeHTML as esc } from "./preview.js";
 import { tally } from "./numbers.js";
+import { planOf, FREE } from "./pro.js";
 
 const DAY = 864e5;
 /** The most followers one launch reaches, for now. Pro sets the real limits (step 6). */
@@ -31,8 +32,8 @@ async function readBody(request) {
 }
 
 /** Tell a host's followers about a launch: "announce" when it's published, "live" at its start. */
-export async function tellFollowers(store, host, launch, kind, now) {
-  const followers = (await store.followersOf(host.user_id)).slice(0, MAX_REACH);
+export async function tellFollowers(store, host, launch, kind, now, reach = MAX_REACH) {
+  const followers = (await store.followersOf(host.user_id)).slice(0, Math.min(reach, MAX_REACH));
   const endpoints = [...new Set(followers.map(f => f.endpoint).filter(Boolean))];
   for (let i = 0; i < endpoints.length; i += 50) await store.addFollowMsgs(endpoints.slice(i, i + 50).map(endpoint => ({ id: "f" + rid(), endpoint, launch: launch.id, kind, at: now })));
   let mailed = 0;
@@ -52,7 +53,8 @@ export async function followLive(env, now = Date.now(), deps = {}) {
   let live = 0;
   for (const l of await store.liveDue(now)) {
     await store.markLive(l.id, now);
-    await tellFollowers(store, { user_id: l.user_id, handle: l.handle, name: l.name }, l, "live", now);
+    const plan = await planOf(env, store, l.user_id, now);
+    await tellFollowers(store, { user_id: l.user_id, handle: l.handle, name: l.name }, l, "live", now, plan.limited ? FREE.reach : MAX_REACH);
     live++;
   }
   if (Math.floor(now / 60000) % 60 === 23) await store.cleanFollow(now);

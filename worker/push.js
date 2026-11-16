@@ -68,6 +68,8 @@ export async function handlePush(request, env, url) {
     await env.DB.batch(pings.map(p => stmt.bind(p.id, body.endpoint, Math.round(p.at), now)));
     await tally(env, "alerts.set", pings.length, now);
     const forLaunch = pings.filter(p => LAUNCH.test(String(p.launch || "")));
+    // One more save of each launch today (worker/hosts.js shows hosts their saves by day). Says nothing about who.
+    for (const id of new Set(forLaunch.map(p => p.launch))) try { await env.DB.prepare("INSERT INTO launch_days (launch, day, alerts) VALUES (?, ?, 1) ON CONFLICT(launch, day) DO UPDATE SET alerts = alerts + 1").bind(id, new Date(now).toISOString().slice(0, 10)).run(); } catch {}
     if (forLaunch.length) {
       await launchReady(env.DB);
       const l = env.DB.prepare("INSERT OR REPLACE INTO ping_launch (id, launch) VALUES (?, ?)");

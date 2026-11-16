@@ -3082,6 +3082,11 @@ function memoryStore() {
     stopEmails: async (id, token) => { const u = t.users.get(id); if (u && u.stop_token === token) u.email_alerts = 0; },
     deleteUser: async id => { for (const k of ["passkeys", "sessions", "mails"]) for (const [x, v] of t[k]) if (v.user_id === id) t[k].delete(x); for (const [x, v] of t.items) if (v.user_id === id) t.items.delete(x); for (const [x, v] of t.pro) if (v.user_id === id) t.pro.delete(x); t.users.delete(id); },
     hostOf: async id => t.hosts.get(id) ? { ...t.hosts.get(id) } : null,
+    brandOf: async id => (t.brand || new Map()).get(id) || "",
+    putBrand: async (id, c) => { (t.brand ||= new Map()); c ? t.brand.set(id, c) : t.brand.delete(id); },
+    launchHolders: async id => [...(t.pingLaunch || new Map()).values()].filter(l => l === id).length,
+    addLaunchDay: async (id, day, field) => { const k = id + "|" + day, r = (t.launchDays ||= new Map()).get(k) || { launch: id, day, alerts: 0, gos: 0 }; r[field === "gos" ? "gos" : "alerts"]++; t.launchDays.set(k, r); },
+    launchDays: async (ids, since) => [...(t.launchDays || new Map()).values()].filter(r => ids.includes(r.launch) && r.day >= since).map(r => ({ ...r })),
     hostByHandle: async h => { const r = [...t.hosts.values()].find(x => x.handle === h); return r ? { ...r } : null; },
     putHost: async h => { if ([...t.hosts.values()].some(x => x.handle === h.handle && x.user_id !== h.user_id)) throw new Error("UNIQUE"); t.hosts.set(h.user_id, { ...h }); },
     launchesOf: async id => [...t.launches.values()].filter(l => l.user_id === id).sort((a, b) => a.start - b.start).map(l => ({ ...l })),
@@ -4026,7 +4031,7 @@ test("host pages: a handle, launches with a countdown, and a button that goes li
   assert.equal((await call("/api/host", { handle: "maya" }, { origin: "https://evil.example" })).status, 403, "this site only");
   assert.equal((await call("/api/host/launch", { title: "X", start: now + day })).body.error, "Claim your page first.");
   let r = await call("/api/host", { handle: "@Maya", name: "Maya Chen", bio: "Building Orbit.", link: "orbit.app" });
-  assert.deepEqual(r.body.host, { handle: "maya", name: "Maya Chen", bio: "Building Orbit.", link: "https://orbit.app/", url: base + "/@maya", followers: 0 });
+  assert.deepEqual(r.body.host, { handle: "maya", name: "Maya Chen", bio: "Building Orbit.", link: "https://orbit.app/", url: base + "/@maya", followers: 0, color: "" });
   assert.equal((await call("/api/host", { handle: "maya" }, { cookie: sam })).status, 409, "a handle is one person's");
   assert.equal((await call("/api/host", { handle: "maya", link: "javascript:alert(1)" })).status, 400, "a link is a web address");
 
@@ -4642,4 +4647,100 @@ test("numbers: daily totals with nothing about who, and a private page only the 
   // The route is the Worker's, and nothing links to it.
   assert.ok(readFileSync(join(root, "worker/index.js"), "utf8").includes('if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);'));
   assert.ok(!PAGES.some(p => /admin/.test(p)) && !/\/admin/.test(readFileSync(join(root, "public/sitemap.xml"), "utf8")), "not listed anywhere");
+});
+
+test("Pro for hosts: free limits only once Pro is on offer, lifted by Pro, every check on the server", async () => {
+  const H = await import("../worker/hosts.js"), F = await import("../worker/follows.js"), P = await import("../worker/pro.js");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const maya = proAccount(store, "user-maya-01", "maya@example.com", now);
+  let env = {};
+  const call = async (path, body) => {
+    const req = new Request(base + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", origin: base, cookie: maya }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await H.handleHost(req, env, new URL(req.url), { store, now });
+    return { status: res.status, body: res.status === 204 ? null : await res.json() };
+  };
+  const tpl = readFileSync(join(root, "public/at/index.html"), "utf8");
+  const view = async path => { const r = await H.hostPageResponse(new Request(base + path), { ...env, ASSETS: { fetch: async () => new Response(tpl) } }, new URL(base + path), { store, now, counts: { ready: async () => {}, get: async () => 0 } }); return r.text(); };
+  await call("/api/host", { handle: "maya", name: "Maya Chen" });
+  const launch = (title, start, extra = {}) => call("/api/host/launch", { title, start, tz: "America/New_York", dest: "producthunt.com/posts/x", ...extra });
+
+  // Before Pro is on offer: nobody is limited.
+  assert.deepEqual(await P.planOf(env, store, "user-maya-01", now), { pro: false, limited: false, trial: false });
+  const a = (await launch("Orbit beta", now + 3 * day)).body.launches[0];
+  assert.equal((await launch("Orbit 2", now + 5 * day)).status, 200, "a second live launch, while Pro isn't for sale");
+  let r = await call("/api/host");
+  assert.equal(r.body.plan.limited, false);
+  assert.ok(r.body.stats[a.id].days, "every number, while Pro isn't for sale");
+  (store.t.pingLaunch ||= new Map()).set("ping-1", a.id); // someone saved it
+  assert.equal((await launch("Orbit beta", now + 4 * day, { id: a.id })).status, 200, "changed after a save, while Pro isn't for sale");
+
+  // Pro on offer to this host, who hasn't bought it: the free plan.
+  env = { PRO_TESTERS: "maya@example.com" };
+  r = await call("/api/host");
+  assert.deepEqual([r.body.plan.pro, r.body.plan.limited, r.body.plan.full], [false, true, false]);
+  assert.deepEqual(r.body.plan.free, { live: 1, reach: 100 });
+  assert.deepEqual(r.body.stats[a.id], { saved: 1 }, "the saved count only");
+  r = await launch("Orbit 3", now + 6 * day);
+  assert.deepEqual([r.status, r.body.need], [402, "pro"], "one live launch at a time");
+  assert.match(r.body.error, /one live launch at a time/);
+  r = await launch("Orbit beta", now + 7 * day, { id: a.id });
+  assert.deepEqual([r.status, r.body.need], [402, "pro"], "no moving it after someone saved it");
+  assert.match(r.body.error, /People have saved this launch/);
+  assert.equal((await launch("Orbit beta", now + 4 * day, { id: a.id, count: true })).status, 200, "a change nobody relies on is fine");
+  const b = store.t.launches.get([...store.t.launches.keys()].find(k => store.t.launches.get(k).title === "Orbit 2"));
+  assert.equal((await launch("Orbit two", b.start, { id: b.id })).status, 200, "a fix before anyone saves it is fine");
+  assert.equal((await call("/api/host/launch/delete", { id: b.id })).status, 200, "cancelling is always allowed");
+  assert.equal((await call("/api/host/brand", { color: "teal" })).status, 402, "colour is Pro");
+  // An ended launch doesn't count against the one live launch.
+  now += 5 * day;
+  assert.equal((await launch("Orbit 3", now + day)).status, 200, "once the first has happened, the next can go up");
+
+  // Reach: the first 100 followers on free, by when they followed.
+  for (let i = 0; i < 150; i++) await store.putFollow({ host_id: "user-maya-01", who: "e:https://fcm.googleapis.com/fcm/send/" + String(i).padStart(3, "0"), endpoint: "https://fcm.googleapis.com/fcm/send/" + String(i).padStart(3, "0"), user_id: null, email: false, created: now + i });
+  await store.deleteLaunch("user-maya-01", [...store.t.launches.values()].find(l => l.title === "Orbit 3").id);
+  r = await launch("Orbit 4", now + 2 * day);
+  assert.equal(r.body.told, 100, "free: the first 100");
+  const t = await F.tellFollowers(store, { user_id: "user-maya-01" }, { id: "x" }, "live", now, P.FREE.reach);
+  assert.equal(t.pushed, 100);
+
+  // The free page says where it came from; no colour.
+  let html = await view("/@maya");
+  assert.match(html, /<p class="at-made"><a href="\/launch">Made with remmynd\. Make your own launch page<\/a><\/p>/);
+  assert.doesNotMatch(html, /at-c-/);
+
+  // Pro: every limit lifted.
+  store.t.pro.set("polar|sub_1", { source: "polar", ref: "sub_1", user_id: "user-maya-01", product: "monthly", until: now + 30 * day, trial: 0, renews: 1, env: "", updated: now, moved: 0, voided: 0 });
+  assert.deepEqual(await P.planOf(env, store, "user-maya-01", now), { pro: true, limited: false, trial: false });
+  assert.equal((await launch("Orbit 5", now + 3 * day)).status, 200, "unlimited live launches");
+  const o4 = [...store.t.launches.values()].find(l => l.title === "Orbit 4");
+  store.t.pingLaunch.set("ping-2", o4.id);
+  r = await launch("Orbit 4", now + 9 * day, { id: o4.id });
+  assert.deepEqual([r.status, r.body.followed], [200, true], "changed any time, and everyone who saved it follows");
+  assert.equal((await call("/api/host/brand", { color: "neon" })).status, 400);
+  r = await call("/api/host/brand", { color: "teal" });
+  assert.equal(r.body.host.color, "teal");
+  html = await view("/@maya");
+  assert.match(html, /<div class="at-brand at-c-teal">/, "the host's colour");
+  assert.doesNotMatch(html, /at-made/, "no remmynd line");
+  r = await launch("Orbit 6", now + 4 * day);
+  assert.equal(r.body.told, 150, "Pro: every follower, up to 5,000");
+  r = await call("/api/host");
+  assert.ok(Array.isArray(r.body.stats[o4.id].days), "saves and who showed up, by day");
+
+  // Showed up: "go now" taps while it's live, one number per launch and day.
+  const go = (id, origin = base) => H.handleHost(new Request(base + "/api/launch/go", { method: "POST", headers: { origin }, body: JSON.stringify({ id }) }), env, new URL(base + "/api/launch/go"), { store, now });
+  assert.equal((await go(o4.id)).status, 204);
+  assert.equal(store.t.launchDays, undefined, "not before it's live");
+  now = o4.start === undefined ? now : store.t.launches.get(o4.id).start + 60e3;
+  await go(o4.id); await go(o4.id);
+  assert.equal((await go(o4.id, "https://evil.example")).status, 403);
+  r = await call("/api/host");
+  assert.equal(r.body.stats[o4.id].gos, 2);
+
+  // The plan comes from the account's own Pro status; colours are classes the page's policy allows.
+  const src = readFileSync(join(root, "worker/hosts.js"), "utf8"), css = readFileSync(join(root, "public/at.css"), "utf8");
+  assert.ok(src.includes("const plan = await planOf(env, store, host.user_id, now);") && src.includes("plan = await planOf(env, store, user, now)"));
+  for (const c of H.BRAND_COLORS) assert.ok(css.includes(".at-brand.at-c-" + c + "{") && css.includes(".sw-" + c + "{"), c);
+  assert.doesNotMatch(readFileSync(join(root, "public/host.js"), "utf8"), /style="/, "no inline styles: the page's policy would block them");
 });

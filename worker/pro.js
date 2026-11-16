@@ -59,6 +59,19 @@ export function proStatus(rows, now) {
   return r ? { pro: true, until: r.until, source: r.source, plan: r.product, renews: !!r.renews, trial: !!r.trial && r.until > now } : { pro: false };
 }
 
+/** What a host on the free plan gets, once Pro can be bought. */
+export const FREE = { live: 1, reach: 100 };
+/**
+ * A host's plan: Pro, or free; and whether free limits apply. They apply only once Pro is on offer to that person
+ * (PRO_ON, or PRO_TESTERS before that), so nobody is held back by a limit they can't yet pay to lift.
+ */
+export async function planOf(env, store, user, now = Date.now()) {
+  if (typeof user === "string") user = await store.userById(user);
+  if (!user) return { pro: false, limited: false, trial: false };
+  const s = proStatus(await store.proOf(user.id), now);
+  return { pro: !!s.pro, limited: !s.pro && onOffer(env, user), trial: !!s.trial };
+}
+
 /** Whether Pro is on offer to this person: to everyone once PRO_ON is "1", and to PRO_TESTERS before that. */
 export function onOffer(env, user) {
   if (env.PRO_ON === "1") return true;
