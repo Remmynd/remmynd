@@ -4846,3 +4846,11 @@ test("Pro for hosts, launch day: alerts in your words, the day before and last c
   // Wired into the every-minute job; the words are never sent for a free host.
   assert.ok(readFileSync(join(root, "worker/index.js"), "utf8").includes("followLive(env).then(() => saverAlerts(env))"));
 });
+
+test("Your page inside the iPhone app: Get Pro opens Apple's sheet, never the website's checkout or its offer", () => {
+  const host = readFileSync(join(root, "public/host.js"), "utf8");
+  assert.ok(host.includes('if (IN_APP) { try { window.webkit.messageHandlers.remmynd.postMessage({ type: "pro" }); return; } catch (e) {} }'), "the app's own purchase sheet");
+  assert.ok(host.includes("(p.discount && !IN_APP ?"), "the website's discount isn't shown in the app, which keeps Apple's price");
+  assert.ok(/Get Pro in the app\\?'s Settings tab\./.test(readFileSync(join(root, "public/account.js"), "utf8")), "the account sheet in the app has no checkout either");
+});
+
