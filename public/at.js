@@ -112,3 +112,10 @@ if (followButtons.length) (async () => {
   for (const b of followButtons) { const st = r.hosts[b.dataset.handle]; if (!st) continue; if (st.own) { b.hidden = true; say(b, 'This is your page. <a href="/host">Edit it</a>'); continue; }
     const on = st.following || (IN_APP && known().includes(b.dataset.handle)); if (!IN_APP) remember(b.dataset.handle, st.following); show(b, on, st.count); }
 })();
+/* "It's live: go now", tapped while it's live: one more for this launch today (worker/hosts.js), so the host can see
+ * who showed up as a number. It carries the launch's id and nothing else, and never holds up the tap. */
+for (const a of document.querySelectorAll(".at-go")) a.addEventListener("click", () => {
+  const art = a.closest(".at-launch");
+  if (!art || art.dataset.phase !== "live" || !art.dataset.id) return;
+  try { fetch("/api/launch/go", { method: "POST", keepalive: true, headers: { "content-type": "application/json" }, body: JSON.stringify({ id: art.dataset.id }) }).catch(() => {}); } catch (e) {}
+});

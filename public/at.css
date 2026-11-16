@@ -84,3 +84,36 @@
 .at-followers{font-size:14px;color:var(--ink-2)}
 .at-follow-note{flex-basis:100%;margin:0;font-size:14px;color:var(--ink-2)}
 .at-follow-note .btn{margin-left:8px;height:36px;padding:0 12px;font-size:13px}
+/* Pro: the host's own accent (worker/hosts.js BRAND_COLORS). Every shade carries dark text at 7:1 or better, in both themes. */
+.at-brand.at-c-amber{--moment:#F2A000;--on-moment:#0E0F11}
+.at-brand.at-c-coral{--moment:#FF8A65;--on-moment:#0E0F11}
+.at-brand.at-c-rose{--moment:#F78DA7;--on-moment:#0E0F11}
+.at-brand.at-c-violet{--moment:#B69CFF;--on-moment:#0E0F11}
+.at-brand.at-c-blue{--moment:#7CB7FF;--on-moment:#0E0F11}
+.at-brand.at-c-teal{--moment:#4FD1C5;--on-moment:#0E0F11}
+.at-brand.at-c-green{--moment:#7BD88F;--on-moment:#0E0F11}
+.at-brand.at-c-graphite{--moment:#C9CED6;--on-moment:#0E0F11}
+/* Free: where the page came from. */
+.at-made{margin:40px 0 0;text-align:center;font-size:13px}
+.at-made a{color:var(--muted);text-decoration:none;border-bottom:1px solid var(--hairline)}
+.at-made a:hover{color:var(--ink)}
+/* Your page: the plan, the numbers, and the colours. */
+.hp-plan{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;justify-content:space-between}
+.hp-plan ul{margin:6px 0 0;padding-left:18px;color:var(--ink-2);font-size:14px}
+.hp-badge{display:inline-block;font:600 12px var(--font);letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:999px;background:var(--well);color:var(--ink-2)}
+.hp-badge.pro{background:var(--moment);color:var(--on-moment)}
+.hp-need{border:1px solid var(--moment);background:var(--moment-tint);color:var(--on-moment-tint);border-radius:14px;padding:12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.hp-need>span{flex:1 1 240px}
+.hp-stats{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:6px;font-size:13px;color:var(--ink-2)}
+.hp-stats b{color:var(--ink);font-variant-numeric:tabular-nums}
+.hp-bars{display:flex;align-items:flex-end;gap:2px;height:28px;margin-top:6px}
+.hp-bars i{display:block;width:6px;background:var(--moment);border-radius:2px 2px 0 0;min-height:1px}
+.hp-colors{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.hp-colors button{width:36px;height:36px;border-radius:50%;border:2px solid var(--hairline);cursor:pointer;padding:0}
+.hp-colors button[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:2px}
+.hp-colors .none{background:var(--card);font-size:11px;color:var(--muted);width:auto;border-radius:18px;padding:0 12px}
+.sw-amber{background:#F2A000}.sw-coral{background:#FF8A65}.sw-rose{background:#F78DA7}.sw-violet{background:#B69CFF}.sw-blue{background:#7CB7FF}.sw-teal{background:#4FD1C5}.sw-green{background:#7BD88F}.sw-graphite{background:#C9CED6}
+.hp-sub{margin:14px 0 0}
+.hp-get{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.hp-deal{font-size:13px;font-weight:600;color:var(--on-moment-tint);background:var(--moment-tint);padding:3px 10px;border-radius:999px}
+.hp-nudge{margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline)}

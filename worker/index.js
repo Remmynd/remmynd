@@ -14,7 +14,7 @@ import { handlePro, proBeforeDelete } from "./pro.js";
 import { handleCount, cleanCounts } from "./count.js";
 import { appSiteResponse } from "./appsite.js";
 import { handleHost, hostPageResponse, launchStateResponse } from "./hosts.js";
-import { handleFollow, followLive, sendFollowMails } from "./follows.js";
+import { handleFollow, followLive, sendFollowMails, saverAlerts } from "./follows.js";
 import { handleChat, cleanChats } from "./chat.js";
 import { adminResponse } from "./numbers.js";
 
@@ -47,6 +47,7 @@ export default {
     // Host pages: the API, and the public pages at /@handle and /@handle/<slug>. The bare template isn't a page.
     if (url.pathname === "/api/host" || url.pathname.startsWith("/api/host/")) return handleHost(request, env, url);
     if (url.pathname === "/api/launch") return launchStateResponse(request, env, url);
+    if (url.pathname === "/api/launch/go") return handleHost(request, env, url);
     if (url.pathname.startsWith("/api/chat/")) return handleChat(request, env, url);
     if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);
     if (url.pathname === "/api/follow" || url.pathname.startsWith("/api/follow/") || url.pathname === "/api/unfollow") return handleFollow(request, env, url);
@@ -105,7 +106,7 @@ export default {
     ctx.waitUntil(sendDuePings(env));
     ctx.waitUntil(sendDueMails(env));
     // Follow: launches that just went live are told to their followers; follow emails go out a few at a time.
-    ctx.waitUntil(followLive(env).then(() => sendFollowMails(env)).catch(() => {}));
+    ctx.waitUntil(followLive(env).then(() => saverAlerts(env)).then(() => sendFollowMails(env)).catch(() => {}));
     ctx.waitUntil(cleanChats(env).catch(() => {}));
     // Once an hour: forget counts 30 days after their reminder ended.
     if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 17) ctx.waitUntil(cleanCounts(env));
