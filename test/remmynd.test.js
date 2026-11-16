@@ -3082,6 +3082,20 @@ function memoryStore() {
     putGone: async g => { (t.gone ||= new Map()).set(g.id, { ...g }); },
     wakeLaunch: async (id, now) => { for (const [pid, l] of (t.pingLaunch || new Map())) if (l === id && t.pings && t.pings.get(pid)) t.pings.get(pid).at = now; },
     itemsForLaunch: async id => [...t.items.values()].filter(x => x.kind === "reminder" && !x.deleted && (x.data || "").includes('"launch":"' + id + '"')).map(x => ({ user_id: x.user_id, key: x.key, data: x.data })),
+    putFollow: async f => { (t.follows ||= new Map()).set(f.host_id + "|" + f.who, { ...f, email: f.email ? 1 : 0 }); },
+    deleteFollow: async (h, who) => { (t.follows ||= new Map()).delete(h + "|" + who); },
+    followersOf: async h => [...(t.follows || new Map()).values()].filter(f => f.host_id === h),
+    followCount: async h => [...(t.follows || new Map()).values()].filter(f => f.host_id === h).length,
+    followsBy: async (e, u) => [...(t.follows || new Map()).values()].filter(f => (e && f.endpoint === e) || (u && f.user_id === u)),
+    setFollowEmail: async (h, u, on) => { const f = (t.follows || new Map()).get(h + "|u:" + u); if (f) f.email = on ? 1 : 0; },
+    addFollowMsgs: async rows => { for (const m of rows) { (t.followMsgs ||= new Map()).set(m.id, { ...m }); (t.pings ||= new Map()).set(m.id, { endpoint: m.endpoint, at: m.at }); } },
+    takeInbox: async (e, since) => { const r = [...(t.followMsgs || new Map()).values()].filter(m => m.endpoint === e && m.at > since); for (const m of r) t.followMsgs.delete(m.id); return r; },
+    addFollowMails: async rows => { for (const m of rows) (t.followMails ||= new Map()).set(m.id, { ...m }); },
+    dueFollowMails: async (now, limit) => [...(t.followMails || new Map()).values()].filter(m => m.at <= now).slice(0, limit),
+    deleteFollowMail: async id => { (t.followMails || new Map()).delete(id); },
+    liveDue: async now => [...t.launches.values()].filter(l => l.start <= now && l.start > now - 15 * 60e3 && !(t.live || new Set()).has(l.id)).map(l => ({ ...l, handle: t.hosts.get(l.user_id).handle, name: t.hosts.get(l.user_id).name })),
+    markLive: async id => { (t.live ||= new Set()).add(id); },
+    cleanFollow: async () => {},
     proOf: async id => [...t.pro.values()].filter(r => r.user_id === id).map(r => ({ ...r })),
     proByRef: async (source, ref) => { const r = t.pro.get(source + "|" + ref); return r ? { ...r } : null; },
     putPro: async p => { t.pro.set(p.source + "|" + p.ref, { source: p.source, ref: p.ref, user_id: p.userId, product: p.product, until: p.until, trial: p.trial ? 1 : 0, renews: p.renews ? 1 : 0, env: p.env || "", updated: p.updated, moved: p.moved || 0, voided: p.voided || 0 }); },
@@ -3674,7 +3688,7 @@ test("calendar feed and email in: one private address each, kept only as a hash,
   const acct = readFileSync(join(root, "public/account.js"), "utf8"), idx = readFileSync(join(root, "worker/index.js"), "utf8"), acc = readFileSync(join(root, "worker/account.js"), "utf8");
   assert.ok(acct.includes('feedRow("cal"') && acct.includes('feedRow("in"'));
   assert.ok(idx.includes('url.pathname.startsWith("/cal/")') && idx.includes("async email(message, env, ctx)"));
-  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro", "hosts", "launches", "launches_gone"]'));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro", "hosts", "launches", "launches_gone", "follows", "follow_mails"]'));
 });
 
 /* remmynd Pro: an account with a session, as the account tests make one, for the Pro tests. */
@@ -4001,7 +4015,7 @@ test("host pages: a handle, launches with a countdown, and a button that goes li
   assert.equal((await call("/api/host", { handle: "maya" }, { origin: "https://evil.example" })).status, 403, "this site only");
   assert.equal((await call("/api/host/launch", { title: "X", start: now + day })).body.error, "Claim your page first.");
   let r = await call("/api/host", { handle: "@Maya", name: "Maya Chen", bio: "Building Orbit.", link: "orbit.app" });
-  assert.deepEqual(r.body.host, { handle: "maya", name: "Maya Chen", bio: "Building Orbit.", link: "https://orbit.app/", url: base + "/@maya" });
+  assert.deepEqual(r.body.host, { handle: "maya", name: "Maya Chen", bio: "Building Orbit.", link: "https://orbit.app/", url: base + "/@maya", followers: 0 });
   assert.equal((await call("/api/host", { handle: "maya" }, { cookie: sam })).status, 409, "a handle is one person's");
   assert.equal((await call("/api/host", { handle: "maya", link: "javascript:alert(1)" })).status, 400, "a link is a web address");
 
@@ -4065,7 +4079,7 @@ test("host pages: a handle, launches with a countdown, and a button that goes li
   p = await view("/@maya/orbit-on-product-hunt");
   assert.equal(p.status, 410);
   assert.match(p.html, /Orbit 1\.0 on Product Hunt was cancelled/);
-  assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes('"pro", "hosts", "launches", "launches_gone"]'));
+  assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes('"pro", "hosts", "launches", "launches_gone", "follows", "follow_mails"]'));
 
   // The helpers.
   assert.equal(H.safeLink("producthunt.com/posts/x"), "https://producthunt.com/posts/x");
@@ -4083,7 +4097,7 @@ test("host pages on the website: the template, the clock, Your page, and the way
   assert.ok(idx.includes('if (url.pathname === "/at" || url.pathname === "/at/")'), "the bare template isn't a page");
   assert.match(readFileSync(join(root, "public/at/index.html"), "utf8"), /<section class="sec at-wrap" id="at">[\s\S]*<\/section>\s*<\/main>/, "the part the Worker fills");
   assert.ok(at.includes('el.dataset.phase = phase') && at.includes('"Live now"'), "the clock turns to Live now at the start without a reload");
-  assert.ok(!/fetch\(/.test(at), "the page's clock asks nothing of anyone");
+  assert.ok(!/fetch\(/.test(at.slice(0, at.indexOf("/* Follow"))), "the page's clock asks nothing of anyone");
   assert.ok(host.includes('api("/api/host/launch"') && host.includes('import("/account.js").then(m => m.open())'));
   assert.ok(!/confirm\(|alert\(|prompt\(/.test(host + at), "no browser pop-ups: delete asks twice in the page");
   assert.ok(readFileSync(join(root, "public/account.js"), "utf8").includes('<a class="btn ac-wide" href="/host">Open your page</a>'));
@@ -4180,7 +4194,124 @@ test("savers follow a change on the device: alerts move with the launch, the dev
   const push = readFileSync(join(root, "public/push.js"), "utf8"), sw = readFileSync(join(root, "public/sw.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8"), wp = readFileSync(join(root, "worker/push.js"), "utf8");
   assert.ok(push.includes("...(a.launch ? { launch: a.launch } : {})") && wp.includes("INSERT OR REPLACE INTO ping_launch (id, launch)"), "a launch's alerts say which launch, and only that");
   assert.ok(push.includes("async function move(rec, delta)") && push.includes("window.__rmPush = { remind, renderRow, cancel, replan, setNudge, move,"));
-  assert.ok(sw.includes('importScripts("/db.js", "/follow.js")') && sw.includes("await showDue(changes.length > 0);"), "the service worker follows first, and says what changed instead of the generic line");
+  assert.ok(sw.includes('importScripts("/db.js", "/follow.js")') && sw.includes("await showDue(changes.length + notes.length > 0);"), "the service worker follows first, and says what changed instead of the generic line");
   assert.ok(app.includes("...(c.r.u?{launch:c.r.u}:{})") && app.includes("'<span class=\"li-chip\">Moved</span>'") && app.includes("function checkLaunch(r)"));
   assert.ok(readFileSync(join(root, "public/native.js"), "utf8").includes("movedFrom: x.movedFrom || null"));
+});
+
+test("follow: a phone or an account follows a host, hears each launch once, and gets one email when they asked", async () => {
+  const H = await import("../worker/hosts.js"), F = await import("../worker/follows.js");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const maya = proAccount(store, "um", "maya@example.com", now), lee = proAccount(store, "user-lee-0001", "lee@example.com", now);
+  const phone = "https://fcm.googleapis.com/fcm/send/phone-one", other = "https://fcm.googleapis.com/fcm/send/phone-two";
+  const host = async (path, body) => {
+    const req = new Request(base + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", origin: base, cookie: maya }, body: body === undefined ? undefined : JSON.stringify(body) });
+    return (await H.handleHost(req, {}, new URL(req.url), { store, now })).json();
+  };
+  const follow = async (path, body, { cookie = "", origin = base, method = body === undefined ? "GET" : "POST" } = {}) => {
+    const req = new Request(base + path, { method, headers: { "content-type": "application/json", origin, ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await F.handleFollow(req, {}, new URL(req.url), { store, now });
+    return { status: res.status, type: res.headers.get("content-type"), body: res.headers.get("content-type").includes("json") ? await res.json() : await res.text() };
+  };
+  await host("/api/host", { handle: "maya", name: "Maya Chen" });
+
+  // Following: a phone with notifications, or a signed-in account. Never your own page, never from another site.
+  assert.deepEqual(await follow("/api/follow", { handle: "maya" }), { status: 400, type: "application/json", body: { error: "Turn on notifications, or sign in, to follow.", need: "signin" } }, "notifications or sign-in first");
+  assert.equal((await follow("/api/follow", { handle: "nobody" , endpoint: phone })).status, 404);
+  assert.equal((await follow("/api/follow", { handle: "maya", endpoint: phone }, { origin: "https://evil.example" })).status, 403);
+  assert.equal((await follow("/api/follow", { handle: "maya" }, { cookie: maya })).body.error, "That's your own page.");
+  assert.equal((await follow("/api/follow", { handle: "maya", endpoint: "https://evil.example/push" })).status, 400, "only real push services");
+  let r = await follow("/api/follow", { handle: "@Maya", endpoint: phone });
+  assert.deepEqual(r.body, { following: true, email: false, signedIn: false, count: 1 });
+  r = await follow("/api/follow", { handle: "maya", endpoint: other, email: true }, { cookie: lee });
+  assert.deepEqual(r.body, { following: true, email: true, signedIn: true, count: 3 }, "the account and its phone");
+  assert.equal((await follow("/api/follow", { handle: "maya", endpoint: phone })).body.count, 3, "following twice is still once");
+  const ana = proAccount(store, "user-ana-0001", "ana@example.com", now);
+  assert.deepEqual((await follow("/api/follow", { handle: "maya" }, { cookie: ana })).body, { following: true, email: true, signedIn: true, count: 4 }, "no notifications here: email is how they'll hear");
+  assert.equal((await follow("/api/follow", { handle: "maya", email: false }, { cookie: ana })).body.email, false, "unless they say no");
+  await follow("/api/unfollow", { handle: "maya" }, { cookie: ana });
+
+  // State: per device and account, with a count anyone can see.
+  r = await follow("/api/follow/state", { handles: ["maya", "nobody", "<x>"], endpoint: phone });
+  assert.deepEqual(r.body, { signedIn: false, hosts: { maya: { following: true, email: false, count: 3 } } });
+  r = await follow("/api/follow/state", { handles: ["maya"] }, { cookie: lee });
+  assert.deepEqual(r.body.hosts.maya, { following: true, email: true, count: 3 });
+  assert.deepEqual((await follow("/api/follow/state", { handles: ["maya"] })).body.hosts.maya, { following: false, email: false, count: 3 });
+  assert.deepEqual((await follow("/api/follow/state", { handles: ["maya"] }, { cookie: maya })).body.hosts.maya, { following: false, email: false, count: 3, own: true }, "the host's own page says so");
+
+  // The host sees how many, never who.
+  const mine = await host("/api/host");
+  assert.equal(mine.host.followers, 3);
+  assert.doesNotMatch(JSON.stringify(mine), /lee@|fcm\.googleapis|user-lee/);
+
+  // Publishing tells every following phone, and queues one email for the account that asked.
+  const start = Date.parse("2026-11-26T00:30:00Z");
+  r = await host("/api/host/launch", { title: "Orbit launch", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit" });
+  assert.equal(r.told, 3, "two phones and one email");
+  const l = r.launches[0];
+  assert.equal(store.t.followMsgs.size, 2);
+  assert.equal(store.t.followMails.size, 1);
+  assert.equal([...store.t.pings.values()].filter(p => p.endpoint === phone).length, 1, "the phone is woken");
+  assert.equal((await host("/api/host/launch", { id: l.id, title: "Orbit launch!", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit" })).told, 0, "an edit isn't a new announcement");
+
+  // The inbox: only this phone's notes, once.
+  r = await follow("/api/follow/inbox", { endpoint: phone });
+  assert.deepEqual(r.body.notes, [{ title: "Maya Chen announced Orbit launch!", body: r.body.notes[0].body, url: base + "/@maya/" + l.slug, tag: "announce:" + l.id }]);
+  assert.match(r.body.notes[0].body, /Nov 25.*Tap to see it and get reminded\.$/);
+  assert.deepEqual((await follow("/api/follow/inbox", { endpoint: phone })).body.notes, [], "read once, then gone");
+  assert.equal((await follow("/api/follow/inbox", { endpoint: other })).body.notes.length, 1, "the other phone still has its own");
+  assert.deepEqual((await follow("/api/follow/inbox", {})).body.notes, []);
+
+  // The email: sent once, about the launch as it is, with a stop link that works without signing in.
+  const sent = [];
+  const mailer = async m => { sent.push(m); return 200; };
+  assert.deepEqual(await F.sendFollowMails({}, now, { store, mailer }), { sent: 1 });
+  assert.deepEqual(await F.sendFollowMails({}, now, { store, mailer }), { sent: 0 }, "once");
+  assert.equal(sent[0].to, "lee@example.com");
+  assert.equal(sent[0].subject, "Maya Chen announced Orbit launch!");
+  assert.match(sent[0].text, /remmynd\.space\/@maya\//);
+  const stop = sent[0].headers["List-Unsubscribe"].slice(1, -1);
+  assert.match(sent[0].html, new RegExp(stop.replace(/[.?&]/g, "\\$&").replace(/&/g, "&amp;")));
+  r = await follow(stop.replace(base, ""));
+  assert.match(r.type, /text\/html/);
+  assert.match(r.body, /No more emails from Maya Chen/);
+  assert.equal((await follow("/api/follow/state", { handles: ["maya"] }, { cookie: lee })).body.hosts.maya.email, false);
+  assert.equal((await follow("/api/follow/state", { handles: ["maya"] }, { cookie: lee })).body.hosts.maya.following, true, "still following");
+  await follow("/api/follow/stop?u=user-lee-0001&h=maya&t=wrong");
+  // A busy mail service: kept for the next minute, not dropped.
+  await F.tellFollowers(store, { user_id: "um" }, l, "announce", now);
+  await follow("/api/follow", { handle: "maya", email: true }, { cookie: lee });
+  await F.tellFollowers(store, { user_id: "um" }, l, "announce", now);
+  assert.deepEqual(await F.sendFollowMails({}, now, { store, mailer: async () => 429 }), { sent: 0 });
+  assert.equal(store.t.followMails.size, 1);
+  assert.equal(F.followMail({ handle: "maya" }, { title: "<b>X</b>", start, tz: "UTC" }, base + "/@maya/x", base + "/stop", now).html.includes("<b>X</b>"), false, "escaped");
+  store.t.followMails.clear();
+
+  // The feed: what's coming from these hosts, public, ended launches left out.
+  r = await follow("/api/follow/feed?handles=maya,nobody,%3Cx%3E");
+  assert.deepEqual(r.body.launches.map(x => [x.id, x.host, x.title, x.start, x.url]), [[l.id, "Maya Chen", "Orbit launch!", start, base + "/@maya/" + l.slug]]);
+  assert.deepEqual((await follow("/api/follow/feed")).body.launches, []);
+
+  // Going live: told once at the start, to the phones, never by email.
+  store.t.followMsgs.clear();
+  assert.deepEqual(await F.followLive({}, start - 60e3, { store }), { live: 0 });
+  assert.deepEqual(await F.followLive({}, start + 60e3, { store }), { live: 1 });
+  assert.deepEqual(await F.followLive({}, start + 120e3, { store }), { live: 0 }, "once");
+  assert.equal(store.t.followMails.size, 0);
+  now = start + 120e3;
+  r = await follow("/api/follow/inbox", { endpoint: phone });
+  assert.deepEqual(r.body.notes, [{ title: "Orbit launch! is live now", body: "Maya Chen's launch just started. Tap to go.", url: "https://producthunt.com/posts/orbit", tag: "live:" + l.id }]);
+  assert.equal((await follow("/api/follow/feed?handles=maya")).body.launches.length, 1, "live is still coming up");
+  now = start + 2 * day;
+  assert.deepEqual((await follow("/api/follow/feed?handles=maya")).body.launches, [], "ended");
+  assert.equal(F.MAX_REACH, 5000);
+
+  // Unfollowing: the phone and the account, each on its own.
+  r = await follow("/api/unfollow", { handle: "maya", endpoint: phone });
+  assert.deepEqual(r.body, { following: false, count: 2 });
+  r = await follow("/api/unfollow", { handle: "maya", endpoint: other }, { cookie: lee });
+  assert.deepEqual(r.body, { following: false, count: 0 });
+  assert.equal((await follow("/api/follow/state", {})).status, 200);
+  assert.equal((await follow("/api/follow", undefined)).status, 405);
 });

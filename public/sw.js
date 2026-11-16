@@ -2,7 +2,7 @@
 // 1. Caches the app so it opens offline.
 // 2. Shows reminder notifications. Pushes arrive EMPTY; the reminder details come from this
 //    device's own storage (IndexedDB), so the server never knows what you're reminded about.
-const CACHE = "remmynd-v17";
+const CACHE = "remmynd-v18";
 const SHELL = ["./", "./index.html", "./app.css", "./app.js", "./remmynd.js", "./ring.js", "./db.js", "./push.js", "./fonts/geist-5.3-latin.woff2", "./fonts/geist-mono-5.3-latin.woff2", "./manifest.webmanifest", "./icon.svg", "./favicon.ico", "./apple-touch-icon.png", "./icon-192.png", "./badge-mono-96.png", "./badge.svg", "./badge-dark.svg"];
 
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -65,7 +65,7 @@ async function showDue(saidSomething = false) {
   const list = await getAll().catch(() => []);
   const due = list.filter(a => !a.shown && a.at <= now + 120e3).sort((a, b) => a.at - b.at);
   if (!due.length && !saidSomething) {
-    // iPhone requires every push to show something; this only happens if this device's storage was cleared.
+    // iPhone requires every push to show something.
     await self.registration.showNotification("remmynd", { body: "You have a reminder. Open remmynd to see it.", icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: "remmynd-generic" });
   }
   const plans = new Map((await DB.getAll("reminders").catch(() => [])).map(r => [r.rkey, typeof r.plan === "string" ? r.plan.slice(0, 120) : ""]));
@@ -98,7 +98,7 @@ async function updateBadge() {
   try { today ? await self.navigator.setAppBadge(today) : await self.navigator.clearAppBadge(); } catch (e) {}
 }
 
-/* A push may mean a launch held here changed (worker/hosts.js): follow it first, then say so. */
+/* A push may mean a held launch changed, or a followed host has news. */
 async function onPush() {
   const F = self.remmyndFollow;
   const changes = !F ? [] : await F.check({
@@ -116,7 +116,12 @@ async function onPush() {
     const v = F.words(c);
     await self.registration.showNotification(v.title, { body: v.body, icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: c.rkey + ":change", data: { rkey: c.rkey, share: c.share, url: c.share || "/#coming-up" } });
   }
-  await showDue(changes.length > 0);
+  // Followed hosts: announced, or live now (worker/follows.js).
+  let notes = [];
+  const sub = await self.registration.pushManager.getSubscription().catch(() => null);
+  if (sub) notes = ((await fetch("/api/follow/inbox", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).then(r => r.json()).catch(() => null)) || {}).notes || [];
+  for (const n of notes) await self.registration.showNotification(n.title, { body: n.body, icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: n.tag, data: { url: n.url } });
+  await showDue(changes.length + notes.length > 0);
 }
 self.addEventListener("push", e => { e.waitUntil(onPush()); });
 

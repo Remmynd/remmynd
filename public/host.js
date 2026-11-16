@@ -33,7 +33,7 @@ function render() {
   }
   if (!S.host || editProfile) return renderProfile();
   const h = S.host;
-  box.innerHTML = '<div class="hp-top"><a class="hp-url" href="' + esc(h.url) + '">' + esc(short(h.url)) + '</a><div class="hp-row">' +
+  box.innerHTML = '<div class="hp-top"><span><a class="hp-url" href="' + esc(h.url) + '">' + esc(short(h.url)) + '</a><br><span class="hp-meta">' + (h.followers ? h.followers.toLocaleString("en-US") + (h.followers === 1 ? " follower" : " followers") : "No followers yet. Share your page.") + '</span></span><div class="hp-row">' +
     '<a class="btn small ink" href="' + esc(h.url) + '">View page</a><button type="button" class="btn small" data-copy="' + esc(h.url) + '">Copy link</button><button type="button" class="btn small" id="hp-edit-p">Edit profile</button></div></div>' +
     (note ? '<p class="hp-read" role="status">' + esc(note) + '</p>' : "") +
     launchForm() +
@@ -107,7 +107,7 @@ function wireForm() {
       const r = await api("/api/host/launch", { id: was ? was.id : undefined, title: $("#lf-title").value, start, dur: dur.v, tz: TZ, dest: $("#lf-dest").value, count: $("#lf-count").checked });
       S = r; editing = null;
       const made = S.launches.find(l => l.id === r.id);
-      note = !was ? "Published. Share " + short(made ? made.url : "") + " anywhere." : r.followed ? "Saved. Everyone who saved it gets the change, and their alerts move with it." : "Saved.";
+      note = !was ? "Published. Share " + short(made ? made.url : "") + " anywhere." + (r.told ? " Your " + r.told.toLocaleString("en-US") + (r.told === 1 ? " follower is" : " followers are") + " being told." : "") : r.followed ? "Saved. Everyone who saved it gets the change, and their alerts move with it." : "Saved.";
       render();
     } catch (x) { err.textContent = x.message; btn.disabled = false; }
   });
