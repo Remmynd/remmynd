@@ -16,6 +16,7 @@ import { signedIn, d1Store, resendMailer, page, button } from "./account.js";
 import { validEndpoint } from "./push.js";
 import { HANDLE, launchView, whenText, phaseOf } from "./hosts.js";
 import { escapeHTML as esc } from "./preview.js";
+import { tally } from "./numbers.js";
 
 const DAY = 864e5;
 /** The most followers one launch reaches, for now. Pro sets the real limits (step 6). */
@@ -88,6 +89,7 @@ export async function sendFollowMails(env, now = Date.now(), deps = {}) {
     }
     if (done) await store.deleteFollowMail(m.id);
   }
+  if (sent) await tally(env, "follow.mail", sent, now);
   return { sent };
 }
 
@@ -163,11 +165,13 @@ export async function handleFollow(request, env, url, deps = {}) {
     // With no notifications here, email is the only way to hear, so an account follow from such a browser asks for it.
     const email = !!user && (body.email === undefined ? !endpoint : !!body.email);
     if (user) await store.putFollow({ host_id: host.user_id, who: whoOf(null, user), endpoint: null, user_id: user.id, email, created: now });
+    await tally(env, "follow.new", 1, now);
     return json({ following: true, email, signedIn: !!user, count: await store.followCount(host.user_id) });
   }
   if (path === "/api/unfollow") {
     if (endpoint) await store.deleteFollow(host.user_id, whoOf(endpoint, null));
     if (user) await store.deleteFollow(host.user_id, whoOf(null, user));
+    await tally(env, "follow.end", 1, now);
     return json({ following: false, count: await store.followCount(host.user_id) });
   }
   return json({ error: "Not found." }, 404);

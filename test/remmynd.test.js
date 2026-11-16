@@ -4572,3 +4572,74 @@ test("chat photos and voice notes: scrambled on the device, sent only by signed-
   assert.match(toml, /\[\[r2_buckets\]\]\s*\nbinding = "CHAT_FILES"\s*\nbucket_name = "remmynd-chat-files"/);
   assert.match(readFileSync(join(root, "public/_headers"), "utf8"), /media-src 'self' blob:/, "voice notes play from the device's own copy");
 });
+
+test("numbers: daily totals with nothing about who, and a private page only the admins can find", async () => {
+  const N = await import("../worker/numbers.js");
+  const base = "https://remmynd.space", day = 864e5, now = Date.parse("2026-11-16T17:00:00Z");
+
+  // Totals: a name, a day and a number. Stored in D1 that way, and nothing else.
+  const runs = [];
+  const db = { prepare: sql => ({ bind: (...a) => ({ run: async () => { runs.push({ sql, a }); } }), run: async () => { runs.push({ sql, a: [] }); } }) };
+  await N.tally({ DB: db }, "chat.message", 1, now);
+  await N.tally({ DB: db }, "alerts.set", 3, now);
+  await N.tally({ DB: db }, "Not A Name", 1, now);
+  await N.tally({ DB: db }, "chat.message", 0, now);
+  await N.tally({}, "chat.message", 1, now);
+  assert.match(runs[0].sql, /^CREATE TABLE IF NOT EXISTS daily \(day TEXT NOT NULL, name TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY \(day, name\)\)$/, "three columns: no account, email, device, address or link");
+  assert.deepEqual(runs.slice(1).map(r => r.a), [["2026-11-16", "chat.message", 1], ["2026-11-16", "alerts.set", 3]], "only real names and real amounts");
+  const broken = { prepare: () => { throw new Error("D1 is down"); } };
+  await N.tally({ DB: broken }, "chat.message", 1, now); // never throws
+
+  // Each event adds to its total, from the server, as it happens.
+  const seen = [];
+  const env = { TALLY: (name, n) => { seen.push([name, n]); } };
+  const C = await import("../worker/chat.js");
+  const store = memoryChat(), room = "R".repeat(22);
+  const req = new Request(base + "/api/chat/" + room + "/post", { method: "POST", headers: { origin: base }, body: JSON.stringify({ body: "abc", me: "sam-device-1", ends: now + day }) });
+  await C.handleChat(req, env, new URL(req.url), { store, now });
+  assert.deepEqual(seen, [["chat.started", 1], ["chat.message", 1]]);
+  const src = f => readFileSync(join(root, "worker", f), "utf8");
+  for (const [f, names] of Object.entries({ "account.js": ["account.signin", "email.sent"], "push.js": ["alerts.set", "alerts.sent"], "count.js": ["remind.tap"], "hosts.js": ["host.claimed", "launch.published"],
+    "follows.js": ["follow.new", "follow.end", "follow.mail"], "chat.js": ["chat.started", "chat.message", "chat.file"], "pro.js": ["pro.checkout"] }))
+    for (const n of names) { assert.ok(src(f).includes('tally(env, "' + n + '"'), f + " tallies " + n); assert.ok(N.NAMES[n], n + " has a label"); }
+  for (const f of ["account.js", "push.js", "count.js", "hosts.js", "follows.js", "chat.js", "pro.js"]) {
+    const calls = [...src(f).matchAll(/tally\(env, "[a-z.]+"([^)\n]*)\)/g)];
+    assert.ok(calls.length, f);
+    for (const c of calls) assert.match(c[1], /^(, (1|sent|pings\.length), now)?$/, f + " tallies a count and the time, nothing about who: " + c[0]);
+  }
+
+  // The page: only for signed-in admins. Everyone else gets the ordinary Not found, the same as any missing page.
+  const accounts = memoryStore(), admin = proAccount(accounts, "user-admin-01", "Owner@Example.com", now), other = proAccount(accounts, "user-other-01", "someone@example.com", now);
+  const missing = "<!doctype html><title>Not found</title><h1>That page isn't here</h1>";
+  const assets = { fetch: async () => new Response(missing, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } }) };
+  const data = { daily: [{ day: "2026-11-16", name: "chat.message", n: 12 }, { day: "2026-11-15", name: "chat.message", n: 3 }, { day: "2026-11-05", name: "chat.message", n: 5 }, { day: "2026-11-16", name: "follow.new", n: 4 }],
+    signups: [now - 3600e3, now - 2 * day, now - 9 * day], totals: { accounts: 1234, hosts: 56, upcoming: 7, follows: 890, chats: 12, synced: 300 },
+    pro: [{ source: "polar", product: "monthly", trial: 0 }, { source: "apple", product: "yearly", trial: 0 }, { source: "polar", product: "monthly", trial: 1 }] };
+  const open = async (cookie, envX = { ADMIN_EMAILS: "owner@example.com, cofounder@example.com", ASSETS: assets }, method = "GET") => {
+    const r = new Request(base + "/admin", { method, headers: cookie ? { cookie } : {} });
+    const res = await N.adminResponse(r, envX, new URL(r.url), { accounts, now, data });
+    return { status: res.status, html: await res.text(), h: res.headers };
+  };
+  for (const [who, r] of [["signed out", await open("")], ["not an admin", await open(other)], ["no admins set", await open(admin, { ASSETS: assets })], ["a POST", await open(admin, undefined, "POST")]]) {
+    assert.equal(r.status, 404, who);
+    assert.equal(r.html, missing, who + ": the same page as anything missing");
+  }
+  const r = await open(admin);
+  assert.equal(r.status, 200, "an admin, whatever the case of the email");
+  assert.equal(r.h.get("cache-control"), "no-store");
+  assert.match(r.h.get("x-robots-tag"), /noindex/);
+  assert.match(r.h.get("content-security-policy"), /default-src 'none'.*frame-ancestors 'none'/);
+  assert.equal(r.h.get("x-frame-options"), "DENY");
+  assert.doesNotMatch(r.html, /<script/i, "no scripts");
+  assert.match(r.html, /<b>1,234<\/b><span>accounts<\/span>/);
+  assert.match(r.html, /<b>2<\/b><span>paying for Pro<\/span>/);
+  assert.match(r.html, /<b>1<\/b><span>on a Pro trial<\/span>/);
+  assert.match(r.html, /<b>\$16\.66<\/b><span>monthly revenue, estimated<\/span>/, "9.99 a month plus 79.99 a year over twelve; trials count as nothing");
+  assert.match(r.html, /<th scope="row">Chat messages<\/th><td>15<\/td><td>5<\/td><td class="up">\+200%<\/td><td>20<\/td>/, "this week, the week before, the change, thirty days");
+  assert.match(r.html, /<th scope="row">New accounts<\/th><td>2<\/td><td>1<\/td><td class="up">\+100%<\/td>/, "new accounts come from the accounts themselves");
+  assert.doesNotMatch(r.html, /owner@example\.com|someone@example\.com/i, "no one's email on the page");
+  assert.equal((await open(admin, undefined, "HEAD")).html, "");
+  // The route is the Worker's, and nothing links to it.
+  assert.ok(readFileSync(join(root, "worker/index.js"), "utf8").includes('if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);'));
+  assert.ok(!PAGES.some(p => /admin/.test(p)) && !/\/admin/.test(readFileSync(join(root, "public/sitemap.xml"), "utf8")), "not listed anywhere");
+});

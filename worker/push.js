@@ -4,6 +4,7 @@
 // stores: a random id, the browser's push address, and when to ping it. At that time it
 // sends an EMPTY push (no payload), the phone wakes up, looks up what's due in its own
 // storage and shows the notification. Rows are deleted as soon as they're sent.
+import { tally } from "./numbers.js";
 
 const PUSH_HOSTS = [
   /^fcm\.googleapis\.com$/,                     // Chrome, Edge on Android, Samsung Internet
@@ -65,6 +66,7 @@ export async function handlePush(request, env, url) {
     if ((count?.n || 0) + pings.length > MAX_ROWS_PER_ENDPOINT) return json({ error: "Too many reminders on this device." }, 429);
     const stmt = env.DB.prepare("INSERT OR REPLACE INTO pings (id, endpoint, at, created) VALUES (?, ?, ?, ?)");
     await env.DB.batch(pings.map(p => stmt.bind(p.id, body.endpoint, Math.round(p.at), now)));
+    await tally(env, "alerts.set", pings.length, now);
     const forLaunch = pings.filter(p => LAUNCH.test(String(p.launch || "")));
     if (forLaunch.length) {
       await launchReady(env.DB);
@@ -131,5 +133,6 @@ export async function sendDuePings(env, now = Date.now(), send = sendEmptyPush) 
   await env.DB.prepare("DELETE FROM pings WHERE at < ?").bind(now - 864e5).run();
   // Every 15 minutes: forget which launch an alert was for once the alert itself is gone.
   if (Math.floor(now / 60000) % 15 === 0) { try { await env.DB.prepare("DELETE FROM ping_launch WHERE id NOT IN (SELECT id FROM pings)").bind().run(); } catch (e) {} }
+  if (sent) await tally(env, "alerts.sent", sent, now);
   return { sent, cleared: done.length };
 }

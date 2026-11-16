@@ -16,6 +16,7 @@ import { appSiteResponse } from "./appsite.js";
 import { handleHost, hostPageResponse, launchStateResponse } from "./hosts.js";
 import { handleFollow, followLive, sendFollowMails } from "./follows.js";
 import { handleChat, cleanChats } from "./chat.js";
+import { adminResponse } from "./numbers.js";
 
 const PRESETS = new Set(["example"]);
 
@@ -47,6 +48,7 @@ export default {
     if (url.pathname === "/api/host" || url.pathname.startsWith("/api/host/")) return handleHost(request, env, url);
     if (url.pathname === "/api/launch") return launchStateResponse(request, env, url);
     if (url.pathname.startsWith("/api/chat/")) return handleChat(request, env, url);
+    if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);
     if (url.pathname === "/api/follow" || url.pathname.startsWith("/api/follow/") || url.pathname === "/api/unfollow") return handleFollow(request, env, url);
     if (url.pathname.startsWith("/@") || url.pathname.startsWith("/%40")) return hostPageResponse(request, env, url);
     if (url.pathname === "/at" || url.pathname === "/at/") { const nf = await env.ASSETS.fetch(new Request(new URL("/404", url))); return new Response(nf.body, { status: 404, headers: nf.headers }); }

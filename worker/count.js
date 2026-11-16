@@ -9,6 +9,7 @@
 //                        Cloudflare's rate limiter, keyed in passing; remmynd stores no address.
 // Both are never cached.
 import { decode } from "../lib/remmynd.js";
+import { tally } from "./numbers.js";
 
 const MAX_PAYLOAD = 2000;
 export const PER_MINUTE = 600;
@@ -85,6 +86,7 @@ export async function handleCount(request, env, url, { store, now = Date.now(), 
   }
   const n = await s.join(key, ends, Math.floor(now / 60000), PER_MINUTE);
   if (n == null) return json({ error: "Too many at once. Try again in a minute." }, 429);
+  await tally(env, "remind.tap", 1, now);
   return json({ n, you: n });
 }
 
