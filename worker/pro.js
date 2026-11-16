@@ -30,6 +30,7 @@
 // Local dev servers only: POLAR_API (a stand-in for Polar) and STOREKIT_TEST = "1" (Xcode's test purchases).
 import { signedIn, d1Store } from "./account.js";
 import { verifySigned } from "./apple.js";
+import { tally } from "./numbers.js";
 
 const DAY = 864e5;
 /** A purchase set to renew stays Pro this long past its date, so a late renewal never locks anyone out. */
@@ -173,6 +174,7 @@ async function checkout(store, env, user, body, url, opts) {
   // An email Polar already knows under another customer: the account's id alone still ties the purchase to it.
   if (r.status === 422) { delete ask.customer_email; r = await polar(env, "/v1/checkouts/", { ...opts, method: "POST", body: ask }); }
   if (!r.ok || !r.data || typeof r.data.url !== "string") throw new Refused("The checkout couldn't be opened. Try again.", 502);
+  await tally(env, "pro.checkout");
   return { url: r.data.url };
 }
 

@@ -20,6 +20,7 @@
 //   GET|POST /api/mail/stop?u=&t=    one-click "stop email reminders"
 import { describeWhen } from "../lib/remmynd.js";
 import { b64url, randomId, verifyRegistration, verifyAssertion, ALGS } from "./webauthn.js";
+import { tally } from "./numbers.js";
 
 const DAY = 864e5;
 const SESSION_MS = 180 * DAY;
@@ -306,6 +307,7 @@ export async function handleAccount(request, env, url, ctx, deps = {}) {
     await store.deleteCode(email);
     let user = await store.userByEmail(email), isNew = false;
     if (!user) { user = { id: randomId(12), email, created: now, email_alerts: 1, stop_token: randomId(24) }; await store.createUser(user); isNew = true; }
+    await tally(env, "account.signin");
     return json({ ...(await me(store, user)), isNew }, 200, { "set-cookie": await startSession(store, user.id, url, now) });
   }
 
@@ -326,6 +328,7 @@ export async function handleAccount(request, env, url, ctx, deps = {}) {
     } catch (e) { return json({ error: "The passkey couldn't be checked." }, 400); }
     const user = await store.userById(key.user_id);
     if (!user) return json({ error: "This passkey isn't linked to a remmynd account." }, 400);
+    await tally(env, "account.signin");
     return json(await me(store, user), 200, { "set-cookie": await startSession(store, user.id, url, now) });
   }
 
@@ -422,6 +425,7 @@ export async function sendDueMails(env, now = Date.now(), deps = {}) {
     }
     if (done) await store.deleteMail(r.id);
   }
+  if (sent) await tally(env, "email.sent", sent, now);
   await store.cleanup(now);
   return { sent };
 }

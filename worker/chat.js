@@ -21,6 +21,7 @@
 
 import { validEndpoint } from "./push.js";
 import { signedIn, d1Store } from "./account.js";
+import { tally } from "./numbers.js";
 
 const DAY = 864e5;
 export const LIMITS = { people: 20, messages: 500, body: 2400, life: 400 * DAY, after: DAY, files: 30, fileBytes: 400 * 1024, perDay: 30 };
@@ -138,6 +139,7 @@ export async function handleChat(request, env, url, deps = {}) {
     const fid = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
     await bucket.put(id + "/" + fid, bytes, { httpMetadata: { contentType: "application/octet-stream" } });
     await store.addFile({ id: fid, room: id, at: now, size: bytes.length });
+    await tally(env, "chat.file", 1, now);
     return json({ id: fid });
   }
 
@@ -178,6 +180,7 @@ export async function handleChat(request, env, url, deps = {}) {
     if (!room) {
       const ends = Math.min(Math.max(Number(body.ends) || 0, now), now + LIMITS.life);
       await store.makeRoom(id, ends, now);
+      await tally(env, "chat.started", 1, now);
       room = await store.room(id);
     }
     if (!known && people.length >= LIMITS.people) return json({ error: "This chat is full. It holds " + LIMITS.people + " people." }, 403);
@@ -187,6 +190,7 @@ export async function handleChat(request, env, url, deps = {}) {
     const tell = [...new Set(people.filter(p => p.me !== me && p.endpoint && p.endpoint !== endpoint).map(p => p.endpoint))];
     const m = { id: rid(), room: id, me, at: Math.max(now, 1), body: text };
     await store.add(m, tell, now);
+    await tally(env, "chat.message", 1, now);
     return json({ id: m.id, at: m.at, ends: room.ends + LIMITS.after });
   }
   return json({ error: "Not found." }, 404);

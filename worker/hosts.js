@@ -24,6 +24,7 @@ import { signedIn, d1Store, mailsFor } from "./account.js";
 import { encode, googleCalendarUrl, LAUNCH_ID } from "../lib/remmynd.js";
 import { escapeHTML as esc } from "./preview.js";
 import { readCount } from "./count.js";
+import { tally } from "./numbers.js";
 
 export const HANDLE = /^[a-z0-9][a-z0-9_-]{2,29}$/;
 /** Words the site uses, or that would look like it speaks for remmynd. */
@@ -184,6 +185,7 @@ export async function handleHost(request, env, url, deps = {}) {
     const mine = await store.hostOf(user.id), other = await store.hostByHandle(p.handle);
     if (other && other.user_id !== user.id) return json({ error: "That handle is taken. Try another." }, 409);
     await store.putHost({ user_id: user.id, ...p, created: mine ? mine.created : now, updated: now });
+    if (!mine) await tally(env, "host.claimed", 1, now);
     return json(await out());
   }
   const host = await store.hostOf(user.id);
@@ -203,6 +205,7 @@ export async function handleHost(request, env, url, deps = {}) {
     if (moved) await followChange(store, id, launchView(host, { ...was, ...l, id, slug, updated: now }, url.origin), now, url.origin);
     // A new launch, still to come: the host's followers hear about it (worker/follows.js).
     let told = 0;
+    if (!was) await tally(env, "launch.published", 1, now);
     if (!was && l.start > now) { const { tellFollowers } = await import("./follows.js"); const t = await tellFollowers(store, host, { id, ...l }, "announce", now); told = t.pushed + t.mailed; }
     return json({ ...(await out()), id, followed: !!moved, told });
   }
