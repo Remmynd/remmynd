@@ -2,7 +2,7 @@
 // 1. Caches the app so it opens offline.
 // 2. Shows reminder notifications. Pushes arrive EMPTY; the reminder details come from this
 //    device's own storage (IndexedDB), so the server never knows what you're reminded about.
-const CACHE = "remmynd-v18";
+const CACHE = "remmynd-v19";
 const SHELL = ["./", "./index.html", "./app.css", "./app.js", "./remmynd.js", "./ring.js", "./db.js", "./push.js", "./fonts/geist-5.3-latin.woff2", "./fonts/geist-mono-5.3-latin.woff2", "./manifest.webmanifest", "./icon.svg", "./favicon.ico", "./apple-touch-icon.png", "./icon-192.png", "./badge-mono-96.png", "./badge.svg", "./badge-dark.svg"];
 
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -121,7 +121,11 @@ async function onPush() {
   const sub = await self.registration.pushManager.getSubscription().catch(() => null);
   if (sub) notes = ((await fetch("/api/follow/inbox", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).then(r => r.json()).catch(() => null)) || {}).notes || [];
   for (const n of notes) await self.registration.showNotification(n.title, { body: n.body, icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: n.tag, data: { url: n.url } });
-  await showDue(changes.length + notes.length > 0);
+  // Chats (worker/chat.js): the server knows only the room. The title and link stay on this device.
+  const rooms = sub ? ((await fetch("/api/chat/inbox", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).then(r => r.json()).catch(() => null)) || {}).rooms || [] : [];
+  const chats = rooms.length ? await DB.getAll("chats").catch(() => []) : [];
+  for (const c of rooms) { const k = chats.find(x => x.room === c.room); if (k) await self.registration.showNotification(k.title, { body: c.n > 1 ? c.n + " new messages in the chat" : "New message in the chat", icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: "chat:" + c.room, data: { url: k.url } }); }
+  await showDue(changes.length + notes.length + rooms.length > 0);
 }
 self.addEventListener("push", e => { e.waitUntil(onPush()); });
 

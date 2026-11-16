@@ -115,9 +115,7 @@ function hold(cal){const c=S.ctx;if(S.held||!c)return;keep("r:"+S.rkey);S.held=t
   if(window.__rmPush)window.__rmPush.remind(c.nd,false);
   /* Swap Remind me for the stack after the tap, so the link it was on still opens the calendar. */
   setTimeout(renderBottom,60);}
-/* The public count (ADDENDUM-1, slice 5), only on a shared link whose host turned it on; a private link never reaches the server.
- * Remind me adds this device once (rm:counted remembers it, so removing and holding again doesn't add twice) and keeps your place
- * with the reminder. Removing or dropping it never takes one away: the number is how many tapped Remind me. */
+/* The public count: shared links whose host turned it on. Remind me adds this device once (rm:counted); removing never takes one away. */
 const counted=r=>!!r&&r.c===1&&!S.priv&&!S.key;
 function showCount(){const el=S.ctx&&S.ctx.el.querySelector(".t-count");if(!el)return;const l=R.countLabel(S.count);el.textContent=l;el.hidden=!l;}
 function countMe(){const r=S.r,k=S.rkey;if(!counted(r)||!S.rec)return;let done={};try{done=JSON.parse(localStorage.getItem("rm:counted")||"{}")||{};}catch(e){}
@@ -128,7 +126,7 @@ const VIA=()=>'<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I
 const ALTS='<div class="alts" id="alts" hidden><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button><button type="button" id="a-qr">QR code</button></div>';
 function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+esc(fShort(c.start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(c.start,TZ),TZ))+'</b> instead?</span><label class="switch"><input type="checkbox" id="sleep"'+(c.morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
   '<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+(PUSH_OK?"Calendar and a notification on this "+DEVICE+", in one tap.":"Adds it to your calendar, with alerts.")+'</div>'+
-  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
+  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+(c.r.r?'':'<button type="button" class="more" id="chatb">Chat about this</button>')+VIA();}
 /* The stack (mock-up 05): what this one tap set up, plus the nudge switch. */
 /* Email: on for signed-in accounts (account.js), never for private links, which stay on the device. */
 let ACC={signedIn:false};
@@ -182,6 +180,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#a-copy",x=>x.addEventListener("click",()=>copy(c.r.t+"\n"+fDate(c.start,TZ)+", "+fShort(c.start,TZ)+" ("+fZone(c.start,TZ)+")"+(c.r.l?"\n"+c.r.l:"")+"\n"+c.share,"Copied")));
   on("#a-qr",x=>x.addEventListener("click",()=>openQR(c.share,c.r.t)));
   on("#more",m=>m.addEventListener("click",()=>{const al=b.querySelector("#alts");al.hidden=!al.hidden;m.setAttribute("aria-expanded",String(!al.hidden));}));
+  on("#chatb",m=>{const go=()=>import("/chat.js").then(x=>x.open(c,S.priv));m.onclick=go;if(/chat=1/.test(location.search)&&!S.chat){S.chat=1;go();}});
   on("#sleep",sw=>sw.addEventListener("change",()=>{S.morning=sw.checked;renderTicket(c.el,c.r,c.o);}));
   on("#s-cal",a=>{const k=S.rec&&S.rec.cal||PREF;if(k==="apple")c.setApple(a);else{a.href=k==="google"?c.g:c.ol;a.target="_blank";a.rel="noopener";}
     if(!(S.rec&&S.rec.cal))a.addEventListener("click",()=>{if(S.rec){S.rec.cal=k;keepRec();setTimeout(renderBottom,60);}});});
@@ -196,7 +195,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
     flip(false);later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.");}));
   on("#f-later",x=>x.addEventListener("click",openReplan));
   on("#t-last",x=>x.addEventListener("click",()=>lastCard(c.share,{title:c.r.t,start:c.start},x)));
-  /* Add to story: the joiner's card ("I'm in."), with the link copied inside this tap. Pass it on: the share sheet, or the link copied where there is none. A private link stays private: it's the one shared. */
+  /* Add to story: the joiner's card, with the link copied in the same tap. */
   on("#s-story",x=>x.addEventListener("click",()=>{const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(c.share).then(()=>true,()=>false):Promise.resolve(false);
     import("/story.js").then(m=>m.open({ev:{title:c.r.t,start:c.start},link:c.share,timeZone:TZ,joiner:true,you:S.rec&&S.rec.you,copied,copy,toast,from:x})).catch(()=>toast("Couldn't open it here. Try again."));}));
   on("#s-pass",x=>x.addEventListener("click",()=>{if(navigator.share)navigator.share({title:c.r.t,url:c.share}).catch(e=>{if(!e||e.name!=="AbortError")copy(c.share,"Link copied");});else copy(c.share,"Link copied");}));
@@ -296,13 +295,11 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!QR.el.hidden)close
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.remove("act");t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2400);}
 function toastUndo(m,undo){const t=$("#toast"),b=document.createElement("button");t.textContent=m;b.type="button";b.className="toast-undo";b.textContent="Undo";
   b.addEventListener("click",()=>{t.classList.remove("show","act");undo();});t.append(b);t.classList.add("show","act");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show","act"),5000);}
-/* Delete with Undo: what is deleted disappears at once, but the delete itself waits 5 seconds, so Undo can
- * bring it back (a held reminder's alerts are cancelled only when the time is up). Leaving the page finishes it. */
+/* Delete with Undo: gone at once, deleted for real after 5 seconds. */
 const PEND=new Map();
 function later(key,run,undo,msg){PEND.set(key,{run,t:setTimeout(()=>{PEND.delete(key);run();},5000)});
   toastUndo(msg,()=>{const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);undo();});}
-/* Held again before its removal went through (Remind me within the 5 seconds, instead of Undo): the removal is called off,
- * so the new hold, its alerts and its stack stay, and the Undo toast goes with it. */
+/* Held again within the 5 seconds: the removal is called off. */
 function keep(key){const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);$("#toast").classList.remove("show","act");}
 addEventListener("pagehide",()=>{for(const[k,p]of PEND){clearTimeout(p.t);PEND.delete(k);p.run();}});
 const forgetRec=k=>{if(window.remmyndDB)window.remmyndDB.del("reminders",k).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(k).catch(()=>{});};
@@ -345,7 +342,7 @@ function renderDraft(){const d=draft();
   C.hint.textContent=!d.title?"Add what it is to make the link.":!d.start?"Add a time to make the link.":"Not a link yet. Press Enter to make it.";
   /* Short call: with a meeting link, or a line that reads like a call, offer 2, 5, 8 and 10 minutes. The check-in comes when it ends. */
   LEN.el.hidden=!callish(d);LEN.el.querySelectorAll(".len[data-min]").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.min===d.dur)));
-  /* Make it a video call: remmynd Calls makes a room that ends itself, then hands the call link back here as the place. A plain link, so this page asks no other host for anything. */
+  /* Make it a video call: remmynd Calls makes a room that ends itself and hands the link back as the place. */
   LEN.call.hidden=!(CALLS&&d.start&&!d.place);if(!LEN.call.hidden)LEN.call.href=CALLS+"/new?"+new URLSearchParams({t:d.title||"Call",at:d.start.toISOString(),d:String([2,5,8,10].includes(d.dur)?d.dur:5),back:"remmynd"});}
 /* Where short calls are made. Empty hides the link. */
 const CALLS="https://calls.remmynd.space";
@@ -405,8 +402,7 @@ F.count.addEventListener("change",()=>{const m=D.made;if(!m||F.priv.checked)retu
 F.share.addEventListener("click",()=>{const m=D.made;if(!m)return;shareIt({title:m.ev.title,text:"Get a reminder: "+m.ev.title,url:m.link},"Shared");});
 F.link.addEventListener("focus",()=>F.link.select());
 F.remind.insertAdjacentHTML("afterbegin",I.bell);
-/* Remind me, right after making it: open the new reminder and press its own Remind me inside this same tap,
- * so the calendar, notifications and the stack work exactly as on any reminder link. */
+/* Remind me right after making it: open the new reminder and press its Remind me in the same tap. */
 F.remind.addEventListener("click",()=>{const m=D.made;if(!m)return;const u=new URL(m.link);S.back=true;history.pushState(null,"",u.pathname+u.hash);route();const b=$("#remind");if(b)b.click();});
 F.edit.addEventListener("click",()=>{if(D.made)editMade(D.made.link);});
 $("#f-fix").addEventListener("click",()=>F.edit.click());
@@ -449,8 +445,7 @@ const EX=["Demo day Fri 5pm","Rent due 1st","Call Mum Sun 7:30pm"].map(line=>{co
 /* ---------- lists: Coming up and My links (mock-up 08) ---------- */
 const L={el:$("#lists"),body:$("#list-body"),hint:$("#list-hint"),tab:"coming",recs:[],links:[],has:false};
 const dayNum=(t,tz)=>{const p=parts(new Date(t),tz);return Date.UTC(p.y,p.mo-1,p.d)/864e5;};
-/* Last call (ADDENDUM-1, slice 7), for the host: from 24 hours before the start, a prompt to post a card. It says tomorrow or today
- * only when that's the day, and "in an hour" for the last hour; the card itself prints the date and time. No notifications. */
+/* Last call: from 24 hours before, a prompt for the host to post a card. */
 const lastCall=(start,now,tz)=>{const ms=start-now;if(ms<=0||ms>864e5)return"";if(ms<=36e5)return"Starts in an hour. Post a card?";const d=dayNum(start,tz)-dayNum(now,tz);return d===0?"Starts today. Post a card?":d===1?"Starts tomorrow. Post a card?":"";};
 /* Share your year: kept of due this year, counted as the kept line counts the month, from this device's own list. No streaks. */
 const yearCount=(recs,now,tz)=>{const p=parts(new Date(now),tz),from=zonedToUTC(p.y,1,1,0,0,tz).getTime();let k=0,n=0;for(const x of recs){const kept=x.state==="kept",t=kept?x.doneAt||x.start:Math.max(x.start+(x.dur||60)*6e4,x.replanAt||0);if(t>=from&&t<=now){n++;if(kept)k++;}}return{k,n,y:p.y};};
