@@ -109,6 +109,7 @@
 
     <h2 id="chat">Chat</h2>
     <p>A reminder's chat is scrambled on your device before it's sent, with a key that lives in the link after the #, which browsers never send to us. We store only the scrambled text, so we can't read the messages or the names, and we don't know which reminder a chat belongs to. We delete the chat and every message 24 hours after the reminder ends, or as soon as anyone in it ends it for everyone. Your device keeps no copy. If you turn on alerts, we keep your device's notification address with that chat until it's deleted, and an alert says only that there's a new message. Anyone in a chat can still take a screenshot.</p>
+    <p>Photos and voice notes in a chat are scrambled the same way before they leave your device, and a photo is redrawn first, which removes its location and camera details. We keep them in private storage that has no public address, delete them with the chat, and can't open them. Sending one needs a signed-in account, so we can limit how many each account sends in a day; that count names the account and the day, not the chat.</p>
 
     <h2 id="host">Hosting</h2>
     <p>remmynd runs on Cloudflare, which carries every request to the site, as any host does. See <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>.</p>

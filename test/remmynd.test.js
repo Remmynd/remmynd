@@ -4328,8 +4328,8 @@ test("follow: a phone or an account follows a host, hears each launch once, and 
 });
 
 function memoryChat() {
-  const t = { rooms: new Map(), msgs: [], people: [], inbox: new Map(), gone: new Map(), pings: [] };
-  const wipe = id => { t.rooms.delete(id); t.msgs = t.msgs.filter(m => m.room !== id); t.people = t.people.filter(p => p.room !== id); for (const k of [...t.inbox.keys()]) if (k.endsWith("|" + id)) t.inbox.delete(k); };
+  const t = { rooms: new Map(), msgs: [], people: [], inbox: new Map(), gone: new Map(), pings: [], files: [], uploads: new Map() };
+  const wipe = id => { t.files = t.files.filter(f => f.room !== id); t.rooms.delete(id); t.msgs = t.msgs.filter(m => m.room !== id); t.people = t.people.filter(p => p.room !== id); for (const k of [...t.inbox.keys()]) if (k.endsWith("|" + id)) t.inbox.delete(k); };
   return { t,
     ready: async () => {},
     room: async id => t.rooms.get(id) || null,
@@ -4343,8 +4343,14 @@ function memoryChat() {
     add: async (m, tell, now) => { t.msgs.push({ ...m }); for (const e of tell) { const k = e + "|" + m.room, x = t.inbox.get(k); t.inbox.set(k, { room: m.room, n: (x ? x.n : 0) + 1 }); t.pings.push({ endpoint: e, at: now }); } },
     since: async (id, at) => t.msgs.filter(m => m.room === id && m.at > at).map(({ id, me, at, body }) => ({ id, me, at, body })),
     takeInbox: async e => { const r = [...t.inbox.entries()].filter(([k]) => k.startsWith(e + "|")); for (const [k] of r) t.inbox.delete(k); return r.map(([, v]) => v); },
+    fileCount: async id => t.files.filter(f => f.room === id).length,
+    file: async (id, fid) => t.files.find(f => f.room === id && f.id === fid) || null,
+    fileIds: async id => t.files.filter(f => f.room === id).map(f => f.id),
+    addFile: async f => { t.files.push({ ...f }); },
+    upload: async (u, day) => { const k = u + "|" + day, n = (t.uploads.get(k) || 0) + 1; t.uploads.set(k, n); return n; },
     end: async (id, until) => { wipe(id); t.gone.set(id, until); },
-    clean: async now => { const old = [...t.rooms.values()].filter(r => r.ends < now - 864e5); for (const r of old) { wipe(r.id); t.gone.set(r.id, now + 30 * 864e5); } for (const [k, u] of t.gone) if (u < now) t.gone.delete(k); return old.length; }
+    clean: async now => { const old = [...t.rooms.values()].filter(r => r.ends < now - 864e5), files = t.files.filter(f => old.some(r => r.id === f.room)).map(f => f.room + "/" + f.id);
+      for (const r of old) { wipe(r.id); t.gone.set(r.id, now + 30 * 864e5); } for (const [k, u] of t.gone) if (u < now) t.gone.delete(k); return { rooms: old.map(r => r.id), files }; }
   };
 }
 
@@ -4479,4 +4485,90 @@ test("a reminder from a photo on the website: a camera button only where the bro
   assert.ok(app.includes("if(!fs.length&&img&&!PH.btn.hidden)"), "a photo dropped on the page is read the same way, and only where it can be");
   assert.ok(sp.includes('if (auto) el.querySelector(".sp-go").click();'));
   assert.ok(!/fetch\(|XMLHttpRequest|sendBeacon/.test(sp), "the photo is never sent anywhere");
+});
+
+test("chat photos and voice notes: scrambled on the device, sent only by signed-in accounts, kept privately, gone with the chat", async () => {
+  const C = await import("../worker/chat.js");
+  const { mkdtempSync, writeFileSync } = await import("node:fs"), { tmpdir } = await import("node:os"), { pathToFileURL } = await import("node:url");
+  const dir = mkdtempSync(join(tmpdir(), "rm-chat-"));
+  writeFileSync(join(dir, "chat.mjs"), readFileSync(join(root, "public/chat.js"), "utf8").replace('from "/remmynd.js"', "from " + JSON.stringify(pathToFileURL(join(root, "lib/remmynd.js")).href)));
+  const W = await import(pathToFileURL(join(dir, "chat.mjs")).href);
+  const { room, key } = await W.derive("k:HHHHHHHHHHHHHHHHHHHHHH"), other = await W.derive("k:IIIIIIIIIIIIIIIIIIIIII");
+
+  // On the device: bytes scrambled with the chat's key; a wrong key opens nothing.
+  const photo = new Uint8Array(5000).map((_, i) => i % 251);
+  const sealed = await W.sealBytes(key, photo);
+  assert.equal(sealed.length, photo.length + 28, "a 12-byte IV and a 16-byte tag, nothing else");
+  assert.deepEqual(await W.openBytes(key, sealed), photo);
+  assert.equal(await W.openBytes(other.key, sealed), null);
+
+  // On the server.
+  const store = memoryChat(), accounts = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const ends = now + 3600e3, sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now);
+  const objects = new Map(), bucket = {
+    put: async (k, v) => { objects.set(k, new Uint8Array(v)); },
+    get: async k => objects.has(k) ? { body: objects.get(k) } : null,
+    delete: async ks => { for (const k of [].concat(ks)) objects.delete(k); }
+  };
+  const deps = () => ({ store, accounts, files: bucket, now });
+  const json = async (path, body) => { const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify(body) }); const r = await C.handleChat(req, {}, new URL(req.url), deps()); return { status: r.status, body: await r.json() }; };
+  const upload = async (bytes, { cookie = sam, me = "sam-device-1", origin = base, r = room } = {}) => {
+    const req = new Request(base + "/api/chat/" + r + "/file?me=" + me, { method: "POST", headers: { "content-type": "application/octet-stream", origin, ...(cookie ? { cookie } : {}) }, body: bytes });
+    const res = await C.handleChat(req, {}, new URL(req.url), deps()); return { status: res.status, body: await res.json() };
+  };
+  const fetchFile = async (id, r = room) => { const req = new Request(base + "/api/chat/" + r + "/file/" + id); return C.handleChat(req, {}, new URL(req.url), deps()); };
+
+  assert.equal((await upload(sealed, { cookie: "" })).body.need, "signin", "signed-in accounts only");
+  assert.equal((await upload(sealed, { origin: "https://evil.example" })).status, 403, "this site only");
+  assert.equal((await upload(sealed)).status, 404, "into a room that exists");
+  await json("/api/chat/" + room + "/post", { body: await W.seal(key, { n: "Sam", t: "hi" }), me: "sam-device-1", ends });
+  assert.equal((await upload(sealed, { me: "someone-else-1" })).status, 403, "only someone already in the chat");
+  assert.equal((await upload(new Uint8Array(10))).status, 400, "not empty");
+  assert.equal((await upload(new Uint8Array(C.LIMITS.fileBytes + 1))).status, 413, "not too big");
+  const up = await upload(sealed);
+  assert.equal(up.status, 200);
+  assert.match(up.body.id, /^[a-f0-9]{20}$/);
+  assert.deepEqual([...objects.keys()], [room + "/" + up.body.id], "kept under the room, in the private bucket");
+  assert.deepEqual(objects.get(room + "/" + up.body.id), sealed, "the server keeps the scrambled bytes as they came");
+  assert.equal(store.t.uploads.size, 1);
+  assert.deepEqual([...store.t.uploads.keys()][0].split("|")[0], "user-sam-0001", "the daily count names the account and the day, never the chat");
+
+  // Back out: the same scrambled bytes, never cached, never run as a page.
+  const res = await fetchFile(up.body.id);
+  assert.equal(res.status, 200);
+  assert.deepEqual(new Uint8Array(await res.arrayBuffer()), sealed);
+  assert.equal(res.headers.get("content-type"), "application/octet-stream");
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+  assert.match(res.headers.get("content-security-policy"), /sandbox/);
+  assert.equal((await fetchFile("0".repeat(20))).status, 404);
+  assert.notEqual((await fetchFile("../../etc")).status, 200, "no paths out of the room");
+  assert.equal((await fetchFile(up.body.id, other.room)).status, 404, "only from its own room");
+
+  // Limits: per chat, and per account per day.
+  for (let i = 1; i < C.LIMITS.files; i++) assert.equal((await upload(sealed)).status, 200);
+  assert.equal((await upload(sealed)).body.error, "This chat is full. It holds 30 photos and voice notes.");
+  const r2 = other.room;
+  await json("/api/chat/" + r2 + "/post", { body: await W.seal(other.key, { n: "Sam", t: "hi" }), me: "sam-device-1", ends });
+  r2up: { const x = await upload(sealed, { r: r2 }); assert.equal(x.status, 429, "30 a day per account, whichever chats"); assert.match(x.body.error, /30 photos and voice notes today/); }
+  now += day;
+  assert.equal((await upload(sealed, { r: r2 })).status, 200, "a new day");
+
+  // Gone with the chat: End for everyone, and the clean-up after the end.
+  now -= day;
+  assert.ok([...objects.keys()].some(k => k.startsWith(room + "/")));
+  await json("/api/chat/" + room + "/end", {});
+  assert.ok(![...objects.keys()].some(k => k.startsWith(room + "/")), "End for everyone deletes its files");
+  assert.equal((await fetchFile(up.body.id)).status, 410);
+  assert.ok([...objects.keys()].some(k => k.startsWith(r2 + "/")));
+  assert.equal(await C.cleanChats({}, ends + day + 60e3, { store, files: bucket }), 1);
+  assert.equal(objects.size, 0, "the clean-up deletes the files too");
+
+  // The page: photos are redrawn on the device (no location), voice is capped at a minute, and the bucket is private.
+  const src = readFileSync(join(root, "public/chat.js"), "utf8"), toml = readFileSync(join(root, "wrangler.toml"), "utf8");
+  assert.ok(src.includes('c.getContext("2d").drawImage(img, 0, 0, w, h)') && src.includes('c.toBlob(r, "image/jpeg", q)'), "a photo is redrawn, which drops its location and camera details");
+  assert.ok(src.includes("setTimeout(() => rec && rec.stop(), 60000)"), "a voice note stops at a minute");
+  assert.match(toml, /\[\[r2_buckets\]\]\s*\nbinding = "CHAT_FILES"\s*\nbucket_name = "remmynd-chat-files"/);
+  assert.match(readFileSync(join(root, "public/_headers"), "utf8"), /media-src 'self' blob:/, "voice notes play from the device's own copy");
 });

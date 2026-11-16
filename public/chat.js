@@ -10,7 +10,7 @@ const b64 = u => btoa(String.fromCharCode(...new Uint8Array(u))).replace(/\+/g, 
 const unb64 = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const store = { get: k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }, set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
-const KEY = /^[A-Za-z0-9_-]{22}$/;
+const KEY = /^[A-Za-z0-9_-]{22}$/, FILE_ID = /^[a-f0-9]{20}$/;
 const timed = p => p && p.start && p.tokens.some(t => t.type === "relative" || t.type === "time" && !/^(?:this |in the )?(?:morning|afternoon|evening|night)$/i.test(t.text));
 const fWhen = d => new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(d);
 const fTime = d => new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(d);
@@ -33,6 +33,32 @@ export async function seal(key, obj) {
 export async function unseal(key, s) {
   try { const b = unb64(s); return JSON.parse(td.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(0, 12) }, key, b.slice(12)))); } catch (e) { return null; }
 }
+/** Photos and voice notes: the same key, raw bytes, a fresh IV in front. */
+export async function sealBytes(key, bytes) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes));
+  const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12);
+  return out;
+}
+export async function openBytes(key, b) {
+  try { return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b.slice(0, 12) }, key, b.slice(12))); } catch (e) { return null; }
+}
+/** A photo, redrawn on this device: at most 1600 px and about 350 KB. Redrawing drops the location and camera details. */
+async function shrink(file) {
+  const img = await createImageBitmap(file, { imageOrientation: "from-image" });
+  let side = 1600, q = 0.82, blob;
+  for (let i = 0; i < 6; i++) {
+    const k = Math.min(1, side / Math.max(img.width, img.height)), w = Math.round(img.width * k), h = Math.round(img.height * k);
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    c.getContext("2d").drawImage(img, 0, 0, w, h);
+    blob = await new Promise(r => c.toBlob(r, "image/jpeg", q));
+    if (blob && blob.size <= 350 * 1024) return { bytes: new Uint8Array(await blob.arrayBuffer()), w, h };
+    side = Math.round(side * 0.8); q = Math.max(0.6, q - 0.06);
+  }
+  throw new Error("That photo is too big to send.");
+}
+const VOICE = () => typeof MediaRecorder !== "undefined" && ["audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find(t => MediaRecorder.isTypeSupported(t));
+
 /** The secret and the link to share, for a private link (its own payload) or a shared one (#k=, made when a chat starts). */
 export function secretOf(share, priv, hash, saved) {
   const u = new URL(share), path = u.origin + u.pathname;
@@ -78,7 +104,7 @@ export async function open(c, priv) {
   if (!document.querySelector('link[href="/chat.css"]')) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = "/chat.css"; document.head.appendChild(l); }
   const body = el.querySelector(".chat-body"), when = el.querySelector(".chat-when");
   let timer = 0, closed = false;
-  const close = () => { closed = true; clearTimeout(timer); el.remove(); document.removeEventListener("keydown", onKey); if (current && current.el === el) current = null; };
+  const close = () => { closed = true; clearTimeout(timer); el.dispatchEvent(new Event("remove")); el.remove(); document.removeEventListener("keydown", onKey); if (current && current.el === el) current = null; };
   const onKey = e => { if (e.key === "Escape") close(); };
   document.addEventListener("keydown", onKey);
   el.addEventListener("click", e => { if (e.target === el) close(); });
@@ -118,8 +144,13 @@ export async function open(c, priv) {
     (canPush ? '<button type="button" class="chip" data-a="alerts" aria-pressed="false">Alerts off</button>' : '') +
     '<button type="button" class="chip" data-a="leave">Leave</button><button type="button" class="chip warn" data-a="end">End for everyone</button></div>' +
     '<ol class="chat-list" aria-live="polite"><li class="chat-empty">No messages yet. Say something, then send the chat link.</li></ol>' +
-    '<form class="chat-form"><input maxlength="500" placeholder="Message" aria-label="Message" autocomplete="off" enterkeyhint="send"><button class="btn ink" aria-label="Send">Send</button></form>' + NOTE;
-  const list = body.querySelector(".chat-list"), form = body.querySelector(".chat-form"), input = form.querySelector("input");
+    '<form class="chat-form"><label class="chat-ic" title="Send a photo"><input type="file" accept="image/*" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="3.2"/></svg><span class="vh">Send a photo</span></label>' +
+    (VOICE() && navigator.mediaDevices ? '<button type="button" class="chat-ic chat-mic" aria-label="Record a voice note"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>' : '') +
+    '<input maxlength="500" placeholder="Message" aria-label="Message" autocomplete="off" enterkeyhint="send"><button class="btn ink" aria-label="Send">Send</button></form>' + NOTE;
+  const list = body.querySelector(".chat-list"), form = body.querySelector(".chat-form"), input = form.querySelector('input[maxlength]');
+  const urls = [];
+  const blobUrl = (bytes, type) => { const u = URL.createObjectURL(new Blob([bytes], { type })); urls.push(u); return u; };
+  el.addEventListener("remove", () => urls.forEach(u => URL.revokeObjectURL(u)));
   const say = t => { const p = body.querySelector(".chat-err") || form.insertAdjacentElement("afterend", Object.assign(document.createElement("p"), { className: "chat-err", role: "alert" })); p.textContent = t || ""; p.hidden = !t; };
   const alertsBtn = body.querySelector('[data-a="alerts"]');
   const showAlerts = () => { if (alertsBtn) { alertsBtn.setAttribute("aria-pressed", String(watching)); alertsBtn.textContent = watching ? "Alerts on" : "Alerts off"; } };
@@ -138,14 +169,100 @@ export async function open(c, priv) {
     const li = document.createElement("li"), me = m.me === mine.me;
     li.className = "chat-msg" + (me ? " me" : "");
     if (!m.v) { li.innerHTML = '<span class="chat-bad">A message that couldn\'t be read.</span>'; list.appendChild(li); return; }
-    const p = R.parse(m.v.t, { timeZone: TZ });
-    li.innerHTML = (me ? "" : '<span class="chat-who">' + esc(m.v.n || "Someone") + '</span>') + '<p>' + esc(m.v.t) + '</p><span class="chat-at">' + fTime(new Date(m.at)) + '</span>' +
+    const t = String(m.v.t || ""), f = m.v.f && FILE_ID.test(m.v.f.id || "") ? m.v.f : null, p = t ? R.parse(t, { timeZone: TZ }) : null;
+    li.innerHTML = (me ? "" : '<span class="chat-who">' + esc(m.v.n || "Someone") + '</span>') +
+      (f ? '<div class="chat-file' + (f.k === "voice" ? " voice" : "") + '"><span class="chat-loading">' + (f.k === "voice" ? "Voice note" : "Photo") + '…</span></div>' : '') +
+      (t ? '<p>' + esc(t) + '</p>' : '') + '<span class="chat-at">' + fTime(new Date(m.at)) + '</span>' +
       (timed(p) && new Date(p.start) > new Date() ? '<button type="button" class="chip chat-remind">Remind me ' + esc(fWhen(new Date(p.start))) + '</button>' : "");
+    if (f) { const box = li.querySelector(".chat-file"); if (f.k === "img" && f.w > 0 && f.h > 0) box.style.aspectRatio = (+f.w) + " / " + (+f.h); showFile(box, f, m.bytes); }
     const b = li.querySelector(".chat-remind");
-    if (b) b.addEventListener("click", () => { location.assign(R.createLink({ title: p.title || m.v.t.slice(0, 80), start: new Date(p.start), timeZone: TZ }, { base: location.origin + "/" })); });
+    if (b) b.addEventListener("click", () => { location.assign(R.createLink({ title: p.title || t.slice(0, 80), start: new Date(p.start), timeZone: TZ }, { base: location.origin + "/" })); });
     list.appendChild(li);
     li.scrollIntoView({ block: "end" });
   }
+  async function showFile(box, f, mine) {
+    try {
+      let bytes = mine;
+      if (!bytes) {
+        const r = await fetch(api("file") + "/" + f.id, { cache: "no-store" });
+        if (!r.ok) throw new Error();
+        bytes = await openBytes(key, new Uint8Array(await r.arrayBuffer()));
+        if (!bytes) throw new Error();
+      }
+      if (f.k === "voice") {
+        const a = document.createElement("audio");
+        a.controls = true; a.preload = "metadata"; a.src = blobUrl(bytes, /^audio\/[a-z0-9.;=+ -]+$/i.test(f.mime || "") ? f.mime : "audio/mp4");
+        box.replaceChildren(a);
+        if (f.d) { const d = document.createElement("span"); d.className = "chat-dur"; d.textContent = Math.round(f.d) + "s"; box.appendChild(d); }
+      } else {
+        const i = document.createElement("img");
+        i.alt = "Photo"; i.src = blobUrl(bytes, "image/jpeg"); i.decoding = "async";
+        box.replaceChildren(i);
+      }
+    } catch (e) { box.innerHTML = '<span class="chat-bad">This ' + (f.k === "voice" ? "voice note" : "photo") + " couldn't be opened.</span>"; }
+  }
+  /** Scramble, upload, then send the message that points at it. Uploading needs a signed-in account (worker/chat.js). */
+  async function sendFile(bytes, meta) {
+    say("");
+    const sealed = await sealBytes(key, bytes);
+    const r = await fetch(api("file") + "?me=" + encodeURIComponent(mine.me), { method: "POST", headers: { "content-type": "application/octet-stream" }, body: sealed });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 410) return end();
+    if (j.need === "signin") {
+      say("Sign in to send photos and voice notes. Reading stays open to everyone with the link.");
+      const p = body.querySelector(".chat-err"), sb = document.createElement("button");
+      sb.type = "button"; sb.className = "chip"; sb.textContent = "Sign in"; p.append(" ", sb);
+      sb.addEventListener("click", () => import("/account.js").then(a => a.open()).catch(() => {}));
+      return;
+    }
+    if (!r.ok) {
+      if (j.error === "Say something first.") return say("Say hello first, then send photos and voice notes.");
+      return say(j.error || "Couldn't send that. Try again.");
+    }
+    const ep = await endpoint(false).catch(() => null);
+    const v = { n: mine.name, t: "", f: { id: j.id, ...meta } };
+    const m = await post(api("post"), { body: await seal(key, v), me: mine.me, ends, ...(ep ? { endpoint: ep } : {}) });
+    add({ id: m.id, me: mine.me, at: m.at, v, bytes });
+  }
+  const pick = form.querySelector('input[type="file"]');
+  pick.addEventListener("change", async () => {
+    const file = pick.files && pick.files[0]; pick.value = "";
+    if (!file || ended) return;
+    if (!/^image\//.test(file.type)) return say("That isn't a photo.");
+    try { const s = await shrink(file); await sendFile(s.bytes, { k: "img", w: s.w, h: s.h }); }
+    catch (x) { if (x.ended) end(); else say(x.message || "Couldn't send that photo."); }
+  });
+  const mic = form.querySelector(".chat-mic");
+  let rec = null;
+  if (mic) mic.addEventListener("click", async () => {
+    if (ended) return;
+    if (rec) { rec.stop(); return; }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (x) { return say("Allow the microphone for remmynd to record a voice note."); }
+    const type = VOICE(), chunks = [], started = Date.now();
+    let cancelled = false;
+    rec = new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: 32000 });
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const bar = document.createElement("div");
+    bar.className = "chat-rec"; bar.setAttribute("role", "status");
+    bar.innerHTML = '<span class="chat-dot" aria-hidden="true"></span><span class="chat-rt">0:00</span><span class="chat-rh">Recording. Tap the mic to send.</span><button type="button" class="chip">Cancel</button>';
+    form.before(bar);
+    mic.classList.add("on"); mic.setAttribute("aria-label", "Stop and send the voice note");
+    const tick = setInterval(() => { const s = Math.floor((Date.now() - started) / 1000); bar.querySelector(".chat-rt").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }, 250);
+    const cap = setTimeout(() => rec && rec.stop(), 60000);
+    bar.querySelector("button").addEventListener("click", () => { cancelled = true; rec.stop(); });
+    rec.onstop = async () => {
+      clearInterval(tick); clearTimeout(cap); stream.getTracks().forEach(t => t.stop());
+      bar.remove(); mic.classList.remove("on"); mic.setAttribute("aria-label", "Record a voice note"); rec = null;
+      const d = (Date.now() - started) / 1000;
+      if (cancelled || d < 0.8 || closed) return;
+      const bytes = new Uint8Array(await new Blob(chunks, { type }).arrayBuffer());
+      try { await sendFile(bytes, { k: "voice", mime: type, d: Math.min(60, d) }); } catch (x) { if (x.ended) end(); else say(x.message || "Couldn't send that voice note."); }
+    };
+    rec.start(1000);
+  });
+
   async function read() {
     if (closed || ended) return;
     try {
