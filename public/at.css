@@ -114,3 +114,6 @@
 .hp-colors .none{background:var(--card);font-size:11px;color:var(--muted);width:auto;border-radius:18px;padding:0 12px}
 .sw-amber{background:#F2A000}.sw-coral{background:#FF8A65}.sw-rose{background:#F78DA7}.sw-violet{background:#B69CFF}.sw-blue{background:#7CB7FF}.sw-teal{background:#4FD1C5}.sw-green{background:#7BD88F}.sw-graphite{background:#C9CED6}
 .hp-sub{margin:14px 0 0}
+.hp-get{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.hp-deal{font-size:13px;font-weight:600;color:var(--on-moment-tint);background:var(--moment-tint);padding:3px 10px;border-radius:999px}
+.hp-nudge{margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline)}

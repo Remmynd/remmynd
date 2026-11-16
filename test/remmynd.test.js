@@ -3083,6 +3083,12 @@ function memoryStore() {
     deleteUser: async id => { for (const k of ["passkeys", "sessions", "mails"]) for (const [x, v] of t[k]) if (v.user_id === id) t[k].delete(x); for (const [x, v] of t.items) if (v.user_id === id) t.items.delete(x); for (const [x, v] of t.pro) if (v.user_id === id) t.pro.delete(x); t.users.delete(id); },
     hostOf: async id => t.hosts.get(id) ? { ...t.hosts.get(id) } : null,
     brandOf: async id => (t.brand || new Map()).get(id) || "",
+    wordsOf: async ids => new Map([...(t.words || new Map())].filter(([k]) => ids.includes(k))),
+    putWords: async (id, w) => { (t.words ||= new Map()); w ? t.words.set(id, w) : t.words.delete(id); },
+    holdersOf: async id => [...new Set([...(t.pingLaunch || new Map())].filter(([pid, l]) => l === id && t.pings && t.pings.get(pid)).map(([pid]) => t.pings.get(pid).endpoint))],
+    sentOf: async ids => [...(t.sent || new Map()).values()].filter(r => ids.includes(r.launch)).map(r => ({ ...r })),
+    markSent: async r => { (t.sent ||= new Map()).set(r.launch + "|" + r.kind, { start: 0, text: "", reached: 0, ...r }); },
+    launchesSoon: async (now, until) => [...t.launches.values()].filter(l => l.start > now && l.start <= until).map(l => ({ ...l, handle: t.hosts.get(l.user_id).handle, name: t.hosts.get(l.user_id).name })),
     putBrand: async (id, c) => { (t.brand ||= new Map()); c ? t.brand.set(id, c) : t.brand.delete(id); },
     launchHolders: async id => [...(t.pingLaunch || new Map()).values()].filter(l => l === id).length,
     addLaunchDay: async (id, day, field) => { const k = id + "|" + day, r = (t.launchDays ||= new Map()).get(k) || { launch: id, day, alerts: 0, gos: 0 }; r[field === "gos" ? "gos" : "alerts"]++; t.launchDays.set(k, r); },
@@ -4743,4 +4749,100 @@ test("Pro for hosts: free limits only once Pro is on offer, lifted by Pro, every
   assert.ok(src.includes("const plan = await planOf(env, store, host.user_id, now);") && src.includes("plan = await planOf(env, store, user, now)"));
   for (const c of H.BRAND_COLORS) assert.ok(css.includes(".at-brand.at-c-" + c + "{") && css.includes(".sw-" + c + "{"), c);
   assert.doesNotMatch(readFileSync(join(root, "public/host.js"), "utf8"), /style="/, "no inline styles: the page's policy would block them");
+});
+
+test("Pro for hosts, launch day: alerts in your words, the day before and last call, nudges, and 50% off the first month", async () => {
+  const H = await import("../worker/hosts.js"), F = await import("../worker/follows.js"), P = await import("../worker/pro.js");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5, hour = 3600e3;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const maya = proAccount(store, "user-maya-01", "maya@example.com", now);
+  const env = { PRO_TESTERS: "maya@example.com", POLAR_ACCESS_TOKEN: "t", POLAR_PRODUCT_MONTHLY: "prod-m", POLAR_PRODUCT_YEARLY: "prod-y", POLAR_DISCOUNT_FIRST: "disc-50" };
+  const call = async (path, body, e = env) => {
+    const req = new Request(base + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", origin: base, cookie: maya }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await H.handleHost(req, e, new URL(req.url), { store, now });
+    return { status: res.status, body: await res.json() };
+  };
+  const inbox = async endpoint => {
+    const req = new Request(base + "/api/follow/inbox", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ endpoint }) });
+    return (await (await F.handleFollow(req, env, new URL(req.url), { store, now })).json()).notes;
+  };
+  await call("/api/host", { handle: "maya", name: "Maya Chen" });
+  const start = now + 3 * day;
+  let r = await call("/api/host/launch", { title: "Orbit launch", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit" });
+  const id = r.body.launches[0].id;
+  const E1 = "https://fcm.googleapis.com/fcm/send/one", E2 = "https://fcm.googleapis.com/fcm/send/two";
+  store.t.pings ||= new Map(); store.t.pingLaunch ||= new Map();
+  for (const [pid, e] of [["p1", E1], ["p2", E1], ["p3", E2]]) { store.t.pings.set(pid, { endpoint: e, at: start }); store.t.pingLaunch.set(pid, id); }
+
+  // Free: standard alerts. Words and nudges say they come with Pro.
+  r = await call("/api/host/launch", { id, title: "Orbit launch", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit", words: "Upvote us!" });
+  assert.deepEqual([r.status, r.body.need], [402, "pro"]);
+  assert.match(r.body.error, /Alerts in your words come with Pro/);
+  r = await call("/api/host/launch/nudge", { id, text: "Hi" });
+  assert.deepEqual([r.status, r.body.need], [402, "pro"]);
+  assert.equal((await F.saverAlerts(env, start - 23.5 * hour, { store })).sent, 0, "no day-before for free hosts");
+
+  // 50% off the first month: a free host whose launch reached 25 saves, or whose Pro lapsed. Never without the discount set.
+  assert.equal(await P.firstMonthOffer(env, store, store.t.users.get("user-maya-01"), now), null, "2 saves isn't 25");
+  for (let i = 0; i < 25; i++) { store.t.pings.set("q" + i, { endpoint: "https://fcm.googleapis.com/fcm/send/s" + i, at: start }); store.t.pingLaunch.set("q" + i, id); }
+  assert.deepEqual(await P.firstMonthOffer(env, store, store.t.users.get("user-maya-01"), now), { percent: 50, plan: "monthly", why: "saves" });
+  assert.equal(await P.firstMonthOffer({ ...env, POLAR_DISCOUNT_FIRST: undefined }, store, store.t.users.get("user-maya-01"), now), null, "no discount set, no offer");
+  assert.equal(await P.firstMonthOffer({ ...env, PRO_TESTERS: "" }, store, store.t.users.get("user-maya-01"), now), null, "not before Pro is on offer");
+  assert.equal((await call("/api/host")).body.plan.discount.percent, 50, "Your page says so");
+  // The checkout carries it on the monthly plan only.
+  const asks = [];
+  const fetchFn = async (u, init) => { asks.push(JSON.parse(init.body)); return new Response(JSON.stringify({ url: "https://polar.sh/checkout/x" }), { status: 201, headers: { "content-type": "application/json" } }); };
+  const checkout = async plan => { const req = new Request(base + "/api/pro/checkout", { method: "POST", headers: { "content-type": "application/json", origin: base, cookie: maya }, body: JSON.stringify({ plan }) }); return (await P.handlePro(req, env, new URL(req.url), { store, now, fetchFn })).status; };
+  assert.equal(await checkout("monthly"), 200);
+  assert.equal(await checkout("yearly"), 200);
+  assert.deepEqual(asks.map(a => a.discount_id), ["disc-50", undefined]);
+  for (let i = 0; i < 25; i++) store.t.pingLaunch.delete("q" + i);
+  store.t.pro.set("polar|old", { source: "polar", ref: "old", user_id: "user-maya-01", product: "monthly", until: now - 10 * day, trial: 0, renews: 0, env: "", updated: now - 40 * day, moved: 0, voided: 0 });
+  assert.equal((await P.firstMonthOffer(env, store, store.t.users.get("user-maya-01"), now)).why, "lapsed");
+  store.t.pro.get("polar|old").voided = 1;
+  assert.equal(await P.firstMonthOffer(env, store, store.t.users.get("user-maya-01"), now), null, "a refund isn't a lapse");
+
+  // Pro.
+  store.t.pro.set("polar|sub_1", { source: "polar", ref: "sub_1", user_id: "user-maya-01", product: "monthly", until: now + 30 * day, trial: 0, renews: 1, env: "", updated: now, moved: 0, voided: 0 });
+  assert.equal(await P.firstMonthOffer(env, store, store.t.users.get("user-maya-01"), now), null, "not while Pro");
+  r = await call("/api/host/launch", { id, title: "Orbit launch", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit", words: "  Upvote us at 12:01.   Every vote counts. " });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.launches[0].words, "Upvote us at 12:01. Every vote counts.");
+  assert.equal(r.body.launches[0].words.length <= H.WORDS, true);
+
+  // Nudges: two per launch, an hour apart, to every phone that saved it, never after it ends.
+  assert.equal((await call("/api/host/launch/nudge", { id, text: "" })).status, 400);
+  r = await call("/api/host/launch/nudge", { id, text: "We're live on Product Hunt tomorrow. Set your alarm!" });
+  assert.deepEqual([r.status, r.body.reached], [200, 2], "two phones, however many alerts each holds");
+  assert.deepEqual(r.body.launches[0].nudges.left, 1);
+  assert.deepEqual(await inbox(E1), [{ title: "Maya Chen: Orbit launch", body: "We're live on Product Hunt tomorrow. Set your alarm!", url: base + "/@maya/orbit-launch", tag: "nudge1:" + id }]);
+  r = await call("/api/host/launch/nudge", { id, text: "Again" });
+  assert.deepEqual([r.status, r.body.next], [429, now + hour], "an hour apart");
+  now += hour;
+  assert.equal((await call("/api/host/launch/nudge", { id, text: "Second one" })).status, 200);
+  now += hour;
+  assert.match((await call("/api/host/launch/nudge", { id, text: "Third" })).body.error, /both nudges/);
+
+  // The day before, once per start time, with the host's words; 15 minutes before, the last call.
+  await inbox(E1); await inbox(E2);
+  assert.equal((await F.saverAlerts(env, start - 25 * hour, { store })).sent, 0, "not yet");
+  assert.equal((await F.saverAlerts(env, start - 23.5 * hour, { store })).sent, 1);
+  assert.equal((await F.saverAlerts(env, start - 23.4 * hour, { store })).sent, 0, "once");
+  now = start - 23 * hour;
+  assert.deepEqual(await inbox(E2), [{ title: "Tomorrow: Orbit launch", body: "Upvote us at 12:01. Every vote counts.", url: base + "/@maya/orbit-launch", tag: "daybefore:" + id }]);
+  assert.equal((await inbox(E1)).length, 1, "each phone gets its own");
+  assert.equal((await F.saverAlerts(env, start - 20 * hour, { store })).sent, 0, "a day-before is sent in its first hour or not at all");
+  assert.equal((await F.saverAlerts(env, start - 10 * 60e3, { store })).sent, 1);
+  now = start - 9 * 60e3;
+  assert.deepEqual((await inbox(E1)).map(n => [n.title, n.url]), [["Orbit launch starts in 15 minutes", "https://producthunt.com/posts/orbit"]]);
+  // Moved: the new time gets its own day-before.
+  const later = start + 2 * day;
+  now = start - 30 * hour;
+  await call("/api/host/launch", { id, title: "Orbit launch", start: later, tz: "America/New_York", dest: "producthunt.com/posts/orbit", words: "Upvote us at 12:01. Every vote counts." });
+  assert.equal((await F.saverAlerts(env, later - 23.5 * hour, { store })).sent, 1, "moved: told again for the new time");
+  now = later + 2 * hour;
+  assert.equal((await call("/api/host/launch/nudge", { id, text: "late" })).status, 400, "not after it ends");
+
+  // Wired into the every-minute job; the words are never sent for a free host.
+  assert.ok(readFileSync(join(root, "worker/index.js"), "utf8").includes("followLive(env).then(() => saverAlerts(env))"));
 });

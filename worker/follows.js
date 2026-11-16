@@ -45,6 +45,39 @@ export async function tellFollowers(store, host, launch, kind, now, reach = MAX_
   return { pushed: endpoints.length, mailed };
 }
 
+/**
+ * Tell everyone who saved a launch (phones still holding one of its alerts; worker/push.js keeps which launch an
+ * alert is for): a note in each phone's inbox, and an empty ping to wake it. kind: "daybefore", "lastcall",
+ * "nudge1" or "nudge2". Returns how many phones.
+ */
+export async function tellSavers(store, launch, kind, now) {
+  const endpoints = [...new Set(await store.holdersOf(launch.id))];
+  for (let i = 0; i < endpoints.length; i += 50) await store.addFollowMsgs(endpoints.slice(i, i + 50).map(endpoint => ({ id: "s" + rid(), endpoint, launch: launch.id, kind, at: now })));
+  return endpoints.length;
+}
+
+/** Every minute, for Pro hosts' launches: the day before, and 15 minutes before, everyone who saved it hears, once per start time. */
+export const DAY_BEFORE = DAY, LAST_CALL = 15 * 60e3;
+export async function saverAlerts(env, now = Date.now(), deps = {}) {
+  if (!env.DB && !deps.store) return { sent: 0 };
+  const store = deps.store || d1Store(env.DB);
+  await store.ready();
+  const soon = await store.launchesSoon(now, now + DAY_BEFORE);
+  if (!soon.length) return { sent: 0 };
+  const sent = await store.sentOf(soon.map(l => l.id));
+  let n = 0;
+  for (const l of soon) {
+    const left = l.start - now;
+    const kind = left <= LAST_CALL ? "lastcall" : left > DAY_BEFORE - 3600e3 ? "daybefore" : null; // the day-before goes out within its first hour, or not at all
+    if (!kind || sent.some(s => s.launch === l.id && s.kind === kind && s.start === l.start)) continue;
+    if (!(await planOf(env, store, l.user_id, now)).pro) continue;
+    const reached = await tellSavers(store, l, kind, now);
+    await store.markSent({ launch: l.id, kind, at: now, start: l.start, reached });
+    n++;
+  }
+  return { sent: n };
+}
+
 /** Every minute: launches that just went live, told to their followers once. */
 export async function followLive(env, now = Date.now(), deps = {}) {
   if (!env.DB && !deps.store) return { live: 0 };
@@ -132,14 +165,19 @@ export async function handleFollow(request, env, url, deps = {}) {
   if (path === "/api/follow/inbox") {
     if (!endpoint) return json({ notes: [] });
     const msgs = await store.takeInbox(endpoint, now - DAY);
-    const launches = new Map((await store.launchesByIds([...new Set(msgs.map(m => m.launch))])).map(l => [l.id, l]));
+    const ids = [...new Set(msgs.map(m => m.launch))];
+    const launches = new Map((await store.launchesByIds(ids)).map(l => [l.id, l]));
+    const words = store.wordsOf ? await store.wordsOf(ids) : new Map(), sent = store.sentOf && msgs.some(m => /^nudge/.test(m.kind)) ? await store.sentOf(ids) : [];
     const notes = [];
     for (const m of msgs) {
       const l = launches.get(m.launch);
-      if (!l || (m.kind === "live" && phaseOf(l, now) === "ended")) continue;
-      const host = { user_id: l.user_id, handle: l.handle, name: l.name }, v = launchView(host, l, url.origin), who = host.name || "@" + host.handle;
-      notes.push(m.kind === "live" ? { title: l.title + " is live now", body: who + "'s launch just started. Tap to go.", url: l.dest || v.url, tag: "live:" + l.id }
-        : { title: who + " announced " + l.title, body: whenText(l.start, l.tz, now) + ". Tap to see it and get reminded.", url: v.url, tag: "announce:" + l.id });
+      if (!l || (m.kind !== "announce" && phaseOf(l, now) === "ended")) continue;
+      const host = { user_id: l.user_id, handle: l.handle, name: l.name }, v = launchView(host, l, url.origin), who = host.name || "@" + host.handle, w = words.get(l.id);
+      if (m.kind === "live") notes.push({ title: l.title + " is live now", body: w || who + "'s launch just started. Tap to go.", url: l.dest || v.url, tag: "live:" + l.id });
+      else if (m.kind === "announce") notes.push({ title: who + " announced " + l.title, body: whenText(l.start, l.tz, now) + ". Tap to see it and get reminded.", url: v.url, tag: "announce:" + l.id });
+      else if (m.kind === "daybefore") notes.push({ title: "Tomorrow: " + l.title, body: w || whenText(l.start, l.tz, now) + ". You'll be reminded again before it starts.", url: v.url, tag: "daybefore:" + l.id });
+      else if (m.kind === "lastcall") notes.push({ title: l.title + " starts in 15 minutes", body: w || who + " is about to go live. Get ready.", url: l.dest || v.url, tag: "lastcall:" + l.id });
+      else if (/^nudge[12]$/.test(m.kind)) { const s = sent.find(x => x.launch === l.id && x.kind === m.kind); if (s && s.text) notes.push({ title: who + ": " + l.title, body: s.text, url: phaseOf(l, now) === "live" && l.dest ? l.dest : v.url, tag: m.kind + ":" + l.id }); }
     }
     return json({ notes });
   }
