@@ -18,7 +18,7 @@ export const NAMES = {
   "alerts.set": "Phone alerts set", "alerts.sent": "Phone alerts sent", "email.sent": "Reminder emails sent", "remind.tap": "Remind me on counted links",
   "host.claimed": "Host pages claimed", "launch.published": "Launches published", "follow.new": "Follows", "follow.end": "Unfollows", "follow.mail": "Follow emails sent",
   "chat.started": "Chats started", "chat.message": "Chat messages", "chat.file": "Photos and voice notes",
-  "pro.checkout": "Pro checkouts opened"
+  "launch.nudge": "Nudges sent by hosts", "pro.checkout": "Pro checkouts opened"
 };
 const NAME = /^[a-z]+\.[a-z]+$/;
 

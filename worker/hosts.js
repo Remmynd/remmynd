@@ -12,6 +12,7 @@
 //   POST /api/host { handle, name, bio, link }                     claim or change the handle and profile
 //   POST /api/host/launch { id?, title, start, dur, tz, dest, count }   publish a launch, or change one
 //   POST /api/host/launch/delete { id }
+//   POST /api/host/launch/nudge { id, text }   Pro: a message to everyone who saved it, 2 per launch, an hour apart
 //   POST /api/host/brand { color }    Pro: the accent colour of the host's pages, one of BRAND_COLORS ("" for remmynd's)
 //   POST /api/launch/go { id }        public, this site only: someone tapped "It's live: go now" (a number per launch and day)
 //
@@ -44,8 +45,9 @@ export const MAX_LAUNCHES = 50;
 export const BRAND_COLORS = ["amber", "coral", "rose", "violet", "blue", "teal", "green", "graphite"];
 const dayOf = t => new Date(t).toISOString().slice(0, 10);
 const needPro = (error, status = 402) => json({ error, need: "pro" }, status);
+export const NUDGES = 2, NUDGE_GAP = 3600e3, WORDS = 120, NUDGE_TEXT = 140;
 /** How many have saved a launch: devices holding its alerts, or its public count, whichever is more. */
-async function savedBy(env, store, id, deps) {
+export async function savedBy(env, store, id, deps = {}) {
   const holders = store.launchHolders ? await store.launchHolders(id) : 0;
   const counted = await readCount(env, encode({ title: "x", start: new Date(0), launch: id }), { store: deps.counts }).catch(() => 0);
   return Math.max(holders, counted);
@@ -197,7 +199,14 @@ export async function handleHost(request, env, url, deps = {}) {
       for (const r of await store.launchDays(raw.map(l => l.id), since)) { const s = stats[r.launch]; if (!s) continue; (s.days ||= []).push({ day: r.day, alerts: r.alerts, gos: r.gos }); s.alerts = (s.alerts || 0) + r.alerts; s.gos = (s.gos || 0) + r.gos; }
       for (const id in stats) { stats[id].days ||= []; stats[id].alerts ||= 0; stats[id].gos ||= 0; stats[id].days.sort((a, b) => a.day < b.day ? -1 : 1); }
     }
-    return { signedIn: true, plan: { ...plan, full, free: FREE, colors: BRAND_COLORS },
+    const words = store.wordsOf ? await store.wordsOf(raw.map(l => l.id)) : new Map(), sent = store.sentOf ? await store.sentOf(raw.map(l => l.id)) : [];
+    for (const v of launches) {
+      v.words = words.get(v.id) || "";
+      const n = sent.filter(s => s.launch === v.id && /^nudge/.test(s.kind)).sort((a, b) => a.at - b.at);
+      v.nudges = { sent: n.map(s => ({ at: s.at, text: s.text, reached: s.reached })), left: Math.max(0, NUDGES - n.length), next: n.length ? n[n.length - 1].at + NUDGE_GAP : 0 };
+    }
+    const { firstMonthOffer } = await import("./pro.js");
+    return { signedIn: true, plan: { ...plan, full, free: FREE, colors: BRAND_COLORS, discount: await firstMonthOffer(env, store, user, now) },
       host: { handle: host.handle, name: host.name, bio: host.bio, link: host.link, url: url.origin + "/@" + host.handle, followers: store.followCount ? await store.followCount(user.id) : 0, color: plan.pro && store.brandOf ? await store.brandOf(user.id) : "" },
       launches, stats };
   };
@@ -243,12 +252,15 @@ export async function handleHost(request, env, url, deps = {}) {
     if (!was && mine.length >= MAX_LAUNCHES) return json({ error: "That's " + MAX_LAUNCHES + " launches. Delete an old one first." }, 429);
     if (plan.limited && !was && mine.filter(x => phaseOf(x, now) !== "ended").length >= FREE.live)
       return needPro("On the free plan you have one live launch at a time. Pro has no limit, or cancel the one you have.");
+    const words = line(body.words, WORDS);
+    if (words && !plan.pro && words !== ((was && store.wordsOf ? (await store.wordsOf([was.id])).get(was.id) : "") || "")) return needPro("Alerts in your words come with Pro.");
     const changes = was && (was.start !== l.start || was.dur !== l.dur || was.title !== l.title || was.dest !== l.dest);
     if (plan.limited && changes && await savedBy(env, store, was.id, deps) > 0)
       return needPro("People have saved this launch, so on the free plan it can't move or change now. Pro lets you change it any time, and everyone who saved it follows.");
     const id = was ? was.id : crypto.randomUUID().replace(/-/g, "").slice(0, 16);
     const slug = was ? was.slug : slugFor(l.title, new Set(mine.map(x => x.slug)));
     await store.putLaunch({ id, user_id: user.id, slug, ...l, created: was ? was.created : now, updated: now });
+    if (store.putWords && (plan.pro || !words)) await store.putWords(id, words);
     // Changed what a saver relies on: the time, the length, the title or where it goes. They follow.
     const moved = was && (was.start !== l.start || was.dur !== l.dur || was.title !== l.title || was.dest !== l.dest);
     if (moved) await followChange(store, id, launchView(host, { ...was, ...l, id, slug, updated: now }, url.origin), now, url.origin);
@@ -257,6 +269,22 @@ export async function handleHost(request, env, url, deps = {}) {
     if (!was) await tally(env, "launch.published", 1, now);
     if (!was && l.start > now) { const { tellFollowers } = await import("./follows.js"); const t = await tellFollowers(store, host, { id, ...l }, "announce", now, plan.limited ? FREE.reach : Infinity); told = t.pushed + t.mailed; }
     return json({ ...(await out()), id, followed: !!moved, told });
+  }
+  if (path === "/api/host/launch/nudge") {
+    if (!plan.pro) return needPro("Nudging everyone who saved it comes with Pro.");
+    const l = mine.find(x => x.id === body.id);
+    if (!l) return json({ error: "That launch isn't yours, or it was deleted." }, 404);
+    if (phaseOf(l, now) === "ended") return json({ error: "This launch has happened, so there's no one left to nudge." }, 400);
+    const text = line(body.text, NUDGE_TEXT);
+    if (!text) return json({ error: "Write what you'd like them to read." }, 400);
+    const done = (await store.sentOf([l.id])).filter(s => /^nudge/.test(s.kind)).sort((a, b) => a.at - b.at);
+    if (done.length >= NUDGES) return json({ error: "You've sent both nudges for this launch." }, 429);
+    if (done.length && now - done[done.length - 1].at < NUDGE_GAP) return json({ error: "Nudges go out at least an hour apart.", next: done[done.length - 1].at + NUDGE_GAP }, 429);
+    const { tellSavers } = await import("./follows.js");
+    const kind = "nudge" + (done.length + 1), reached = await tellSavers(store, l, kind, now);
+    await store.markSent({ launch: l.id, kind, at: now, start: l.start, text, reached });
+    await tally(env, "launch.nudge", 1, now);
+    return json({ ...(await out()), reached });
   }
   if (path === "/api/host/launch/delete") {
     const gone = mine.find(x => x.id === body.id);

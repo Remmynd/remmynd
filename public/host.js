@@ -15,13 +15,13 @@ function planCard() {
   if (!p || (!p.pro && !p.limited)) return "";
   if (p.pro) {
     const c = S.host.color || "";
-    return '<div class="hp-card"><div class="hp-plan"><div><span class="hp-badge pro">Pro' + (p.trial ? " trial" : "") + '</span><ul><li>Unlimited live launches, changed any time</li><li>Up to 5,000 followers told each launch</li><li>Saves and who showed up, by day</li><li>Your colour, and no remmynd line</li></ul></div></div>' +
+    return '<div class="hp-card"><div class="hp-plan"><div><span class="hp-badge pro">Pro' + (p.trial ? " trial" : "") + '</span><ul><li>Unlimited live launches, changed any time</li><li>Your words in their alerts, plus the day before and 15 minutes before</li><li>Two nudges per launch to everyone who saved it</li><li>Up to 5,000 followers told each launch</li><li>Saves and who showed up, by day</li><li>Your colour, and no remmynd line</li></ul></div></div>' +
       '<h3 class="label hp-sub">Your colour</h3><div class="hp-colors" role="group" aria-label="Your colour">' +
       '<button type="button" class="none" data-color="" aria-pressed="' + (!c) + '">remmynd</button>' +
       p.colors.map(k => '<button type="button" class="sw-' + k + '" data-color="' + k + '" aria-pressed="' + (c === k) + '" aria-label="' + k + '"></button>').join("") + '</div></div>';
   }
-  return '<div class="hp-card"><div class="hp-plan"><div><span class="hp-badge">Free</span><ul><li>' + p.free.live + ' live launch at a time</li><li>No changes once someone saved it</li><li>Your first ' + p.free.reach + ' followers told each launch</li><li>The saved count</li></ul></div>' +
-    '<button type="button" class="btn ink" data-upgrade>Get Pro</button></div></div>';
+  return '<div class="hp-card"><div class="hp-plan"><div><span class="hp-badge">Free</span><ul><li>' + p.free.live + ' live launch at a time</li><li>No changes once someone saved it</li><li>Your first ' + p.free.reach + ' followers told each launch</li><li>Standard alerts, and the saved count</li></ul></div>' +
+    '<div class="hp-get">' + (p.discount ? '<span class="hp-deal">50% off your first month</span>' : '') + '<button type="button" class="btn ink" data-upgrade>Get Pro</button></div></div></div>';
 }
 
 async function api(path, body) {
@@ -67,6 +67,7 @@ function render() {
   for (const b of box.querySelectorAll("[data-copy]")) b.addEventListener("click", () => copy(b.dataset.copy, b));
   for (const b of box.querySelectorAll("[data-edit]")) b.addEventListener("click", () => { editing = S.launches.find(l => l.id === b.dataset.edit); render(); $("#lf-title").focus(); window.scrollTo({ top: $("#lf").offsetTop - 80, behavior: "smooth" }); });
   for (const b of box.querySelectorAll("[data-del]")) b.addEventListener("click", () => del(b.dataset.del));
+  for (const b of box.querySelectorAll("[data-nudge]")) b.addEventListener("click", () => nudge(b));
 }
 
 function renderProfile() {
@@ -100,6 +101,9 @@ function launchForm() {
     '<label class="hp-field">Title<input id="lf-title" value="' + esc(l ? l.title : "") + '" maxlength="120" placeholder="Demo Day"></label>' +
     '<label class="hp-field">Starts<input id="lf-start" type="datetime-local" value="' + (l ? localInput(l.start) : "") + '"></label>' +
     '<label class="hp-field">Where it goes live<input id="lf-dest" value="' + esc(l ? short(l.dest) : "") + '" inputmode="url" autocapitalize="none" placeholder="producthunt.com/posts/your-app"></label>' +
+    '<label class="hp-field">Your words in their alerts' + (S.plan && !S.plan.pro && S.plan.limited ? ' <span class="hp-badge">Pro</span>' : '') +
+    '<input id="lf-words" value="' + esc(l ? l.words || "" : "") + '" maxlength="120" placeholder="Upvote us at 12:01. Every vote counts."></label>' +
+    '<p class="hp-read">Shown the day before, 15 minutes before and when it goes live, to everyone who saved it.</p>' +
     '<label class="hp-check"><input type="checkbox" id="lf-count"' + (l && l.count ? " checked" : "") + '>Show how many will be reminded</label>' +
     '<p class="hp-err" id="lf-err" role="alert"></p><div class="hp-row"><button class="btn ink" type="submit">' + (l ? "Save changes" : "Publish") + '</button>' +
     (l ? '<button class="btn" type="button" id="lf-x">Cancel</button>' : "") + '</div>' +
@@ -126,7 +130,7 @@ function wireForm() {
     const btn = e.submitter || $("#lf button[type=submit]"); btn.disabled = true;
     try {
       const was = editing;
-      const r = await api("/api/host/launch", { id: was ? was.id : undefined, title: $("#lf-title").value, start, dur: dur.v, tz: TZ, dest: $("#lf-dest").value, count: $("#lf-count").checked });
+      const r = await api("/api/host/launch", { id: was ? was.id : undefined, title: $("#lf-title").value, start, dur: dur.v, tz: TZ, dest: $("#lf-dest").value, count: $("#lf-count").checked, words: $("#lf-words").value });
       S = r; editing = null;
       const made = S.launches.find(l => l.id === r.id);
       note = !was ? "Published. Share " + short(made ? made.url : "") + " anywhere." + (r.told ? " Your " + r.told.toLocaleString("en-US") + (r.told === 1 ? " follower is" : " followers are") + " being told." : "") : r.followed ? "Saved. Everyone who saved it gets the change, and their alerts move with it." : "Saved.";
@@ -158,9 +162,30 @@ function stats(l) {
 
 function item(l) {
   const ph = phase(l), chip = ph === "live" ? '<span class="hp-chip live">Live</span>' : ph === "ended" ? '<span class="hp-chip">Ended</span>' : "";
-  return '<li class="hp-item"><div><b>' + esc(l.title) + '</b>' + chip + '</div><span class="hp-meta">' + esc(when(l.start)) + (l.dest ? " · " + esc(short(l.dest)) : "") + '</span>' + stats(l) +
+  const nud = l.nudges && l.nudges.sent.length ? '<p class="hp-meta">' + l.nudges.sent.map(n => "Nudged " + esc(when(n.at)) + ", " + nf(n.reached) + (n.reached === 1 ? " phone" : " phones")).join(". ") + "." +
+    (ph !== "ended" && l.nudges.left && Date.now() < l.nudges.next ? " The next can go at " + esc(new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(l.nudges.next))) + "." : "") + '</p>' : "";
+  return '<li class="hp-item"><div><b>' + esc(l.title) + '</b>' + chip + '</div><span class="hp-meta">' + esc(when(l.start)) + (l.dest ? " · " + esc(short(l.dest)) : "") + '</span>' + stats(l) + nud +
     '<div class="hp-row"><a class="btn" href="' + esc(l.url) + '">View</a><button type="button" class="btn" data-copy="' + esc(l.url) + '">Copy link</button>' +
+    (S.plan && S.plan.pro && ph !== "ended" && l.nudges && l.nudges.left && Date.now() >= l.nudges.next ? '<button type="button" class="btn" data-nudge="' + esc(l.id) + '">Nudge everyone who saved it</button>' : '') +
     '<button type="button" class="btn" data-edit="' + esc(l.id) + '">Edit</button><button type="button" class="btn" data-del="' + esc(l.id) + '">' + (ph === "ended" ? (armed === l.id ? "Yes, delete it" : "Delete") : (armed === l.id ? "Yes, cancel it" : "Cancel launch")) + '</button></div></li>';
+}
+
+/* Nudge (Pro): a short message to every phone that saved it. Two per launch, an hour apart (worker/hosts.js). */
+function nudge(b) {
+  const li = b.closest(".hp-item"), id = b.dataset.nudge;
+  if (li.querySelector(".hp-nudge")) return;
+  const f = document.createElement("form");
+  f.className = "hp-nudge";
+  f.innerHTML = '<label class="hp-field">What should they read?<input maxlength="140" required placeholder="We\'re live in 10 minutes. Come say hi!"></label><p class="hp-err" role="alert"></p><div class="hp-row"><button class="btn ink" type="submit">Send nudge</button><button class="btn" type="button">Cancel</button></div>';
+  li.appendChild(f);
+  const input = f.querySelector("input"); input.focus();
+  f.querySelector("button[type=button]").addEventListener("click", () => f.remove());
+  f.addEventListener("submit", async e => {
+    e.preventDefault();
+    const s = f.querySelector("button[type=submit]"); s.disabled = true;
+    try { const r = await api("/api/host/launch/nudge", { id, text: input.value }); S = r; note = "Nudge sent to " + nf(r.reached) + (r.reached === 1 ? " phone." : " phones."); render(); }
+    catch (x) { f.querySelector(".hp-err").textContent = x.message; s.disabled = false; }
+  });
 }
 
 async function del(id) {
