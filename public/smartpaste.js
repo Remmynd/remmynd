@@ -35,8 +35,23 @@ const pad = n => String(n).padStart(2, "0");
 const clean = (v, n) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 const validZone = z => { try { new Intl.DateTimeFormat("en-US", { timeZone: z }); return true; } catch { return false; } };
 
-/** The model's answer as one line for the bar, in the reader's zone. found: whether it had a date. */
-export function lineFrom(r, timeZone, zonedTime) {
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** Whether this device shows a 12-hour clock (7:30 PM) or a 24-hour one (19:30). */
+export const twelveHour = locale => { try { return new Intl.DateTimeFormat(locale, { hour: "numeric" }).resolvedOptions().hour12 !== false; } catch { return true; } };
+/** A date and time the way a person types them: "Dec 4 7:30pm", or "Dec 4 19:30" on a 24-hour device. The year is
+ * written only when it isn't the next time that date comes round. The bar reads this back exactly. */
+export function spoken(y, mo, d, h, mi, { hasTime = true, now = new Date(), timeZone, hour12 = true } = {}) {
+  const p = {};
+  for (const x of new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(now)) p[x.type] = +x.value || x.value;
+  const next = mo > p.month || (mo === p.month && d >= p.day) ? p.year : p.year + 1;
+  let out = MONTHS[mo - 1] + " " + d + (y === next ? "" : ", " + y);
+  if (hasTime) out += hour12 ? " " + (h % 12 || 12) + (mi ? ":" + pad(mi) : "") + (h < 12 ? "am" : "pm") : " " + pad(h) + ":" + pad(mi);
+  return out;
+}
+
+/** The model's answer as one line for the bar, in the reader's zone. found: whether it had a date. With `natural`, the
+ * date reads the way a person types it ("Dec 4 7:30pm"); without, as YYYY-MM-DD HH:mm. */
+export function lineFrom(r, timeZone, zonedTime, { natural = false, now = new Date(), hour12 = true } = {}) {
   r = r && typeof r === "object" ? r : {};
   const title = clean(r.title, 120), place = clean(r.place, 300);
   let dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(clean(r.date, 10));
@@ -53,7 +68,7 @@ export function lineFrom(r, timeZone, zonedTime) {
       for (const x of new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" }).formatToParts(zonedTime(y, mo, d, h, mi, zone))) p[x.type] = x.value;
       [y, mo, d, h, mi] = [+p.year, +p.month, +p.day, +p.hour % 24, +p.minute];
     }
-    when = y + "-" + pad(mo) + "-" + pad(d) + (tm ? " " + pad(h) + ":" + pad(mi) : "");
+    when = natural ? spoken(y, mo, d, h, mi, { hasTime: !!tm, now, timeZone, hour12 }) : y + "-" + pad(mo) + "-" + pad(d) + (tm ? " " + pad(h) + ":" + pad(mi) : "");
   }
   const dur = Number.isInteger(r.duration_minutes) && r.duration_minutes > 0 && r.duration_minutes <= 1440 ? "for " + r.duration_minutes + " min" : "";
   const where = place ? (/^https?:\/\//i.test(place) || /^[\w-]+(\.[\w-]+)+\//.test(place) ? place : "at " + place) : "";
@@ -63,8 +78,9 @@ export function lineFrom(r, timeZone, zonedTime) {
 const $ = s => document.querySelector(s);
 const close = () => { const el = $("#sp"); if (el) el.remove(); };
 
-/** Offer to read a paste. Called by app.js with the pasted text or image, and what it needs back. */
-export async function offer({ text = "", image = null, form, put, toast, R, timeZone }) {
+/** Offer to read a paste. Called by app.js with the pasted text or image, and what it needs back. `auto`: the person
+ * already asked (they chose or dropped a photo), so reading starts at once. */
+export async function offer({ text = "", image = null, auto = false, form, put, toast, R, timeZone }) {
   const LM = self.LanguageModel;
   if (!LM) return;
   const opts = { expectedInputs: [{ type: "text", languages: ["en"] }, ...(image ? [{ type: "image" }] : [])], expectedOutputs: [{ type: "text", languages: ["en"] }] };
@@ -75,7 +91,7 @@ export async function offer({ text = "", image = null, form, put, toast, R, time
   close();
   const el = document.createElement("div");
   el.className = "sp"; el.id = "sp"; el.setAttribute("role", "group"); el.setAttribute("aria-label", "Smart paste");
-  el.innerHTML = '<button type="button" class="sp-go">' + SPARK + '<span>' + (image ? "Read this image with on-device AI" : "Read it with on-device AI") + '</span></button>' +
+  el.innerHTML = '<button type="button" class="sp-go">' + SPARK + '<span>' + (image ? "Read this photo with on-device AI" : "Read it with on-device AI") + '</span></button>' +
     '<span class="sp-sub" role="status">Runs on this device. Nothing is sent anywhere.' + (ready === "available" ? "" : " The first time, your browser downloads its model.") + '</span>' +
     '<button type="button" class="sp-x" aria-label="Not now">×</button>';
   form.insertBefore(el, form.querySelector(".cap-bar"));
@@ -92,7 +108,7 @@ export async function offer({ text = "", image = null, form, put, toast, R, time
       });
       const content = [{ type: "text", value: text ? text.slice(0, MAX_TEXT) : "Find the event on this poster or screenshot." }, ...(image ? [{ type: "image", value: image }] : [])];
       const answer = await session.prompt([{ role: "user", content }], { responseConstraint: SCHEMA });
-      const { line, found } = lineFrom(JSON.parse(answer), timeZone, R.zonedTime);
+      const { line, found } = lineFrom(JSON.parse(answer), timeZone, R.zonedTime, { natural: true, hour12: twelveHour() });
       close();
       if (line) put(line);
       toast(found ? "Read on this device. Check it, then press Enter." : "No date found in it. Add one in the bar.");
@@ -100,4 +116,5 @@ export async function offer({ text = "", image = null, form, put, toast, R, time
       go.disabled = false; sub.textContent = "That didn't work this time. Try again, or type it in.";
     } finally { if (session) session.destroy(); }
   });
+  if (auto) el.querySelector(".sp-go").click();
 }

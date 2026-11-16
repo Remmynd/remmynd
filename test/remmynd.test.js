@@ -1972,6 +1972,17 @@ test("smart paste: the browser's on-device AI reads an email or a poster into on
   assert.equal(line({ title: "X", date: "2026-12-05", duration_minutes: 5000 }).line, "X 2026-12-05", "and so is a length out of range");
   assert.equal(line({ title: "  Two\n  lines  ", date: "", place: "" }).line, "Two lines");
   assert.equal(line({ title: "t".repeat(500) }).line.length, 120);
+  // In the bar, written the way a person types it, and read back the same by the parser.
+  const later = new Date("2026-11-16T17:00:00Z"), ny = "America/New_York";
+  const say = (r, o = {}) => S.lineFrom(r, ny, R.zonedTime, { natural: true, now: later, ...o }).line;
+  assert.equal(say({ title: "Rooftop Jazz Night", date: "2026-12-04", time: "19:30", place: "The Wythe Hotel" }), "Rooftop Jazz Night Dec 4 7:30pm at The Wythe Hotel");
+  assert.equal(say({ title: "Brunch", date: "2027-01-03", time: "11:00" }), "Brunch Jan 3 11am", "next January needs no year");
+  assert.equal(say({ title: "Reunion", date: "2027-12-20" }), "Reunion Dec 20, 2027", "a year away says which year");
+  assert.equal(say({ title: "Run", date: "2026-12-05", time: "06:00" }, { hour12: false }), "Run Dec 5 06:00", "24-hour devices stay 24-hour");
+  for (const [l, want] of [["Rooftop Jazz Night Dec 4 7:30pm at The Wythe Hotel", "2026-12-05T00:30:00.000Z"], ["Brunch Jan 3 11am", "2027-01-03T16:00:00.000Z"], ["Reunion Dec 20, 2027", "2027-12-20T14:00:00.000Z"], ["Run Dec 5 06:00", "2026-12-05T11:00:00.000Z"]])
+    assert.equal(R.parse(l, { now: later, timeZone: ny }).start.toISOString(), want, l);
+  assert.equal(S.twelveHour("en-US"), true);
+  assert.equal(S.twelveHour("en-GB"), false);
   assert.deepEqual(line(null), { line: "", found: false });
 });
 
@@ -3330,7 +3341,7 @@ test("calendar import: an .ics file read on the device, its upcoming events held
   const line = p => app.split("\n").find(l => l.startsWith(p));
   const ICS_FILE = new Function(line("const ICS_FILE=") + "; return ICS_FILE;")();
   assert.deepEqual([{ name: "work.ics", type: "" }, { name: "x", type: "text/calendar" }, { name: "photo.png", type: "image/png" }, null].map(ICS_FILE), [true, true, false, false]);
-  assert.match(app, /document\.addEventListener\("drop",e=>\{C\.form\.classList\.remove\("dropping"\);const fs=\[\.\.\.\(e\.dataTransfer&&e\.dataTransfer\.files\)\|\|\[\]\]\.filter\(ICS_FILE\);if\(!fs\.length\)return;e\.preventDefault\(\);openImport\(fs,C\.input\);\}\);/);
+  assert.ok(app.includes('fs=all.filter(ICS_FILE)') && app.includes('if(!fs.length)return;e.preventDefault();openImport(fs,C.input);});'), "a calendar file dropped on the page is imported");
   // Holding: a private link made with the library, the reminder and the link kept on the device, and the same alerts as Remind me.
   assert.match(app, /share=R\.createLink\(ev,\{base:BASE,private:true\}\)/);
   assert.match(app, /DB\.put\("reminders",\{rkey,title:ev\.title,start:ev\.start\.getTime\(\),dur:x\.dur\|\|60,place:ev\.location,host:"",z:TZ,share,state:"held",nudge:false/);
@@ -4314,4 +4325,30 @@ test("follow: a phone or an account follows a host, hears each launch once, and 
   assert.deepEqual(r.body, { following: false, count: 0 });
   assert.equal((await follow("/api/follow/state", {})).status, 200);
   assert.equal((await follow("/api/follow", undefined)).status, 405);
+});
+
+test("a slash date that could go either way follows the device's order: 12/5 is December 5 in the US, 12 May elsewhere", () => {
+  const now = new Date("2026-11-16T17:00:00Z"), timeZone = "America/New_York";
+  const when = p => p.start.toLocaleString("en-US", { timeZone, month: "short", day: "numeric", hour: "numeric" });
+  assert.equal(when(R.parse("Book club 12/5 7pm", { now, timeZone, monthFirst: true })), "Dec 5, 7 PM");
+  assert.equal(when(R.parse("Book club 12/5 7pm", { now, timeZone, monthFirst: false })), "May 12, 7 PM");
+  // A date that can only be read one way is read that way, whatever the order.
+  assert.equal(when(R.parse("Party 11/28 7pm", { now, timeZone, monthFirst: false })), "Nov 28, 7 PM");
+  assert.equal(when(R.parse("Party 28/11 7pm", { now, timeZone, monthFirst: true })), "Nov 28, 7 PM");
+  assert.equal(R.localeMonthFirst("en-US"), true);
+  assert.equal(R.localeMonthFirst("en-CA") || R.localeMonthFirst("en-US"), true);
+  assert.equal(R.localeMonthFirst("en-GB"), false);
+  assert.equal(R.localeMonthFirst("en-IN"), false);
+});
+
+test("a reminder from a photo on the website: a camera button only where the browser can read images on the device", () => {
+  const html = readFileSync(join(root, "public/index.html"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8"), sp = readFileSync(join(root, "public/smartpaste.js"), "utf8");
+  assert.match(html, /<button type="button" class="cap-talk" id="photo" aria-label="Reminder from a photo"[^>]* hidden>/, "hidden until the page knows it can work");
+  assert.match(html, /<input type="file" id="photo-in" accept="image\/\*" hidden>/);
+  assert.ok(app.includes('if("LanguageModel" in self&&!window.__rmNative)LanguageModel.availability({expectedInputs:[{type:"text",languages:["en"]},{type:"image"}]') && app.includes('if(a!=="unavailable")PH.btn.hidden=false;'),
+    "shown only where the browser can read images on the device, and never in the iPhone app, which has its own camera");
+  assert.ok(app.includes("m.offer({image,auto:true,"), "choosing a photo starts reading at once");
+  assert.ok(app.includes("if(!fs.length&&img&&!PH.btn.hidden)"), "a photo dropped on the page is read the same way, and only where it can be");
+  assert.ok(sp.includes('if (auto) el.querySelector(".sp-go").click();'));
+  assert.ok(!/fetch\(|XMLHttpRequest|sendBeacon/.test(sp), "the photo is never sent anywhere");
 });

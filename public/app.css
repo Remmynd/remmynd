@@ -230,7 +230,7 @@ button{font:inherit;color:inherit}
 .row i,.mini i{font:400 12px var(--mono);font-style:normal;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chev{width:20px;height:20px;color:var(--muted);flex:none}
 .draft,.ready{display:grid;gap:12px;padding-top:8px}
-/* The preview pane shows the top of the ticket only (mock-ups 02 and desktop): no button until the link exists. */
+/* Preview: the top of the ticket only. */
 .pane .ticket .t-perf,.pane .ticket .t-meta,.pane .ticket .t-bottom{display:none}
 .hint{font:400 12px var(--mono);color:var(--muted);margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
@@ -243,7 +243,7 @@ button{font:inherit;color:inherit}
 .fchip.add{background:transparent;border:1px dashed var(--dash);color:var(--muted)}
 .fchip.when:focus-within{outline:2px solid var(--ink);outline-offset:2px}
 #c-when-in{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
-/* Short call: lengths for a call, shown when the line has a meeting link or reads like a call. The pressed one is the length. */
+/* Short call: call lengths, for a meeting link or a call. */
 .lens{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .lens .label{margin-right:2px}
 .len{min-height:var(--tap);padding:0 14px;background:var(--card);border:1px solid var(--hairline);border-radius:var(--r-chip);font:600 14px var(--font);color:var(--ink);cursor:pointer}
@@ -262,7 +262,7 @@ button{font:inherit;color:inherit}
 .row-link svg{width:20px;height:20px;color:var(--muted)}
 button.row-link{width:100%;font:inherit;font-size:15px;font-weight:600;text-align:left;cursor:pointer}
 .row-link+.row-link{margin-top:8px}
-/* The capture bar: docked at the bottom on phones, and at the foot of the column on wide screens until the two-pane layout. */
+/* The capture bar: docked on phones, at the column's foot on wide screens. */
 .capture{position:fixed;z-index:20;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px) + var(--kb,0px));width:min(560px,calc(100% - 24px));display:grid;gap:8px}
 /* Page text scrolls under the bar: fade it out behind the label and the bar so both stay readable. */
 .capture::before{content:"";position:absolute;z-index:-1;left:-12px;right:-12px;top:-28px;bottom:calc(-14px - env(safe-area-inset-bottom,0px));background:linear-gradient(to bottom,transparent,var(--paper) 34px);pointer-events:none}
@@ -284,7 +284,7 @@ button.row-link{width:100%;font:inherit;font-size:15px;font-weight:600;text-alig
 .heard>span{min-width:0;overflow-wrap:anywhere}
 body.has-cap .app{padding-bottom:150px}
 body.has-cap .toast{bottom:calc(112px + env(safe-area-inset-bottom,0px))}
-/* The ticket pane: under the line on phones while typing; on the right, always, from 960 px (desktop mock-up). */
+/* The ticket pane: under the line on phones; on the right from 960 px. */
 .pane{display:none;gap:12px;align-content:start}
 #home[data-mode="draft"] .pane{display:grid}
 #home:not([data-mode="draft"]) #draft-hint{display:none}
@@ -375,7 +375,7 @@ button.remind{width:100%;border:0;cursor:pointer}
 .more:hover{color:var(--ink)}
 /* ---------- the reminder stack (mock-up 05) ---------- */
 .held-line{display:flex;align-items:center;gap:8px;margin:0;font-size:16px;font-weight:600}
-/* The public count: "128 in" on the ticket, and your place in it, with "First ten" for the first ten, on the held ticket. */
+/* The public count and your place in it. */
 .t-count,.s-you{display:inline-block;padding:3px 8px;border-radius:8px;background:var(--moment-tint);color:var(--on-tint,var(--ink));font:600 11px var(--mono);letter-spacing:0}
 .t-head .t-count{margin-left:auto}
 .s-you{justify-self:start;margin:-2px 0 0 30px}
@@ -580,8 +580,7 @@ pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--card);border:1px solid
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
 
-/* Inside remmynd for iPhone (html.native, set by the app before any script runs): the app, not the website. No
-   marketing, no website pages, no footer; the system font; no grey flash on tap. The website itself is unchanged. */
+/* Inside remmynd for iPhone (html.native): the app, not the website. */
 .native .s-call{width:100%;margin-top:10px}
 html.native{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;overscroll-behavior:none}
 .native #hero,.native #try,.native .facts,.native .site-foot,.native .menu-btn,.native #view .fine,.native #nav-right[href="/#example"],.native a.row-link[href^="/hosts"],.native #home-link{display:none!important}
