@@ -7,7 +7,13 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const box = $("#hp");
 let S = { signedIn: false }, editing = null, editProfile = false, armed = null, note = "";
-const upgrade = () => import("/account.js").then(m => m.open()).catch(() => location.assign("/"));
+/* Get Pro: inside the iPhone app it's Apple's purchase sheet, natively (Bridge.swift "pro"); the website's checkout
+ * never shows there. On the web, the account sheet's Pro offer. */
+const IN_APP = !!window.__rmNative;
+const upgrade = () => {
+  if (IN_APP) { try { window.webkit.messageHandlers.remmynd.postMessage({ type: "pro" }); return; } catch (e) {} }
+  import("/account.js").then(m => m.open()).catch(() => location.assign("/"));
+};
 const nf = n => Number(n || 0).toLocaleString("en-US");
 /* The plan (worker/pro.js planOf): Pro, free with limits once Pro is on offer, or nothing to say before that. */
 function planCard() {
@@ -21,7 +27,7 @@ function planCard() {
       p.colors.map(k => '<button type="button" class="sw-' + k + '" data-color="' + k + '" aria-pressed="' + (c === k) + '" aria-label="' + k + '"></button>').join("") + '</div></div>';
   }
   return '<div class="hp-card"><div class="hp-plan"><div><span class="hp-badge">Free</span><ul><li>' + p.free.live + ' live launch at a time</li><li>No changes once someone saved it</li><li>Your first ' + p.free.reach + ' followers told each launch</li><li>Standard alerts, and the saved count</li></ul></div>' +
-    '<div class="hp-get">' + (p.discount ? '<span class="hp-deal">50% off your first month</span>' : '') + '<button type="button" class="btn ink" data-upgrade>Get Pro</button></div></div></div>';
+    '<div class="hp-get">' + (p.discount && !IN_APP ? '<span class="hp-deal">50% off your first month</span>' : '') + '<button type="button" class="btn ink" data-upgrade>Get Pro</button></div></div></div>';
 }
 
 async function api(path, body) {
