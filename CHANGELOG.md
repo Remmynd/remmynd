@@ -11,6 +11,10 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 - Inside the iPhone app, the page no longer repeats the website's free and no-account lines: the preview of a private link says only "Reminders that make sure it happens.", and the re-plan sheet's "No account" line is left out. The website keeps its wording.
 - The app code budget is now 75 KB compressed, up from 70 KB, to make room for repeating reminders in the library, which the capture bar uses on every visit. The app-only code and the repeat logic load from their own files, only when needed.
 
+### Fixed
+
+- Chat about this was only on a reminder's page before you tapped Remind me, so it never showed for saved reminders (every reminder in the app's Today), and the app's Chat item couldn't open it. It's now a button under the reminder stack, and the service worker's cache is renewed so devices get it.
+
 ### Added
 
 - Your page inside the iPhone app: Get Pro opens the app's own Apple purchase sheet instead of the account sheet, and the website-only "50% off your first month" isn't shown there.

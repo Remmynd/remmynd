@@ -126,7 +126,7 @@ const VIA=()=>'<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I
 const ALTS='<div class="alts" id="alts" hidden><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button><button type="button" id="a-qr">QR code</button></div>';
 function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+esc(fShort(c.start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(c.start,TZ),TZ))+'</b> instead?</span><label class="switch"><input type="checkbox" id="sleep"'+(c.morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
   '<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+(PUSH_OK?"Calendar and a notification on this "+DEVICE+", in one tap.":"Adds it to your calendar, with alerts.")+'</div>'+
-  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+(c.r.r?'':'<button type="button" class="more" id="chatb">Chat about this</button>')+VIA();}
+  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
 /* The stack (mock-up 05): what this one tap set up, plus the nudge switch. */
 /* Email: on for signed-in accounts (account.js), never for private links, which stay on the device. */
 let ACC={signedIn:false};
@@ -142,7 +142,7 @@ function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
     '<div id="s-notify"></div>'+
     emailRow(c)+floatRow()+'</div>'+
     '<div class="s-actions two s-pass"><button type="button" class="btn" id="s-story">'+I.story+'Add to story</button><button type="button" class="btn" id="s-pass">'+I.pass+'Pass it on</button></div>'+
-    (window.__rmNative?'<button type="button" class="btn ink s-call" id="s-call">Video call for this</button>':'')+
+    (window.__rmNative?'<button type="button" class="btn ink s-call" id="s-call">Video call for this</button>':'')+(c.r.r?'':'<button type="button" class="btn s-call" id="chatb">Chat about this</button>')+
     '<label class="plan" for="s-plan"><span class="opt-text"><b>My plan</b><span>Say when and where. Your alerts repeat it back.</span></span><input id="s-plan" type="text" maxlength="120" enterkeyhint="done" autocomplete="off" placeholder="At my desk, 5 minutes early" value="'+esc(rec.plan||"")+'"></label>'+
     '<label class="opt-row"><span class="opt-text"><b id="nudge-l">Nudge me until I\'m in</b><span id="nudge-d">Up to 3 nudges, 10 minutes apart.</span></span><span class="switch"><input type="checkbox" id="s-nudge" role="switch" aria-labelledby="nudge-l" aria-describedby="nudge-d"'+(rec.nudge?" checked":"")+'><span></span></span></label>'+
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
@@ -164,7 +164,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   if(S.held&&was&&was!=="due"&&ph==="due"&&document.visibilityState==="visible"){chime();try{if(navigator.vibrate)navigator.vibrate([30,60,30]);}catch(e){}}c.el.dataset.rstate=(S.rec&&S.rec.state)||"";c.el.dataset.replan=(S.rec&&S.rec.replanAt)||0;
   const lc=S.mine&&(!S.held||ph==="before")?lastCall(c.start.getTime(),Date.now(),TZ):"";S.lc=lc;
   b.innerHTML=(lc?'<button type="button" class="lastcall" id="t-last">'+esc(lc)+'</button>':'')+(!S.held?remindHTML(c):ph==="due"?followHTML(c):ph==="kept"?'<p class="held-line">'+I.on+'Done. You kept it.</p>'+VIA():
-    ph==="dropped"?'<p class="held-line muted">Dropped. No more alerts for this one.</p><button type="button" class="btn" id="f-later">Pick a new time</button>'+VIA():stackHTML(c));
+    ph==="dropped"?'<p class="held-line muted">Dropped. No more alerts for this one.</p><button type="button" class="btn" id="f-later">Pick a new time</button>'+VIA():stackHTML(c))+(c.r.r||S.held&&ph!=="due"&&ph!=="kept"&&ph!=="dropped"?'':'<button type="button" class="more" id="chatb">Chat about this</button>');
   c.el.querySelector(".t-head .label").textContent=labelFor(c,ph);
   if(S.held){const n=$("#nav-right");n.textContent="Coming up";n.href="/#coming-up";}
   const on=(sel,fn)=>{const x=b.querySelector(sel);if(x)fn(x);};

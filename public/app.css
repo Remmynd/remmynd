@@ -552,6 +552,7 @@ pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--card);border:1px solid
 /* ---------- install helper ---------- */
 .chip{display:inline-flex;align-items:center;gap:8px;margin-top:18px;min-height:var(--tap);padding:0 16px;border-radius:var(--r-button);border:1px solid var(--hairline);background:var(--card);color:var(--ink);font:500 14px var(--font);cursor:pointer}
 .chip svg{width:16px;height:16px}
+.s-call{width:100%;margin-top:10px}
 .sheet{position:fixed;inset:0;z-index:30;display:flex;align-items:flex-end;justify-content:center;background:var(--scrim);padding:0 max(12px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left,0px))}
 .sheet-card{position:relative;width:100%;max-width:440px;background:var(--card);border-radius:var(--r-ticket);padding:22px;box-shadow:var(--shadow-float);animation:sheetUp .28s cubic-bezier(.2,.7,.2,1);margin-bottom:64px}
 @keyframes sheetUp{from{transform:translateY(24px)}to{transform:none}}
@@ -581,7 +582,6 @@ pre{margin:0;font:12.5px/1.6 var(--mono);background:var(--card);border:1px solid
 }
 
 /* Inside remmynd for iPhone (html.native): the app, not the website. */
-.native .s-call{width:100%;margin-top:10px}
 html.native{--font:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;overscroll-behavior:none}
 .native #hero,.native #try,.native .facts,.native .site-foot,.native .menu-btn,.native #view .fine,.native #nav-right[href="/#example"],.native a.row-link[href^="/hosts"],.native #home-link{display:none!important}
 .native .top{min-height:0}

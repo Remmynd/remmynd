@@ -4467,6 +4467,7 @@ test("vanishing chat: scrambled on the device, one small room per reminder, gone
   // On the page: a lazy file, opened from the reminder; alerts carry no words.
   const app = readFileSync(join(root, "public/app.js"), "utf8"), sw = readFileSync(join(root, "public/sw.js"), "utf8");
   assert.ok(app.includes('id="chatb">Chat about this</button>') && app.includes('import("/chat.js")'), "Chat about this, loaded only when tapped");
+  assert.ok(app.includes("(c.r.r?'':'<button type=\"button\" class=\"btn s-call\" id=\"chatb\">Chat about this</button>')"), "a saved reminder (every reminder in Today) has Chat as a button under its stack");
   assert.ok(!firstVisit({ cache: true }).includes("chat.js") && !firstVisit({ cache: true }).includes("chat.css"), "not part of the first visit");
   assert.ok(sw.includes('fetch("/api/chat/inbox"') && sw.includes('"New message in the chat"'), "the service worker says only that there's a message");
   assert.match(readFileSync(join(root, "public/privacy/index.html"), "utf8"), /id="chat"/);
