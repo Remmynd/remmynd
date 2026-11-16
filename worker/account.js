@@ -61,6 +61,15 @@ export const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS pings (id TEXT PRIMARY KEY, endpoint TEXT NOT NULL, at INTEGER NOT NULL, created INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS ping_launch (id TEXT PRIMARY KEY, launch TEXT NOT NULL)",
   "CREATE INDEX IF NOT EXISTS ping_launch_launch ON ping_launch (launch)",
+  // Follow (worker/follows.js): who follows which host, as an anonymous push address or an account; the short notes
+  // a woken device fetches; follow emails waiting to go; launches whose followers were told they're live.
+  "CREATE TABLE IF NOT EXISTS follows (host_id TEXT NOT NULL, who TEXT NOT NULL, endpoint TEXT, user_id TEXT, email INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, PRIMARY KEY (host_id, who))",
+  "CREATE INDEX IF NOT EXISTS follows_endpoint ON follows (endpoint)",
+  "CREATE INDEX IF NOT EXISTS follows_user ON follows (user_id)",
+  "CREATE TABLE IF NOT EXISTS follow_msgs (id TEXT PRIMARY KEY, endpoint TEXT NOT NULL, launch TEXT NOT NULL, kind TEXT NOT NULL, at INTEGER NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS follow_msgs_endpoint ON follow_msgs (endpoint)",
+  "CREATE TABLE IF NOT EXISTS follow_mails (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, launch TEXT NOT NULL, at INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS follow_live (launch TEXT PRIMARY KEY, at INTEGER NOT NULL)",
 ];
 
 /* ---------- storage: D1 in production, an in-memory stand-in in the tests ---------- */
@@ -77,7 +86,7 @@ export function d1Store(db) {
     createUser: u => run("INSERT INTO users (id, email, created, email_alerts, stop_token) VALUES (?, ?, ?, 1, ?)", u.id, u.email, u.created, u.stop_token),
     setEmailAlerts: (id, on) => run("UPDATE users SET email_alerts = ? WHERE id = ?", on ? 1 : 0, id),
     stopEmails: (id, token) => run("UPDATE users SET email_alerts = 0 WHERE id = ? AND stop_token = ?", id, token),
-    deleteUser: id => db.batch([...["passkeys", "sessions", "items", "mails", "feeds", "pro", "hosts", "launches", "launches_gone"].map(t => st("DELETE FROM " + t + " WHERE user_id = ?", id)), st("DELETE FROM users WHERE id = ?", id)]),
+    deleteUser: id => db.batch([...["passkeys", "sessions", "items", "mails", "feeds", "pro", "hosts", "launches", "launches_gone", "follows", "follow_mails"].map(t => st("DELETE FROM " + t + " WHERE user_id = ?", id)), st("DELETE FROM follows WHERE host_id = ?", id), st("DELETE FROM users WHERE id = ?", id)]),
     hostOf: id => one("SELECT * FROM hosts WHERE user_id = ?", id),
     hostByHandle: h => one("SELECT * FROM hosts WHERE handle = ?", h),
     putHost: h => run("INSERT INTO hosts (user_id, handle, name, bio, link, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET handle = excluded.handle, name = excluded.name, bio = excluded.bio, link = excluded.link, updated = excluded.updated",
@@ -93,6 +102,23 @@ export function d1Store(db) {
     // Every device holding the launch is pinged now; it checks, and moves or drops its own alerts.
     wakeLaunch: (id, now) => run("UPDATE pings SET at = ? WHERE id IN (SELECT id FROM ping_launch WHERE launch = ?)", now, id),
     itemsForLaunch: id => all("SELECT user_id, key, data FROM items WHERE kind = 'reminder' AND deleted = 0 AND data LIKE ?", '%"launch":"' + id + '"%'),
+    putFollow: f => run("INSERT INTO follows (host_id, who, endpoint, user_id, email, created) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(host_id, who) DO UPDATE SET endpoint = excluded.endpoint, email = excluded.email", f.host_id, f.who, f.endpoint || null, f.user_id || null, f.email ? 1 : 0, f.created),
+    deleteFollow: (host, who) => run("DELETE FROM follows WHERE host_id = ? AND who = ?", host, who),
+    followersOf: host => all("SELECT * FROM follows WHERE host_id = ?", host),
+    followCount: async host => ((await one("SELECT COUNT(*) AS n FROM follows WHERE host_id = ?", host)) || {}).n || 0,
+    followsBy: (endpoint, userId) => all("SELECT * FROM follows WHERE (endpoint IS NOT NULL AND endpoint = ?) OR (user_id IS NOT NULL AND user_id = ?)", endpoint || "-", userId || "-"),
+    setFollowEmail: (host, userId, on) => run("UPDATE follows SET email = ? WHERE host_id = ? AND who = ?", on ? 1 : 0, host, "u:" + userId),
+    // A note for a device, and the ping that wakes it to fetch it (the every-minute sender in worker/push.js).
+    addFollowMsgs: rows => rows.length ? db.batch(rows.flatMap(m => [st("INSERT OR REPLACE INTO follow_msgs (id, endpoint, launch, kind, at) VALUES (?, ?, ?, ?, ?)", m.id, m.endpoint, m.launch, m.kind, m.at),
+      st("INSERT OR REPLACE INTO pings (id, endpoint, at, created) VALUES (?, ?, ?, ?)", m.id, m.endpoint, m.at, m.at)])) : null,
+    takeInbox: async (endpoint, since) => { const r = await all("SELECT * FROM follow_msgs WHERE endpoint = ? AND at > ? ORDER BY at", endpoint, since); if (r.length) await run("DELETE FROM follow_msgs WHERE endpoint = ?", endpoint); return r; },
+    addFollowMails: rows => rows.length ? db.batch(rows.map(m => st("INSERT OR REPLACE INTO follow_mails (id, user_id, launch, at) VALUES (?, ?, ?, ?)", m.id, m.user_id, m.launch, m.at))) : null,
+    dueFollowMails: (now, limit) => all("SELECT * FROM follow_mails WHERE at <= ? ORDER BY at LIMIT ?", now, limit),
+    deleteFollowMail: id => run("DELETE FROM follow_mails WHERE id = ?", id),
+    // Launches that went live in the last 15 minutes whose followers weren't told yet.
+    liveDue: now => all("SELECT l.*, h.handle, h.name FROM launches l JOIN hosts h ON h.user_id = l.user_id WHERE l.start <= ? AND l.start > ? AND l.id NOT IN (SELECT launch FROM follow_live)", now, now - 15 * 60e3),
+    markLive: (id, at) => run("INSERT OR IGNORE INTO follow_live (launch, at) VALUES (?, ?)", id, at),
+    cleanFollow: now => db.batch([st("DELETE FROM follow_msgs WHERE at < ?", now - DAY), st("DELETE FROM follow_live WHERE at < ?", now - 7 * DAY)]),
     passkeysOf: id => all("SELECT id, name, created, last_used FROM passkeys WHERE user_id = ? ORDER BY created", id),
     passkey: id => one("SELECT * FROM passkeys WHERE id = ?", id),
     addPasskey: p => run("INSERT INTO passkeys (id, user_id, public_key, alg, sign_count, name, created) VALUES (?, ?, ?, ?, 0, ?, ?)", p.id, p.userId, p.publicKey, p.alg, p.name, p.created),
@@ -144,10 +170,10 @@ export function resendMailer(env, fetcher = fetch) {
   };
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const page = (title, body) => '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(title) + '</title>' +
+export const page = (title, body) => '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(title) + '</title>' +
   '<body style="font-family:system-ui,sans-serif;background:#F5F6F7;color:#0E0F11;margin:0;padding:32px 16px"><div style="max-width:480px;margin:0 auto;background:#fff;border-radius:22px;padding:28px">' + body +
   '<p style="color:#666C75;font-size:13px;margin:24px 0 0">remmynd by Zoof04 Inc. Free, no tracking.</p></div></body></html>';
-const button = (href, label) => '<p style="margin:20px 0"><a href="' + esc(href) + '" style="display:inline-block;background:#F2A000;color:#0E0F11;font-weight:600;text-decoration:none;padding:14px 22px;border-radius:16px">' + esc(label) + '</a></p>';
+export const button = (href, label) => '<p style="margin:20px 0"><a href="' + esc(href) + '" style="display:inline-block;background:#F2A000;color:#0E0F11;font-weight:600;text-decoration:none;padding:14px 22px;border-radius:16px">' + esc(label) + '</a></p>';
 
 export function codeMail(code) {
   const spaced = code.slice(0, 3) + " " + code.slice(3);

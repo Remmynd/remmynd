@@ -14,6 +14,7 @@ import { handlePro, proBeforeDelete } from "./pro.js";
 import { handleCount, cleanCounts } from "./count.js";
 import { appSiteResponse } from "./appsite.js";
 import { handleHost, hostPageResponse, launchStateResponse } from "./hosts.js";
+import { handleFollow, followLive, sendFollowMails } from "./follows.js";
 
 const PRESETS = new Set(["example"]);
 
@@ -44,6 +45,7 @@ export default {
     // Host pages: the API, and the public pages at /@handle and /@handle/<slug>. The bare template isn't a page.
     if (url.pathname === "/api/host" || url.pathname.startsWith("/api/host/")) return handleHost(request, env, url);
     if (url.pathname === "/api/launch") return launchStateResponse(request, env, url);
+    if (url.pathname === "/api/follow" || url.pathname.startsWith("/api/follow/") || url.pathname === "/api/unfollow") return handleFollow(request, env, url);
     if (url.pathname.startsWith("/@") || url.pathname.startsWith("/%40")) return hostPageResponse(request, env, url);
     if (url.pathname === "/at" || url.pathname === "/at/") { const nf = await env.ASSETS.fetch(new Request(new URL("/404", url))); return new Response(nf.body, { status: 404, headers: nf.headers }); }
     if (url.pathname.startsWith("/api/")) return handleAccount(request, env, url, ctx);
@@ -98,6 +100,8 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(sendDuePings(env));
     ctx.waitUntil(sendDueMails(env));
+    // Follow: launches that just went live are told to their followers; follow emails go out a few at a time.
+    ctx.waitUntil(followLive(env).then(() => sendFollowMails(env)).catch(() => {}));
     // Once an hour: forget counts 30 days after their reminder ended.
     if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 17) ctx.waitUntil(cleanCounts(env));
   }

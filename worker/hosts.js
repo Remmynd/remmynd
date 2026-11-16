@@ -169,7 +169,7 @@ export async function handleHost(request, env, url, deps = {}) {
     const host = await store.hostOf(user.id);
     if (!host) return { signedIn: true, host: null, launches: [] };
     const launches = (await store.launchesOf(user.id)).map(l => launchView(host, l, url.origin));
-    return { signedIn: true, host: { handle: host.handle, name: host.name, bio: host.bio, link: host.link, url: url.origin + "/@" + host.handle }, launches };
+    return { signedIn: true, host: { handle: host.handle, name: host.name, bio: host.bio, link: host.link, url: url.origin + "/@" + host.handle, followers: store.followCount ? await store.followCount(user.id) : 0 }, launches };
   };
   if (path === "/api/host" && (request.method === "GET" || request.method === "HEAD")) return json(user ? await out() : { signedIn: false });
   if (request.method !== "POST") return json({ error: "Use POST." }, 405);
@@ -201,7 +201,10 @@ export async function handleHost(request, env, url, deps = {}) {
     // Changed what a saver relies on: the time, the length, the title or where it goes. They follow.
     const moved = was && (was.start !== l.start || was.dur !== l.dur || was.title !== l.title || was.dest !== l.dest);
     if (moved) await followChange(store, id, launchView(host, { ...was, ...l, id, slug, updated: now }, url.origin), now, url.origin);
-    return json({ ...(await out()), id, followed: !!moved });
+    // A new launch, still to come: the host's followers hear about it (worker/follows.js).
+    let told = 0;
+    if (!was && l.start > now) { const { tellFollowers } = await import("./follows.js"); const t = await tellFollowers(store, host, { id, ...l }, "announce", now); told = t.pushed + t.mailed; }
+    return json({ ...(await out()), id, followed: !!moved, told });
   }
   if (path === "/api/host/launch/delete") {
     const gone = mine.find(x => x.id === body.id);
@@ -230,8 +233,16 @@ function clockHTML(l, now) {
     '<p class="at-state at-live-now">Live now</p><p class="at-state at-ended">This launch has happened.</p>';
 }
 
+/** Follow the host: the button and how many follow. public/at.js does the rest. */
+export function followHTML(host, n) {
+  const who = host.name || "@" + host.handle;
+  return '<div class="at-follow-row"><button type="button" class="btn small at-follow" data-handle="' + esc(host.handle) + '" data-name="' + esc(who) + '" aria-pressed="false">' +
+    '<span class="f-off">Follow ' + esc(who) + '</span><span class="f-on">Following</span></button><span class="at-followers" data-n="' + n + '">' + (n ? n.toLocaleString("en-US") + (n === 1 ? " follower" : " followers") : "") + '</span>' +
+    '<p class="at-follow-note" role="status" hidden></p></div>';
+}
+
 /** One launch: the clock, the time, and what to do. `big` for its own page, compact on the host's page. */
-export function launchHTML(host, l, v, now, { n = 0, big = true } = {}) {
+export function launchHTML(host, l, v, now, { n = 0, big = true, followers = null } = {}) {
   const go = v.dest ? '<a class="btn at-go" href="' + esc(v.dest) + '" rel="noopener" target="_blank">' +
     '<span class="p-before">Go to ' + esc(v.destName) + '</span><span class="p-live">It\'s live: go now</span><span class="p-ended">Visit ' + esc(v.destName) + '</span>' + ARROW + '</a>' : "";
   const count = l.count && n > 0 ? '<p class="at-count"><b>' + n.toLocaleString("en-US") + '</b> ' + (n === 1 ? "person" : "people") + ' will be reminded</p>' : "";
@@ -242,15 +253,16 @@ export function launchHTML(host, l, v, now, { n = 0, big = true } = {}) {
     clockHTML(l, now) + count +
     '<div class="at-actions"><a class="btn ink at-remind" href="' + esc("/r/" + v.payload) + '">' + BELL + 'Remind me</a>' + go + '</div>' +
     (big ? '<p class="at-more"><a href="' + esc(v.ics) + '">Add to Calendar</a><a href="' + esc(v.google) + '" rel="noopener" target="_blank">Google Calendar</a><button type="button" class="linkish at-share" data-url="' + esc(v.url) + '" data-title="' + esc(l.title) + '">Share</button></p>' : "") +
+    (big && followers != null ? followHTML(host, followers) : "") +
     '</article>';
 }
 
-function hostHTML(host, launches, origin, now) {
+function hostHTML(host, launches, origin, now, followers = 0) {
   const views = launches.map(l => ({ l, v: launchView(host, l, origin) }));
   const upcoming = views.filter(x => phaseOf(x.l, now) !== "ended"), past = views.filter(x => phaseOf(x.l, now) === "ended").reverse();
   const head = '<header class="at-host"><h1>' + esc(host.name || "@" + host.handle) + '</h1><p class="at-handle">@' + esc(host.handle) + '</p>' +
     (host.bio ? '<p class="at-bio">' + esc(host.bio) + '</p>' : "") +
-    (host.link ? '<p><a class="at-link" href="' + esc(host.link) + '" rel="noopener me" target="_blank">' + esc(host.link.replace(/^https?:\/\//, "").replace(/\/$/, "")) + '</a></p>' : "") + '</header>';
+    (host.link ? '<p><a class="at-link" href="' + esc(host.link) + '" rel="noopener me" target="_blank">' + esc(host.link.replace(/^https?:\/\//, "").replace(/\/$/, "")) + '</a></p>' : "") + followHTML(host, followers) + '</header>';
   const next = upcoming[0] ? '<section aria-labelledby="at-next"><h2 class="label" id="at-next">' + (phaseOf(upcoming[0].l, now) === "live" ? "Live now" : "Next") + '</h2>' + launchHTML(host, upcoming[0].l, upcoming[0].v, now, { big: false }) + '</section>' : "";
   const row = x => '<li><a href="' + esc(x.v.url) + '"><b>' + esc(x.l.title) + '</b><time datetime="' + new Date(x.l.start).toISOString() + '">' + esc(whenText(x.l.start, x.l.tz, now)) + '</time></a></li>';
   const later = upcoming.length > 1 ? '<section aria-labelledby="at-later"><h2 class="label" id="at-later">Coming up</h2><ul class="at-list">' + upcoming.slice(1).map(row).join("") + '</ul></section>' : "";
@@ -302,7 +314,7 @@ export async function hostPageResponse(request, env, url, deps = {}) {
     const next = launches.find(l => phaseOf(l, now) !== "ended");
     return page(env, url, { title: who + " · remmynd", canonical: url.origin + "/@" + host.handle,
       description: host.bio || (next ? "Next: " + next.title + ", " + whenText(next.start, next.tz, now) + ". Tap Remind me so you don't miss it." : "Launches by " + who + " on remmynd."),
-      html: hostHTML(host, launches, url.origin, now) });
+      html: hostHTML(host, launches, url.origin, now, store.followCount ? await store.followCount(host.user_id) : 0) });
   }
   const l = launches.find(x => x.slug === slug);
   if (!l) {
@@ -317,5 +329,5 @@ export async function hostPageResponse(request, env, url, deps = {}) {
   const ph = phaseOf(l, now);
   return page(env, url, { title: l.title + " by " + who, canonical: v.url,
     description: (ph === "live" ? "Live now. " : ph === "ended" ? "This launch has happened. " : "") + whenText(l.start, l.tz, now) + "." + (ph === "before" ? " Tap Remind me so you don't miss it." : ""),
-    html: launchHTML(host, l, v, now, { n }) });
+    html: launchHTML(host, l, v, now, { n, followers: store.followCount ? await store.followCount(host.user_id) : 0 }) });
 }

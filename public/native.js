@@ -123,6 +123,18 @@ export function boot({ R, TZ, holdImported, rkeyOf, replanOptions, unfloat, go, 
     /* remmynd Pro (worker/pro.js). The app buys through Apple and sends what Apple signed; the account's status comes
      * back the same however it was paid, so a website purchase shows in the app and Restore finds either. */
     async pro() { try { const r = await fetch("/api/pro", { credentials: "same-origin" }); return r.ok ? await r.json() : { signedIn: false }; } catch (e) { return null; } },
+    /* Follow, in the app: the launches coming up from hosts this phone follows (at.js keeps the handles), and which are
+     * new since the app last asked. The app shows them in Today and sets a local "live now" alert for each. */
+    async followFeed() {
+      let handles = [], seen = [];
+      try { handles = JSON.parse(localStorage.getItem("rm:follows") || "[]"); seen = JSON.parse(localStorage.getItem("rm:fseen") || "[]"); } catch (e) {}
+      if (!handles.length) return { launches: [], fresh: [] };
+      let launches = [];
+      try { const r = await fetch("/api/follow/feed?handles=" + handles.map(encodeURIComponent).join(","), { cache: "no-store" }); if (r.ok) launches = (await r.json()).launches || []; } catch (e) { return null; }
+      const fresh = launches.filter(l => !seen.includes(l.id)).map(l => l.id);
+      try { localStorage.setItem("rm:fseen", JSON.stringify([...new Set([...seen, ...launches.map(l => l.id)])].slice(-300))); } catch (e) {}
+      return { launches, fresh };
+    },
     async proApple(jws, move, renewal) { return post("/api/pro/apple", { jws, move: !!move, renewal: renewal || undefined }); },
     async proRestore(jws, move, renewal) { return post("/api/pro/restore", jws ? { jws, move: !!move, renewal: renewal || undefined } : {}); },
     /* The full reminder page, for its details, its plan and its call. */

@@ -45,3 +45,70 @@ for (const b of document.querySelectorAll(".at-share")) {
     setTimeout(() => (b.textContent = "Share"), 2400);
   });
 }
+
+/* Follow: notifications in this browser (an anonymous push address, as for alerts), the account when signed in, or
+ * both. In the iPhone app, the app shows followed hosts' launches in Today. worker/follows.js keeps who follows whom. */
+const KNOWN = "rm:follows";
+const known = () => { try { return JSON.parse(localStorage.getItem(KNOWN) || "[]"); } catch (e) { return []; } };
+const remember = (h, on) => { try { const k = known().filter(x => x !== h); if (on) k.push(h); localStorage.setItem(KNOWN, JSON.stringify(k)); } catch (e) {} };
+const IN_APP = !!window.__rmNative;
+const canPush = !IN_APP && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const post = async (path, body) => { const r = await fetch(path, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw Object.assign(new Error(j.error || "Couldn't do that. Try again."), { need: j.need }); return j; };
+const b64key = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));
+async function pushEndpoint(ask) {
+  if (!canPush) return null;
+  const perm = ask && Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+  if (perm !== "granted") return null;
+  const reg = await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub && ask) { const k = await fetch("/push/key").then(r => r.json()); sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64key(k.key) }); }
+  return sub ? sub.endpoint : null;
+}
+const followButtons = [...document.querySelectorAll(".at-follow")];
+function show(b, on, n) {
+  b.setAttribute("aria-pressed", on ? "true" : "false");
+  const c = b.parentElement.querySelector(".at-followers");
+  if (c && n != null) { c.dataset.n = n; c.textContent = n ? n.toLocaleString("en-US") + (n === 1 ? " follower" : " followers") : ""; }
+}
+function say(b, html) { const p = b.parentElement.querySelector(".at-follow-note"); if (p) { p.innerHTML = html; p.hidden = !html; } return p; }
+const escT = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+for (const b of followButtons) {
+  if (known().includes(b.dataset.handle)) show(b, true);
+  b.addEventListener("click", async () => {
+    const h = b.dataset.handle, name = b.dataset.name, on = b.getAttribute("aria-pressed") === "true";
+    b.disabled = true;
+    try {
+      if (on) {
+        const r = await post("/api/unfollow", { handle: h, endpoint: await pushEndpoint(false).catch(() => null) });
+        remember(h, false); show(b, false, r.count); say(b, "");
+      } else {
+        const endpoint = await pushEndpoint(true).catch(() => null);
+        let r;
+        try { r = await post("/api/follow", { handle: h, endpoint }); }
+        catch (e) {
+          if (e.need !== "signin") throw e;
+          if (IN_APP) { r = { following: true, signedIn: false }; } // the app follows on this phone, and shows their launches in Today
+          else { say(b, escT(canPush ? "Turn on notifications for remmynd to follow, or sign in to follow by email." : "This browser can't show notifications. Sign in to follow by email.") + ' <button type="button" class="btn at-signin">Sign in</button>');
+            const si = b.parentElement.querySelector(".at-signin"); if (si) si.addEventListener("click", () => import("/account.js").then(m => m.open()).catch(() => location.assign("/")));
+            return; }
+        }
+        remember(h, true); show(b, true, r.count);
+        if (r.signedIn && !r.email) {
+          const p = say(b, escT("Following. You'll hear when " + name + " announces or goes live.") + ' <button type="button" class="btn at-mail">Email me too</button>');
+          p.querySelector(".at-mail").addEventListener("click", async e => { e.target.disabled = true; try { await post("/api/follow", { handle: h, endpoint, email: true }); say(b, escT("Following. We'll also email you when " + name + " announces.")); } catch (x) { say(b, escT(x.message)); } });
+        } else if (r.email) say(b, escT("Following. We'll email you when " + name + " announces a launch."));
+        else say(b, escT(IN_APP ? "Following. Their launches show in Today, and the app tells you when one goes live." : "Following. You'll hear when " + name + " announces or goes live."));
+      }
+    } catch (e) { say(b, escT(e.message)); }
+    finally { b.disabled = false; }
+  });
+}
+/* What the server says this browser or account follows, and the counts, once the page is up. */
+if (followButtons.length) (async () => {
+  const endpoint = await pushEndpoint(false).catch(() => null);
+  const r = await post("/api/follow/state", { handles: followButtons.map(b => b.dataset.handle), endpoint }).catch(() => null);
+  if (!r || !r.hosts) return;
+  for (const b of followButtons) { const st = r.hosts[b.dataset.handle]; if (!st) continue; if (st.own) { b.hidden = true; say(b, 'This is your page. <a href="/host">Edit it</a>'); continue; }
+    const on = st.following || (IN_APP && known().includes(b.dataset.handle)); if (!IN_APP) remember(b.dataset.handle, st.following); show(b, on, st.count); }
+})();
