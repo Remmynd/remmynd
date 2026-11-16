@@ -1565,25 +1565,25 @@ function fakeIndexedDB(state) {
   } };
 }
 
-test("on-device storage: version 2 adds reminders and links, built from version 1 alerts", async () => {
+test("on-device storage: version 3 adds reminders, links and chats, built from version 1 alerts", async () => {
   const vm = await import("node:vm");
   const load = state => { const ctx = { indexedDB: fakeIndexedDB(state), setTimeout, self: {} }; vm.createContext(ctx); vm.runInContext(readFileSync(join(root, "public/db.js"), "utf8"), ctx); return ctx.self.remmyndDB; };
   const alert = (id, rkey, kind) => ({ id, rkey, kind, title: rkey === "k1" ? "Demo day" : "Call Mum", start: 1798000000000, place: "https://lu.ma/demo", share: "https://remmynd.space/r/" + rkey, shown: false, at: 1797996400000 });
   const v1 = { version: 1, stores: { alerts: { keyPath: "id", rows: new Map([["a1", alert("a1", "k1", "before")], ["a2", alert("a2", "k1", "start")], ["a3", alert("a3", "k2", "start")]]) } } };
   const DB = load(v1);
   const reminders = await DB.getAll("reminders");
-  assert.equal(v1.version, 2);
+  assert.equal(v1.version, 3);
   assert.deepEqual(reminders.map(r => r.rkey).sort(), ["k1", "k2"], "one reminder per rkey");
   const k1 = reminders.find(r => r.rkey === "k1");
   assert.deepEqual([k1.title, k1.place, k1.share, k1.state, k1.nudge], ["Demo day", "https://lu.ma/demo", "https://remmynd.space/r/k1", "held", false]);
   assert.equal((await DB.getAll("alerts")).length, 3, "alerts are kept");
   await DB.put("links", { share: "https://remmynd.space/r/x", title: "Demo day", start: 1798000000000, createdAt: 1, private: false });
   assert.deepEqual((await DB.getAll("links")).map(l => l.share), ["https://remmynd.space/r/x"]);
-  // A first visit gets all three stores, empty.
+  // A first visit gets all four stores, empty.
   const fresh = { version: 0, stores: {} };
   const DB2 = load(fresh);
   assert.deepEqual(await DB2.getAll("reminders"), []);
-  assert.deepEqual(Object.keys(fresh.stores).sort(), ["alerts", "links", "reminders"]);
+  assert.deepEqual(Object.keys(fresh.stores).sort(), ["alerts", "chats", "links", "reminders"]);
   // Nothing else opens the database: push.js and sw.js go through db.js.
   for (const f of ["push.js", "sw.js", "app.js"]) assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8"), /indexedDB\.open/, f + " opens IndexedDB itself");
 });
@@ -4205,7 +4205,7 @@ test("savers follow a change on the device: alerts move with the launch, the dev
   const push = readFileSync(join(root, "public/push.js"), "utf8"), sw = readFileSync(join(root, "public/sw.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8"), wp = readFileSync(join(root, "worker/push.js"), "utf8");
   assert.ok(push.includes("...(a.launch ? { launch: a.launch } : {})") && wp.includes("INSERT OR REPLACE INTO ping_launch (id, launch)"), "a launch's alerts say which launch, and only that");
   assert.ok(push.includes("async function move(rec, delta)") && push.includes("window.__rmPush = { remind, renderRow, cancel, replan, setNudge, move,"));
-  assert.ok(sw.includes('importScripts("/db.js", "/follow.js")') && sw.includes("await showDue(changes.length + notes.length > 0);"), "the service worker follows first, and says what changed instead of the generic line");
+  assert.ok(sw.includes('importScripts("/db.js", "/follow.js")') && sw.includes("await showDue(changes.length + notes.length + rooms.length > 0);"), "the service worker follows first, and says what changed instead of the generic line");
   assert.ok(app.includes("...(c.r.u?{launch:c.r.u}:{})") && app.includes("'<span class=\"li-chip\">Moved</span>'") && app.includes("function checkLaunch(r)"));
   assert.ok(readFileSync(join(root, "public/native.js"), "utf8").includes("movedFrom: x.movedFrom || null"));
 });
@@ -4325,6 +4325,134 @@ test("follow: a phone or an account follows a host, hears each launch once, and 
   assert.deepEqual(r.body, { following: false, count: 0 });
   assert.equal((await follow("/api/follow/state", {})).status, 200);
   assert.equal((await follow("/api/follow", undefined)).status, 405);
+});
+
+function memoryChat() {
+  const t = { rooms: new Map(), msgs: [], people: [], inbox: new Map(), gone: new Map(), pings: [] };
+  const wipe = id => { t.rooms.delete(id); t.msgs = t.msgs.filter(m => m.room !== id); t.people = t.people.filter(p => p.room !== id); for (const k of [...t.inbox.keys()]) if (k.endsWith("|" + id)) t.inbox.delete(k); };
+  return { t,
+    ready: async () => {},
+    room: async id => t.rooms.get(id) || null,
+    isGone: async id => t.gone.has(id),
+    makeRoom: async (id, ends, now) => { if (!t.rooms.has(id)) t.rooms.set(id, { id, ends, created: now }); },
+    count: async id => t.msgs.filter(m => m.room === id).length,
+    people: async id => t.people.filter(p => p.room === id).map(p => ({ me: p.me, endpoint: p.endpoint })),
+    join: async (id, me) => { if (!t.people.some(p => p.room === id && p.me === me)) t.people.push({ room: id, me, endpoint: null }); },
+    watch: async (id, me, e) => { for (const p of t.people) { if (p.room === id && p.endpoint === e) p.endpoint = null; if (p.room === id && p.me === me) p.endpoint = e; } },
+    unwatch: async (id, me) => { for (const p of t.people) if (p.room === id && p.me === me) p.endpoint = null; },
+    add: async (m, tell, now) => { t.msgs.push({ ...m }); for (const e of tell) { const k = e + "|" + m.room, x = t.inbox.get(k); t.inbox.set(k, { room: m.room, n: (x ? x.n : 0) + 1 }); t.pings.push({ endpoint: e, at: now }); } },
+    since: async (id, at) => t.msgs.filter(m => m.room === id && m.at > at).map(({ id, me, at, body }) => ({ id, me, at, body })),
+    takeInbox: async e => { const r = [...t.inbox.entries()].filter(([k]) => k.startsWith(e + "|")); for (const [k] of r) t.inbox.delete(k); return r.map(([, v]) => v); },
+    end: async (id, until) => { wipe(id); t.gone.set(id, until); },
+    clean: async now => { const old = [...t.rooms.values()].filter(r => r.ends < now - 864e5); for (const r of old) { wipe(r.id); t.gone.set(r.id, now + 30 * 864e5); } for (const [k, u] of t.gone) if (u < now) t.gone.delete(k); return old.length; }
+  };
+}
+
+test("vanishing chat: scrambled on the device, one small room per reminder, gone a day after it ends", async () => {
+  const C = await import("../worker/chat.js");
+  const { mkdtempSync, writeFileSync } = await import("node:fs"), { tmpdir } = await import("node:os"), { pathToFileURL } = await import("node:url");
+  const dir = mkdtempSync(join(tmpdir(), "rm-chat-"));
+  writeFileSync(join(dir, "chat.mjs"), readFileSync(join(root, "public/chat.js"), "utf8").replace('from "/remmynd.js"', "from " + JSON.stringify(pathToFileURL(join(root, "lib/remmynd.js")).href)));
+  const W = await import(pathToFileURL(join(dir, "chat.mjs")).href);
+
+  // On the device: the room and key come from the link's secret; the words are scrambled; a wrong key reads nothing.
+  const a = await W.derive("k:AAAAAAAAAAAAAAAAAAAAAA"), b = await W.derive("k:AAAAAAAAAAAAAAAAAAAAAA"), other = await W.derive("k:BBBBBBBBBBBBBBBBBBBBBB");
+  assert.equal(a.room, b.room);
+  assert.match(a.room, /^[A-Za-z0-9_-]{22}$/);
+  assert.notEqual(a.room, other.room);
+  assert.ok(!a.room.includes("AAAA"), "the room id gives nothing away");
+  const sealed = await W.seal(a.key, { n: "Sam", t: "Bring the charger Fri 6pm" });
+  assert.match(sealed, /^[A-Za-z0-9_-]+$/);
+  assert.ok(!sealed.includes("charger") && !Buffer.from(sealed.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("latin1").includes("charger"), "scrambled");
+  assert.deepEqual(await W.unseal(b.key, sealed), { n: "Sam", t: "Bring the charger Fri 6pm" });
+  assert.equal(await W.unseal(other.key, sealed), null);
+  assert.equal(await W.unseal(a.key, "garbage"), null);
+  // The secret: a private link is its own; a shared link gets #k= when a chat starts. Either way it stays after the #.
+  const priv = W.secretOf("https://remmynd.space/#eyJ0IjoiWCJ9", true, "", null);
+  assert.deepEqual(priv, { secret: "eyJ0IjoiWCJ9", link: "https://remmynd.space/?chat=1#eyJ0IjoiWCJ9" });
+  assert.equal(W.secretOf("https://remmynd.space/r/eyJ0", false, "", null), null, "a shared link has no chat until someone starts one");
+  const shared = W.secretOf("https://remmynd.space/r/eyJ0", false, "#k=CCCCCCCCCCCCCCCCCCCCCC", null);
+  assert.equal(shared.link, "https://remmynd.space/r/eyJ0?chat=1#k=CCCCCCCCCCCCCCCCCCCCCC");
+  assert.equal(new URL(shared.link).hash, "#k=CCCCCCCCCCCCCCCCCCCCCC", "the key is in the part browsers never send");
+  assert.equal(W.secretOf("https://remmynd.space/r/eyJ0", false, "#k=short", "DDDDDDDDDDDDDDDDDDDDDD").k, "DDDDDDDDDDDDDDDDDDDDDD", "the starter's device remembers its key");
+  const src = readFileSync(join(root, "public/chat.js"), "utf8");
+  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ""), /secret[^;]*fetch|post\([^)]*secret|post\([^)]*\bk\b/, "the secret is never sent");
+
+  // On the server.
+  const store = memoryChat(), base = "https://remmynd.space";
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const ends = now + 3 * 3600e3, room = a.room, day = 864e5;
+  const call = async (path, body, { origin = base, method = "POST" } = {}) => {
+    const req = new Request(base + path, { method, headers: { "content-type": "application/json", origin }, body: method === "POST" ? JSON.stringify(body || {}) : undefined });
+    const res = await C.handleChat(req, {}, new URL(req.url), { store, now });
+    return { status: res.status, body: await res.json() };
+  };
+  const phoneA = "https://fcm.googleapis.com/fcm/send/a", phoneB = "https://fcm.googleapis.com/fcm/send/b";
+  assert.equal((await call("/api/chat/" + room + "/read", {}, { method: "GET" })).status, 405);
+  assert.equal((await call("/api/chat/" + room + "/read", {}, { origin: "https://evil.example" })).status, 403);
+  assert.equal((await call("/api/chat/not-a-room/read")).status, 404);
+  assert.deepEqual((await call("/api/chat/" + room + "/read")).body, { ends: null, msgs: [] }, "nothing yet");
+  assert.equal((await call("/api/chat/" + room + "/post", { body: sealed, ends })).status, 400, "who you are in this chat");
+  assert.equal((await call("/api/chat/" + room + "/post", { body: "not base64!", me: "sam-device-1", ends })).status, 400, "only scrambled text");
+  assert.equal((await call("/api/chat/" + room + "/post", { body: "x".repeat(C.LIMITS.body + 1), me: "sam-device-1", ends })).status, 400, "not too long");
+
+  let r = await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends, endpoint: phoneA });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.ends, ends + day, "vanishes a day after the reminder ends");
+  assert.equal(store.t.pings.length, 0, "nobody else to tell yet");
+  assert.equal((await call("/api/chat/" + room + "/watch", { me: "lee-device-1", on: true, endpoint: phoneB })).body.watching, true, "a reader can ask for alerts before saying anything");
+  r = await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends, endpoint: phoneA });
+  assert.deepEqual(store.t.pings.map(p => p.endpoint), [phoneB], "the others are woken, never the sender");
+  await call("/api/chat/" + room + "/post", { body: sealed, me: "lee-device-1", ends, endpoint: phoneB });
+  assert.deepEqual(store.t.pings.map(p => p.endpoint), [phoneB, phoneA]);
+  assert.deepEqual((await call("/api/chat/inbox", { endpoint: phoneB })).body.rooms, [{ room, n: 1 }], "the inbox says which room, never what");
+  assert.deepEqual((await call("/api/chat/inbox", { endpoint: phoneB })).body.rooms, [], "once");
+  r = await call("/api/chat/" + room + "/read", { since: 0 });
+  assert.equal(r.body.msgs.length, 3);
+  assert.deepEqual(Object.keys(r.body.msgs[0]).sort(), ["at", "body", "id", "me"], "scrambled text and a random device id, nothing else");
+  assert.equal((await call("/api/chat/" + room + "/read", { since: r.body.msgs[2].at })).body.msgs.length, 0);
+  // Leaving stops the alerts.
+  await call("/api/chat/" + room + "/watch", { me: "lee-device-1", on: false });
+  await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends, endpoint: phoneA });
+  assert.equal(store.t.pings.length, 2);
+
+  // Limits: 20 people, 500 messages.
+  for (let i = 0; i < C.LIMITS.people - 2; i++) await call("/api/chat/" + room + "/post", { body: sealed, me: "person-" + String(i).padStart(4, "0"), ends });
+  r = await call("/api/chat/" + room + "/post", { body: sealed, me: "one-too-many", ends });
+  assert.deepEqual([r.status, r.body.error], [403, "This chat is full. It holds 20 people."]);
+  assert.equal((await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends })).status, 200, "people already in can still talk");
+  const full = memoryChat(), id2 = (await W.derive("k:EEEEEEEEEEEEEEEEEEEEEE")).room;
+  for (let i = 0; i < C.LIMITS.messages; i++) full.t.msgs.push({ id: "m" + i, room: id2, me: "x", at: 1, body: "x" });
+  full.t.rooms.set(id2, { id: id2, ends, created: now });
+  const req = new Request(base + "/api/chat/" + id2 + "/post", { method: "POST", headers: { origin: base }, body: JSON.stringify({ body: sealed, me: "sam-device-1", ends }) });
+  assert.equal((await (await C.handleChat(req, {}, new URL(req.url), { store: full, now })).json()).error, "This chat is full. It holds 500 messages.");
+  // A room can't be made to outlive the limit.
+  const far = (await W.derive("k:FFFFFFFFFFFFFFFFFFFFFF")).room;
+  assert.equal((await call("/api/chat/" + far + "/post", { body: sealed, me: "sam-device-1", ends: now + 9e12 })).body.ends, now + C.LIMITS.life + day);
+
+  // Vanishing: on time, with everything in it, and it can't be brought back.
+  assert.equal(await C.cleanChats({}, ends + day - 60e3, { store }), 0, "not before");
+  now = ends + day + 60e3;
+  assert.equal((await call("/api/chat/" + room + "/read")).status, 410, "ended the moment it's due, even before the clean-up runs");
+  assert.ok(await C.cleanChats({}, now, { store }) >= 1);
+  assert.equal(store.t.msgs.filter(m => m.room === room).length, 0, "the messages are gone");
+  assert.equal(store.t.people.filter(p => p.room === room).length, 0, "and who was watching");
+  assert.equal((await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends: now + day })).status, 410, "not brought back");
+
+  // End for everyone: at once.
+  now = Date.parse("2026-11-16T17:00:00Z");
+  const quick = (await W.derive("k:GGGGGGGGGGGGGGGGGGGGGG")).room;
+  await call("/api/chat/" + quick + "/post", { body: sealed, me: "sam-device-1", ends });
+  assert.deepEqual((await call("/api/chat/" + quick + "/end")).body, { ended: true });
+  assert.equal(store.t.msgs.filter(m => m.room === quick).length, 0);
+  assert.deepEqual(await call("/api/chat/" + quick + "/read"), { status: 410, body: { ended: true, msgs: [] } });
+
+  // On the page: a lazy file, opened from the reminder; alerts carry no words.
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), sw = readFileSync(join(root, "public/sw.js"), "utf8");
+  assert.ok(app.includes('id="chatb">Chat about this</button>') && app.includes('import("/chat.js")'), "Chat about this, loaded only when tapped");
+  assert.ok(!firstVisit({ cache: true }).includes("chat.js") && !firstVisit({ cache: true }).includes("chat.css"), "not part of the first visit");
+  assert.ok(sw.includes('fetch("/api/chat/inbox"') && sw.includes('"New message in the chat"'), "the service worker says only that there's a message");
+  assert.match(readFileSync(join(root, "public/privacy/index.html"), "utf8"), /id="chat"/);
 });
 
 test("a slash date that could go either way follows the device's order: 12/5 is December 5 in the US, 12 May elsewhere", () => {

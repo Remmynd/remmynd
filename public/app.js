@@ -126,7 +126,7 @@ const VIA=()=>'<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I
 const ALTS='<div class="alts" id="alts" hidden><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button><button type="button" id="a-qr">QR code</button></div>';
 function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+esc(fShort(c.start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(c.start,TZ),TZ))+'</b> instead?</span><label class="switch"><input type="checkbox" id="sleep"'+(c.morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
   '<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+(PUSH_OK?"Calendar and a notification on this "+DEVICE+", in one tap.":"Adds it to your calendar, with alerts.")+'</div>'+
-  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
+  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+(c.r.r?'':'<button type="button" class="more" id="chatb">Chat about this</button>')+VIA();}
 /* The stack (mock-up 05): what this one tap set up, plus the nudge switch. */
 /* Email: on for signed-in accounts (account.js), never for private links, which stay on the device. */
 let ACC={signedIn:false};
@@ -179,6 +179,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#a-copy",x=>x.addEventListener("click",()=>copy(c.r.t+"\n"+fDate(c.start,TZ)+", "+fShort(c.start,TZ)+" ("+fZone(c.start,TZ)+")"+(c.r.l?"\n"+c.r.l:"")+"\n"+c.share,"Copied")));
   on("#a-qr",x=>x.addEventListener("click",()=>openQR(c.share,c.r.t)));
   on("#more",m=>m.addEventListener("click",()=>{const al=b.querySelector("#alts");al.hidden=!al.hidden;m.setAttribute("aria-expanded",String(!al.hidden));}));
+  on("#chatb",m=>{const go=()=>import("/chat.js").then(x=>x.open(c,S.priv));m.onclick=go;if(/chat=1/.test(location.search)&&!S.chat){S.chat=1;go();}});
   on("#sleep",sw=>sw.addEventListener("change",()=>{S.morning=sw.checked;renderTicket(c.el,c.r,c.o);}));
   on("#s-cal",a=>{const k=S.rec&&S.rec.cal||PREF;if(k==="apple")c.setApple(a);else{a.href=k==="google"?c.g:c.ol;a.target="_blank";a.rel="noopener";}
     if(!(S.rec&&S.rec.cal))a.addEventListener("click",()=>{if(S.rec){S.rec.cal=k;keepRec();setTimeout(renderBottom,60);}});});
