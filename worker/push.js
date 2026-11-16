@@ -130,6 +130,6 @@ export async function sendDuePings(env, now = Date.now(), send = sendEmptyPush) 
   }
   await env.DB.prepare("DELETE FROM pings WHERE at < ?").bind(now - 864e5).run();
   // Every 15 minutes: forget which launch an alert was for once the alert itself is gone.
-  if (Math.floor(now / 60000) % 15 === 0) await env.DB.prepare("DELETE FROM ping_launch WHERE id NOT IN (SELECT id FROM pings)").run().catch(() => {});
+  if (Math.floor(now / 60000) % 15 === 0) { try { await env.DB.prepare("DELETE FROM ping_launch WHERE id NOT IN (SELECT id FROM pings)").bind().run(); } catch (e) {} }
   return { sent, cleared: done.length };
 }
