@@ -1565,25 +1565,25 @@ function fakeIndexedDB(state) {
   } };
 }
 
-test("on-device storage: version 2 adds reminders and links, built from version 1 alerts", async () => {
+test("on-device storage: version 3 adds reminders, links and chats, built from version 1 alerts", async () => {
   const vm = await import("node:vm");
   const load = state => { const ctx = { indexedDB: fakeIndexedDB(state), setTimeout, self: {} }; vm.createContext(ctx); vm.runInContext(readFileSync(join(root, "public/db.js"), "utf8"), ctx); return ctx.self.remmyndDB; };
   const alert = (id, rkey, kind) => ({ id, rkey, kind, title: rkey === "k1" ? "Demo day" : "Call Mum", start: 1798000000000, place: "https://lu.ma/demo", share: "https://remmynd.space/r/" + rkey, shown: false, at: 1797996400000 });
   const v1 = { version: 1, stores: { alerts: { keyPath: "id", rows: new Map([["a1", alert("a1", "k1", "before")], ["a2", alert("a2", "k1", "start")], ["a3", alert("a3", "k2", "start")]]) } } };
   const DB = load(v1);
   const reminders = await DB.getAll("reminders");
-  assert.equal(v1.version, 2);
+  assert.equal(v1.version, 3);
   assert.deepEqual(reminders.map(r => r.rkey).sort(), ["k1", "k2"], "one reminder per rkey");
   const k1 = reminders.find(r => r.rkey === "k1");
   assert.deepEqual([k1.title, k1.place, k1.share, k1.state, k1.nudge], ["Demo day", "https://lu.ma/demo", "https://remmynd.space/r/k1", "held", false]);
   assert.equal((await DB.getAll("alerts")).length, 3, "alerts are kept");
   await DB.put("links", { share: "https://remmynd.space/r/x", title: "Demo day", start: 1798000000000, createdAt: 1, private: false });
   assert.deepEqual((await DB.getAll("links")).map(l => l.share), ["https://remmynd.space/r/x"]);
-  // A first visit gets all three stores, empty.
+  // A first visit gets all four stores, empty.
   const fresh = { version: 0, stores: {} };
   const DB2 = load(fresh);
   assert.deepEqual(await DB2.getAll("reminders"), []);
-  assert.deepEqual(Object.keys(fresh.stores).sort(), ["alerts", "links", "reminders"]);
+  assert.deepEqual(Object.keys(fresh.stores).sort(), ["alerts", "chats", "links", "reminders"]);
   // Nothing else opens the database: push.js and sw.js go through db.js.
   for (const f of ["push.js", "sw.js", "app.js"]) assert.doesNotMatch(readFileSync(join(root, "public", f), "utf8"), /indexedDB\.open/, f + " opens IndexedDB itself");
 });
@@ -3087,6 +3087,26 @@ function memoryStore() {
     launchesOf: async id => [...t.launches.values()].filter(l => l.user_id === id).sort((a, b) => a.start - b.start).map(l => ({ ...l })),
     putLaunch: async l => { t.launches.set(l.id, { ...l, count: l.count ? 1 : 0 }); },
     deleteLaunch: async (u, id) => { const l = t.launches.get(id); if (l && l.user_id === u) t.launches.delete(id); },
+    launchesByIds: async ids => [...t.launches.values()].filter(l => ids.includes(l.id)).map(l => ({ ...l, handle: t.hosts.get(l.user_id).handle, name: t.hosts.get(l.user_id).name })),
+    goneByIds: async ids => [...(t.gone || new Map()).values()].filter(g => ids.includes(g.id)),
+    goneOf: async id => [...(t.gone || new Map()).values()].filter(g => g.user_id === id),
+    putGone: async g => { (t.gone ||= new Map()).set(g.id, { ...g }); },
+    wakeLaunch: async (id, now) => { for (const [pid, l] of (t.pingLaunch || new Map())) if (l === id && t.pings && t.pings.get(pid)) t.pings.get(pid).at = now; },
+    itemsForLaunch: async id => [...t.items.values()].filter(x => x.kind === "reminder" && !x.deleted && (x.data || "").includes('"launch":"' + id + '"')).map(x => ({ user_id: x.user_id, key: x.key, data: x.data })),
+    putFollow: async f => { (t.follows ||= new Map()).set(f.host_id + "|" + f.who, { ...f, email: f.email ? 1 : 0 }); },
+    deleteFollow: async (h, who) => { (t.follows ||= new Map()).delete(h + "|" + who); },
+    followersOf: async h => [...(t.follows || new Map()).values()].filter(f => f.host_id === h),
+    followCount: async h => [...(t.follows || new Map()).values()].filter(f => f.host_id === h).length,
+    followsBy: async (e, u) => [...(t.follows || new Map()).values()].filter(f => (e && f.endpoint === e) || (u && f.user_id === u)),
+    setFollowEmail: async (h, u, on) => { const f = (t.follows || new Map()).get(h + "|u:" + u); if (f) f.email = on ? 1 : 0; },
+    addFollowMsgs: async rows => { for (const m of rows) { (t.followMsgs ||= new Map()).set(m.id, { ...m }); (t.pings ||= new Map()).set(m.id, { endpoint: m.endpoint, at: m.at }); } },
+    takeInbox: async (e, since) => { const r = [...(t.followMsgs || new Map()).values()].filter(m => m.endpoint === e && m.at > since); for (const m of r) t.followMsgs.delete(m.id); return r; },
+    addFollowMails: async rows => { for (const m of rows) (t.followMails ||= new Map()).set(m.id, { ...m }); },
+    dueFollowMails: async (now, limit) => [...(t.followMails || new Map()).values()].filter(m => m.at <= now).slice(0, limit),
+    deleteFollowMail: async id => { (t.followMails || new Map()).delete(id); },
+    liveDue: async now => [...t.launches.values()].filter(l => l.start <= now && l.start > now - 15 * 60e3 && !(t.live || new Set()).has(l.id)).map(l => ({ ...l, handle: t.hosts.get(l.user_id).handle, name: t.hosts.get(l.user_id).name })),
+    markLive: async id => { (t.live ||= new Set()).add(id); },
+    cleanFollow: async () => {},
     proOf: async id => [...t.pro.values()].filter(r => r.user_id === id).map(r => ({ ...r })),
     proByRef: async (source, ref) => { const r = t.pro.get(source + "|" + ref); return r ? { ...r } : null; },
     putPro: async p => { t.pro.set(p.source + "|" + p.ref, { source: p.source, ref: p.ref, user_id: p.userId, product: p.product, until: p.until, trial: p.trial ? 1 : 0, renews: p.renews ? 1 : 0, env: p.env || "", updated: p.updated, moved: p.moved || 0, voided: p.voided || 0 }); },
@@ -3679,7 +3699,7 @@ test("calendar feed and email in: one private address each, kept only as a hash,
   const acct = readFileSync(join(root, "public/account.js"), "utf8"), idx = readFileSync(join(root, "worker/index.js"), "utf8"), acc = readFileSync(join(root, "worker/account.js"), "utf8");
   assert.ok(acct.includes('feedRow("cal"') && acct.includes('feedRow("in"'));
   assert.ok(idx.includes('url.pathname.startsWith("/cal/")') && idx.includes("async email(message, env, ctx)"));
-  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro", "hosts", "launches"]'));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro", "hosts", "launches", "launches_gone", "follows", "follow_mails"]'));
 });
 
 /* remmynd Pro: an account with a session, as the account tests make one, for the Pro tests. */
@@ -4006,7 +4026,7 @@ test("host pages: a handle, launches with a countdown, and a button that goes li
   assert.equal((await call("/api/host", { handle: "maya" }, { origin: "https://evil.example" })).status, 403, "this site only");
   assert.equal((await call("/api/host/launch", { title: "X", start: now + day })).body.error, "Claim your page first.");
   let r = await call("/api/host", { handle: "@Maya", name: "Maya Chen", bio: "Building Orbit.", link: "orbit.app" });
-  assert.deepEqual(r.body.host, { handle: "maya", name: "Maya Chen", bio: "Building Orbit.", link: "https://orbit.app/", url: base + "/@maya" });
+  assert.deepEqual(r.body.host, { handle: "maya", name: "Maya Chen", bio: "Building Orbit.", link: "https://orbit.app/", url: base + "/@maya", followers: 0 });
   assert.equal((await call("/api/host", { handle: "maya" }, { cookie: sam })).status, 409, "a handle is one person's");
   assert.equal((await call("/api/host", { handle: "maya", link: "javascript:alert(1)" })).status, 400, "a link is a web address");
 
@@ -4065,10 +4085,12 @@ test("host pages: a handle, launches with a countdown, and a button that goes li
   assert.equal((await view("/@nobody")).status, 404);
   assert.equal((await view("/@a")).status, 404);
   assert.equal((await view("/@maya/x/y")).status, 404);
-  // Deleting takes the page down; deleting the account takes everything.
+  // Cancelling an upcoming launch: its page says so; deleting the account takes everything.
   await call("/api/host/launch/delete", { id: l.id });
-  assert.equal((await view("/@maya/orbit-on-product-hunt")).status, 404);
-  assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes('"pro", "hosts", "launches"]'));
+  p = await view("/@maya/orbit-on-product-hunt");
+  assert.equal(p.status, 410);
+  assert.match(p.html, /Orbit 1\.0 on Product Hunt was cancelled/);
+  assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes('"pro", "hosts", "launches", "launches_gone", "follows", "follow_mails"]'));
 
   // The helpers.
   assert.equal(H.safeLink("producthunt.com/posts/x"), "https://producthunt.com/posts/x");
@@ -4086,12 +4108,357 @@ test("host pages on the website: the template, the clock, Your page, and the way
   assert.ok(idx.includes('if (url.pathname === "/at" || url.pathname === "/at/")'), "the bare template isn't a page");
   assert.match(readFileSync(join(root, "public/at/index.html"), "utf8"), /<section class="sec at-wrap" id="at">[\s\S]*<\/section>\s*<\/main>/, "the part the Worker fills");
   assert.ok(at.includes('el.dataset.phase = phase') && at.includes('"Live now"'), "the clock turns to Live now at the start without a reload");
-  assert.ok(!/fetch\(/.test(at), "the page's clock asks nothing of anyone");
+  assert.ok(!/fetch\(/.test(at.slice(0, at.indexOf("/* Follow"))), "the page's clock asks nothing of anyone");
   assert.ok(host.includes('api("/api/host/launch"') && host.includes('import("/account.js").then(m => m.open())'));
   assert.ok(!/confirm\(|alert\(|prompt\(/.test(host + at), "no browser pop-ups: delete asks twice in the page");
   assert.ok(readFileSync(join(root, "public/account.js"), "utf8").includes('<a class="btn ac-wide" href="/host">Open your page</a>'));
   assert.ok(readFileSync(join(root, "public/launch/index.html"), "utf8").includes('<a href="/host">Put it on your page</a>'));
   assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes("are public at remmynd.space/@your-handle"));
+});
+
+test("savers follow a change: a launch moved, renamed or cancelled reaches everyone who saved it", async () => {
+  const H = await import("../worker/hosts.js"), C = await import("../worker/count.js");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const maya = proAccount(store, "um", "maya@example.com", now), lee = proAccount(store, "ul", "lee@example.com", now);
+  const call = async (path, body, { cookie = maya } = {}) => {
+    const req = new Request(base + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", origin: base, cookie }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await H.handleHost(req, {}, new URL(req.url), { store, now });
+    return res.json();
+  };
+  const state = async ids => (await (await H.launchStateResponse(new Request(base + "/api/launch?ids=" + ids), {}, new URL(base + "/api/launch?ids=" + ids), { store })).json()).launches;
+  await call("/api/host", { handle: "maya", name: "Maya Chen" });
+  const start = Date.parse("2026-11-26T00:30:00Z");
+  let r = await call("/api/host/launch", { title: "Orbit launch", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit", count: true });
+  const l = r.launches[0];
+
+  // The link carries the launch, and the library reads it back.
+  assert.equal(R.decode(l.link).launch, l.id);
+  assert.equal(R.decode(R.createLink({ title: "X", start: "2026-12-01T10:00:00Z", launch: "bad id!" })).launch, undefined, "only a real launch id");
+  // The count follows the launch, not the words of its link.
+  const moved = R.createLink({ ...R.decode(l.link), start: new Date(start + day) });
+  assert.equal(await C.countKey(l.link.split("/r/")[1]), await C.countKey(moved.split("/r/")[1]));
+  assert.notEqual(await C.countKey(R.createLink({ title: "Plain", start: new Date(start) }).split("/r/")[1]), await C.countKey(R.createLink({ title: "Plain", start: new Date(start + day) }).split("/r/")[1]));
+
+  // The public answer: what it is now. It names no one and can be cached.
+  let s = await state(l.id + ",nonsense!,ZZZZZZZZZZZZ");
+  assert.deepEqual(Object.keys(s), [l.id]);
+  assert.equal((await H.launchStateResponse(new Request(base + "/api/launch?ids=" + l.id), {}, new URL(base + "/api/launch?ids=" + l.id), { store })).headers.get("cache-control"), "no-store", "a woken device sees the change, not an old answer");
+  assert.deepEqual([s[l.id].title, s[l.id].start, s[l.id].dest], ["Orbit launch", start, "https://producthunt.com/posts/orbit"]);
+
+  // Someone saved it: a web device's alerts for it (worker/push.js keeps only which launch) and a signed-in copy with emails.
+  store.t.pings = new Map([["p1", { at: start - 3600e3 }], ["p2", { at: start }]]);
+  store.t.pingLaunch = new Map([["p1", l.id], ["p2", l.id]]);
+  const rec = { rkey: "k1", title: "Orbit launch", start, dur: 60, place: l.dest, share: l.link, state: "held", launch: l.id };
+  await store.putItems("ul", [{ kind: "reminder", key: "r:k1", data: JSON.stringify(rec), deleted: false, updated: now }]);
+  await store.setMails("ul", "r:k1", [{ id: "m1", kind: "before", at: start - 3600e3 }]);
+
+  // Renaming the host's own profile changes nothing for savers; moving the launch does.
+  now += 60e3;
+  r = await call("/api/host/launch", { id: l.id, title: "Orbit launch", start: start + day, tz: "America/New_York", dest: "producthunt.com/posts/orbit", count: true });
+  assert.equal(r.followed, true);
+  assert.deepEqual([...store.t.pings.values()].map(p => p.at), [now, now], "every device holding it is pinged now, to check");
+  const copy = JSON.parse([...store.t.items.values()].find(x => x.key === "r:k1").data);
+  assert.deepEqual([copy.start, copy.movedFrom, R.decode(copy.share).start.getTime()], [start + day, start, start + day], "the synced copy moved, its link too");
+  assert.deepEqual([...store.t.mails.values()].filter(m => m.user_id === "ul").map(m => m.at).sort(), [start + day - 3600e3, start + day], "its emails moved");
+  s = await state(l.id);
+  assert.equal(s[l.id].start, start + day);
+  // Saving with nothing a saver relies on changed doesn't ping anyone.
+  r = await call("/api/host/launch", { id: l.id, title: "Orbit launch", start: start + day, tz: "America/New_York", dest: "producthunt.com/posts/orbit", count: false });
+  assert.equal(r.followed, false);
+
+  // Cancelled: savers hear it, their copies are dropped and their emails stop.
+  now += 60e3;
+  await call("/api/host/launch/delete", { id: l.id });
+  s = await state(l.id);
+  assert.deepEqual([s[l.id].cancelled, s[l.id].title], [true, "Orbit launch"]);
+  assert.equal(JSON.parse([...store.t.items.values()].find(x => x.key === "r:k1").data).state, "dropped");
+  assert.equal([...store.t.mails.values()].filter(m => m.user_id === "ul").length, 0);
+  assert.ok(lee);
+});
+
+test("savers follow a change on the device: alerts move with the launch, the device says so once", async () => {
+  const vm = await import("node:vm");
+  const day = 864e5, now = Date.parse("2026-11-16T17:00:00Z"), start = Date.parse("2026-11-26T00:30:00Z");
+  const stores = { reminders: new Map([["k1", { rkey: "k1", title: "Orbit launch", start, dur: 60, place: "https://ph.com/a", share: "https://remmynd.space/r/old", state: "held", launch: "L1234567" }],
+    ["k2", { rkey: "k2", title: "Gala", start, dur: 60, state: "held", launch: "L7654321" }], ["k3", { rkey: "k3", title: "Not a launch", start, state: "held" }]]) };
+  const DB = { getAll: async st => [...stores[st].values()].map(v => ({ ...v })), put: async (st, v) => { stores[st].set(v.rkey, { ...v }); } };
+  const asked = [];
+  const ctx = { self: { remmyndDB: DB }, Intl, Date, Promise, Set,
+    fetch: async url => { asked.push(url); return { ok: true, json: async () => ({ launches: { L1234567: { title: "Orbit launch", start: start + day, dur: 60, dest: "https://ph.com/a", link: "https://remmynd.space/r/new", ver: 2 }, L7654321: { cancelled: true, title: "Gala" } } }) }; } };
+  vm.createContext(ctx);
+  vm.runInContext(readFileSync(join(root, "public/follow.js"), "utf8"), ctx);
+  const moves = [], drops = [];
+  const changes = JSON.parse(JSON.stringify(await ctx.self.remmyndFollow.check({ now, move: (r, dt) => moves.push([r.rkey, dt, r.share]), drop: r => drops.push(r.rkey) })));
+  assert.deepEqual(asked, ["/api/launch?ids=L1234567,L7654321"], "only the launches held here, by id");
+  assert.deepEqual(moves, [["k1", day, "https://remmynd.space/r/new"]]);
+  assert.deepEqual(drops, ["k2"]);
+  assert.deepEqual(changes.map(c => c.kind), ["moved", "cancelled"]);
+  assert.deepEqual([stores.reminders.get("k1").start, stores.reminders.get("k1").movedFrom], [start + day, start]);
+  assert.equal(stores.reminders.get("k2").state, "dropped");
+  assert.match(ctx.self.remmyndFollow.words(changes[0]).title, /^Moved: Orbit launch$/);
+  assert.equal(ctx.self.remmyndFollow.words(changes[1]).title, "Cancelled: Gala");
+  // Asked again with nothing new: nothing moves twice.
+  moves.length = 0;
+  assert.deepEqual((await ctx.self.remmyndFollow.check({ now, move: (r, dt) => moves.push(dt) })).length, 0);
+
+  const push = readFileSync(join(root, "public/push.js"), "utf8"), sw = readFileSync(join(root, "public/sw.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8"), wp = readFileSync(join(root, "worker/push.js"), "utf8");
+  assert.ok(push.includes("...(a.launch ? { launch: a.launch } : {})") && wp.includes("INSERT OR REPLACE INTO ping_launch (id, launch)"), "a launch's alerts say which launch, and only that");
+  assert.ok(push.includes("async function move(rec, delta)") && push.includes("window.__rmPush = { remind, renderRow, cancel, replan, setNudge, move,"));
+  assert.ok(sw.includes('importScripts("/db.js", "/follow.js")') && sw.includes("await showDue(changes.length + notes.length + rooms.length > 0);"), "the service worker follows first, and says what changed instead of the generic line");
+  assert.ok(app.includes("...(c.r.u?{launch:c.r.u}:{})") && app.includes("'<span class=\"li-chip\">Moved</span>'") && app.includes("function checkLaunch(r)"));
+  assert.ok(readFileSync(join(root, "public/native.js"), "utf8").includes("movedFrom: x.movedFrom || null"));
+});
+
+test("follow: a phone or an account follows a host, hears each launch once, and gets one email when they asked", async () => {
+  const H = await import("../worker/hosts.js"), F = await import("../worker/follows.js");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const maya = proAccount(store, "um", "maya@example.com", now), lee = proAccount(store, "user-lee-0001", "lee@example.com", now);
+  const phone = "https://fcm.googleapis.com/fcm/send/phone-one", other = "https://fcm.googleapis.com/fcm/send/phone-two";
+  const host = async (path, body) => {
+    const req = new Request(base + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", origin: base, cookie: maya }, body: body === undefined ? undefined : JSON.stringify(body) });
+    return (await H.handleHost(req, {}, new URL(req.url), { store, now })).json();
+  };
+  const follow = async (path, body, { cookie = "", origin = base, method = body === undefined ? "GET" : "POST" } = {}) => {
+    const req = new Request(base + path, { method, headers: { "content-type": "application/json", origin, ...(cookie ? { cookie } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await F.handleFollow(req, {}, new URL(req.url), { store, now });
+    return { status: res.status, type: res.headers.get("content-type"), body: res.headers.get("content-type").includes("json") ? await res.json() : await res.text() };
+  };
+  await host("/api/host", { handle: "maya", name: "Maya Chen" });
+
+  // Following: a phone with notifications, or a signed-in account. Never your own page, never from another site.
+  assert.deepEqual(await follow("/api/follow", { handle: "maya" }), { status: 400, type: "application/json", body: { error: "Turn on notifications, or sign in, to follow.", need: "signin" } }, "notifications or sign-in first");
+  assert.equal((await follow("/api/follow", { handle: "nobody" , endpoint: phone })).status, 404);
+  assert.equal((await follow("/api/follow", { handle: "maya", endpoint: phone }, { origin: "https://evil.example" })).status, 403);
+  assert.equal((await follow("/api/follow", { handle: "maya" }, { cookie: maya })).body.error, "That's your own page.");
+  assert.equal((await follow("/api/follow", { handle: "maya", endpoint: "https://evil.example/push" })).status, 400, "only real push services");
+  let r = await follow("/api/follow", { handle: "@Maya", endpoint: phone });
+  assert.deepEqual(r.body, { following: true, email: false, signedIn: false, count: 1 });
+  r = await follow("/api/follow", { handle: "maya", endpoint: other, email: true }, { cookie: lee });
+  assert.deepEqual(r.body, { following: true, email: true, signedIn: true, count: 3 }, "the account and its phone");
+  assert.equal((await follow("/api/follow", { handle: "maya", endpoint: phone })).body.count, 3, "following twice is still once");
+  const ana = proAccount(store, "user-ana-0001", "ana@example.com", now);
+  assert.deepEqual((await follow("/api/follow", { handle: "maya" }, { cookie: ana })).body, { following: true, email: true, signedIn: true, count: 4 }, "no notifications here: email is how they'll hear");
+  assert.equal((await follow("/api/follow", { handle: "maya", email: false }, { cookie: ana })).body.email, false, "unless they say no");
+  await follow("/api/unfollow", { handle: "maya" }, { cookie: ana });
+
+  // State: per device and account, with a count anyone can see.
+  r = await follow("/api/follow/state", { handles: ["maya", "nobody", "<x>"], endpoint: phone });
+  assert.deepEqual(r.body, { signedIn: false, hosts: { maya: { following: true, email: false, count: 3 } } });
+  r = await follow("/api/follow/state", { handles: ["maya"] }, { cookie: lee });
+  assert.deepEqual(r.body.hosts.maya, { following: true, email: true, count: 3 });
+  assert.deepEqual((await follow("/api/follow/state", { handles: ["maya"] })).body.hosts.maya, { following: false, email: false, count: 3 });
+  assert.deepEqual((await follow("/api/follow/state", { handles: ["maya"] }, { cookie: maya })).body.hosts.maya, { following: false, email: false, count: 3, own: true }, "the host's own page says so");
+
+  // The host sees how many, never who.
+  const mine = await host("/api/host");
+  assert.equal(mine.host.followers, 3);
+  assert.doesNotMatch(JSON.stringify(mine), /lee@|fcm\.googleapis|user-lee/);
+
+  // Publishing tells every following phone, and queues one email for the account that asked.
+  const start = Date.parse("2026-11-26T00:30:00Z");
+  r = await host("/api/host/launch", { title: "Orbit launch", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit" });
+  assert.equal(r.told, 3, "two phones and one email");
+  const l = r.launches[0];
+  assert.equal(store.t.followMsgs.size, 2);
+  assert.equal(store.t.followMails.size, 1);
+  assert.equal([...store.t.pings.values()].filter(p => p.endpoint === phone).length, 1, "the phone is woken");
+  assert.equal((await host("/api/host/launch", { id: l.id, title: "Orbit launch!", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit" })).told, 0, "an edit isn't a new announcement");
+
+  // The inbox: only this phone's notes, once.
+  r = await follow("/api/follow/inbox", { endpoint: phone });
+  assert.deepEqual(r.body.notes, [{ title: "Maya Chen announced Orbit launch!", body: r.body.notes[0].body, url: base + "/@maya/" + l.slug, tag: "announce:" + l.id }]);
+  assert.match(r.body.notes[0].body, /Nov 25.*Tap to see it and get reminded\.$/);
+  assert.deepEqual((await follow("/api/follow/inbox", { endpoint: phone })).body.notes, [], "read once, then gone");
+  assert.equal((await follow("/api/follow/inbox", { endpoint: other })).body.notes.length, 1, "the other phone still has its own");
+  assert.deepEqual((await follow("/api/follow/inbox", {})).body.notes, []);
+
+  // The email: sent once, about the launch as it is, with a stop link that works without signing in.
+  const sent = [];
+  const mailer = async m => { sent.push(m); return 200; };
+  assert.deepEqual(await F.sendFollowMails({}, now, { store, mailer }), { sent: 1 });
+  assert.deepEqual(await F.sendFollowMails({}, now, { store, mailer }), { sent: 0 }, "once");
+  assert.equal(sent[0].to, "lee@example.com");
+  assert.equal(sent[0].subject, "Maya Chen announced Orbit launch!");
+  assert.match(sent[0].text, /remmynd\.space\/@maya\//);
+  const stop = sent[0].headers["List-Unsubscribe"].slice(1, -1);
+  assert.match(sent[0].html, new RegExp(stop.replace(/[.?&]/g, "\\$&").replace(/&/g, "&amp;")));
+  r = await follow(stop.replace(base, ""));
+  assert.match(r.type, /text\/html/);
+  assert.match(r.body, /No more emails from Maya Chen/);
+  assert.equal((await follow("/api/follow/state", { handles: ["maya"] }, { cookie: lee })).body.hosts.maya.email, false);
+  assert.equal((await follow("/api/follow/state", { handles: ["maya"] }, { cookie: lee })).body.hosts.maya.following, true, "still following");
+  await follow("/api/follow/stop?u=user-lee-0001&h=maya&t=wrong");
+  // A busy mail service: kept for the next minute, not dropped.
+  await F.tellFollowers(store, { user_id: "um" }, l, "announce", now);
+  await follow("/api/follow", { handle: "maya", email: true }, { cookie: lee });
+  await F.tellFollowers(store, { user_id: "um" }, l, "announce", now);
+  assert.deepEqual(await F.sendFollowMails({}, now, { store, mailer: async () => 429 }), { sent: 0 });
+  assert.equal(store.t.followMails.size, 1);
+  assert.equal(F.followMail({ handle: "maya" }, { title: "<b>X</b>", start, tz: "UTC" }, base + "/@maya/x", base + "/stop", now).html.includes("<b>X</b>"), false, "escaped");
+  store.t.followMails.clear();
+
+  // The feed: what's coming from these hosts, public, ended launches left out.
+  r = await follow("/api/follow/feed?handles=maya,nobody,%3Cx%3E");
+  assert.deepEqual(r.body.launches.map(x => [x.id, x.host, x.title, x.start, x.url]), [[l.id, "Maya Chen", "Orbit launch!", start, base + "/@maya/" + l.slug]]);
+  assert.deepEqual((await follow("/api/follow/feed")).body.launches, []);
+
+  // Going live: told once at the start, to the phones, never by email.
+  store.t.followMsgs.clear();
+  assert.deepEqual(await F.followLive({}, start - 60e3, { store }), { live: 0 });
+  assert.deepEqual(await F.followLive({}, start + 60e3, { store }), { live: 1 });
+  assert.deepEqual(await F.followLive({}, start + 120e3, { store }), { live: 0 }, "once");
+  assert.equal(store.t.followMails.size, 0);
+  now = start + 120e3;
+  r = await follow("/api/follow/inbox", { endpoint: phone });
+  assert.deepEqual(r.body.notes, [{ title: "Orbit launch! is live now", body: "Maya Chen's launch just started. Tap to go.", url: "https://producthunt.com/posts/orbit", tag: "live:" + l.id }]);
+  assert.equal((await follow("/api/follow/feed?handles=maya")).body.launches.length, 1, "live is still coming up");
+  now = start + 2 * day;
+  assert.deepEqual((await follow("/api/follow/feed?handles=maya")).body.launches, [], "ended");
+  assert.equal(F.MAX_REACH, 5000);
+
+  // Unfollowing: the phone and the account, each on its own.
+  r = await follow("/api/unfollow", { handle: "maya", endpoint: phone });
+  assert.deepEqual(r.body, { following: false, count: 2 });
+  r = await follow("/api/unfollow", { handle: "maya", endpoint: other }, { cookie: lee });
+  assert.deepEqual(r.body, { following: false, count: 0 });
+  assert.equal((await follow("/api/follow/state", {})).status, 200);
+  assert.equal((await follow("/api/follow", undefined)).status, 405);
+});
+
+function memoryChat() {
+  const t = { rooms: new Map(), msgs: [], people: [], inbox: new Map(), gone: new Map(), pings: [], files: [], uploads: new Map() };
+  const wipe = id => { t.files = t.files.filter(f => f.room !== id); t.rooms.delete(id); t.msgs = t.msgs.filter(m => m.room !== id); t.people = t.people.filter(p => p.room !== id); for (const k of [...t.inbox.keys()]) if (k.endsWith("|" + id)) t.inbox.delete(k); };
+  return { t,
+    ready: async () => {},
+    room: async id => t.rooms.get(id) || null,
+    isGone: async id => t.gone.has(id),
+    makeRoom: async (id, ends, now) => { if (!t.rooms.has(id)) t.rooms.set(id, { id, ends, created: now }); },
+    count: async id => t.msgs.filter(m => m.room === id).length,
+    people: async id => t.people.filter(p => p.room === id).map(p => ({ me: p.me, endpoint: p.endpoint })),
+    join: async (id, me) => { if (!t.people.some(p => p.room === id && p.me === me)) t.people.push({ room: id, me, endpoint: null }); },
+    watch: async (id, me, e) => { for (const p of t.people) { if (p.room === id && p.endpoint === e) p.endpoint = null; if (p.room === id && p.me === me) p.endpoint = e; } },
+    unwatch: async (id, me) => { for (const p of t.people) if (p.room === id && p.me === me) p.endpoint = null; },
+    add: async (m, tell, now) => { t.msgs.push({ ...m }); for (const e of tell) { const k = e + "|" + m.room, x = t.inbox.get(k); t.inbox.set(k, { room: m.room, n: (x ? x.n : 0) + 1 }); t.pings.push({ endpoint: e, at: now }); } },
+    since: async (id, at) => t.msgs.filter(m => m.room === id && m.at > at).map(({ id, me, at, body }) => ({ id, me, at, body })),
+    takeInbox: async e => { const r = [...t.inbox.entries()].filter(([k]) => k.startsWith(e + "|")); for (const [k] of r) t.inbox.delete(k); return r.map(([, v]) => v); },
+    fileCount: async id => t.files.filter(f => f.room === id).length,
+    file: async (id, fid) => t.files.find(f => f.room === id && f.id === fid) || null,
+    fileIds: async id => t.files.filter(f => f.room === id).map(f => f.id),
+    addFile: async f => { t.files.push({ ...f }); },
+    upload: async (u, day) => { const k = u + "|" + day, n = (t.uploads.get(k) || 0) + 1; t.uploads.set(k, n); return n; },
+    end: async (id, until) => { wipe(id); t.gone.set(id, until); },
+    clean: async now => { const old = [...t.rooms.values()].filter(r => r.ends < now - 864e5), files = t.files.filter(f => old.some(r => r.id === f.room)).map(f => f.room + "/" + f.id);
+      for (const r of old) { wipe(r.id); t.gone.set(r.id, now + 30 * 864e5); } for (const [k, u] of t.gone) if (u < now) t.gone.delete(k); return { rooms: old.map(r => r.id), files }; }
+  };
+}
+
+test("vanishing chat: scrambled on the device, one small room per reminder, gone a day after it ends", async () => {
+  const C = await import("../worker/chat.js");
+  const { mkdtempSync, writeFileSync } = await import("node:fs"), { tmpdir } = await import("node:os"), { pathToFileURL } = await import("node:url");
+  const dir = mkdtempSync(join(tmpdir(), "rm-chat-"));
+  writeFileSync(join(dir, "chat.mjs"), readFileSync(join(root, "public/chat.js"), "utf8").replace('from "/remmynd.js"', "from " + JSON.stringify(pathToFileURL(join(root, "lib/remmynd.js")).href)));
+  const W = await import(pathToFileURL(join(dir, "chat.mjs")).href);
+
+  // On the device: the room and key come from the link's secret; the words are scrambled; a wrong key reads nothing.
+  const a = await W.derive("k:AAAAAAAAAAAAAAAAAAAAAA"), b = await W.derive("k:AAAAAAAAAAAAAAAAAAAAAA"), other = await W.derive("k:BBBBBBBBBBBBBBBBBBBBBB");
+  assert.equal(a.room, b.room);
+  assert.match(a.room, /^[A-Za-z0-9_-]{22}$/);
+  assert.notEqual(a.room, other.room);
+  assert.ok(!a.room.includes("AAAA"), "the room id gives nothing away");
+  const sealed = await W.seal(a.key, { n: "Sam", t: "Bring the charger Fri 6pm" });
+  assert.match(sealed, /^[A-Za-z0-9_-]+$/);
+  assert.ok(!sealed.includes("charger") && !Buffer.from(sealed.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("latin1").includes("charger"), "scrambled");
+  assert.deepEqual(await W.unseal(b.key, sealed), { n: "Sam", t: "Bring the charger Fri 6pm" });
+  assert.equal(await W.unseal(other.key, sealed), null);
+  assert.equal(await W.unseal(a.key, "garbage"), null);
+  // The secret: a private link is its own; a shared link gets #k= when a chat starts. Either way it stays after the #.
+  const priv = W.secretOf("https://remmynd.space/#eyJ0IjoiWCJ9", true, "", null);
+  assert.deepEqual(priv, { secret: "eyJ0IjoiWCJ9", link: "https://remmynd.space/?chat=1#eyJ0IjoiWCJ9" });
+  assert.equal(W.secretOf("https://remmynd.space/r/eyJ0", false, "", null), null, "a shared link has no chat until someone starts one");
+  const shared = W.secretOf("https://remmynd.space/r/eyJ0", false, "#k=CCCCCCCCCCCCCCCCCCCCCC", null);
+  assert.equal(shared.link, "https://remmynd.space/r/eyJ0?chat=1#k=CCCCCCCCCCCCCCCCCCCCCC");
+  assert.equal(new URL(shared.link).hash, "#k=CCCCCCCCCCCCCCCCCCCCCC", "the key is in the part browsers never send");
+  assert.equal(W.secretOf("https://remmynd.space/r/eyJ0", false, "#k=short", "DDDDDDDDDDDDDDDDDDDDDD").k, "DDDDDDDDDDDDDDDDDDDDDD", "the starter's device remembers its key");
+  const src = readFileSync(join(root, "public/chat.js"), "utf8");
+  assert.doesNotMatch(src.replace(/\/\*[\s\S]*?\*\//g, ""), /secret[^;]*fetch|post\([^)]*secret|post\([^)]*\bk\b/, "the secret is never sent");
+
+  // On the server.
+  const store = memoryChat(), base = "https://remmynd.space";
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const ends = now + 3 * 3600e3, room = a.room, day = 864e5;
+  const call = async (path, body, { origin = base, method = "POST" } = {}) => {
+    const req = new Request(base + path, { method, headers: { "content-type": "application/json", origin }, body: method === "POST" ? JSON.stringify(body || {}) : undefined });
+    const res = await C.handleChat(req, {}, new URL(req.url), { store, now });
+    return { status: res.status, body: await res.json() };
+  };
+  const phoneA = "https://fcm.googleapis.com/fcm/send/a", phoneB = "https://fcm.googleapis.com/fcm/send/b";
+  assert.equal((await call("/api/chat/" + room + "/read", {}, { method: "GET" })).status, 405);
+  assert.equal((await call("/api/chat/" + room + "/read", {}, { origin: "https://evil.example" })).status, 403);
+  assert.equal((await call("/api/chat/not-a-room/read")).status, 404);
+  assert.deepEqual((await call("/api/chat/" + room + "/read")).body, { ends: null, msgs: [] }, "nothing yet");
+  assert.equal((await call("/api/chat/" + room + "/post", { body: sealed, ends })).status, 400, "who you are in this chat");
+  assert.equal((await call("/api/chat/" + room + "/post", { body: "not base64!", me: "sam-device-1", ends })).status, 400, "only scrambled text");
+  assert.equal((await call("/api/chat/" + room + "/post", { body: "x".repeat(C.LIMITS.body + 1), me: "sam-device-1", ends })).status, 400, "not too long");
+
+  let r = await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends, endpoint: phoneA });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.ends, ends + day, "vanishes a day after the reminder ends");
+  assert.equal(store.t.pings.length, 0, "nobody else to tell yet");
+  assert.equal((await call("/api/chat/" + room + "/watch", { me: "lee-device-1", on: true, endpoint: phoneB })).body.watching, true, "a reader can ask for alerts before saying anything");
+  r = await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends, endpoint: phoneA });
+  assert.deepEqual(store.t.pings.map(p => p.endpoint), [phoneB], "the others are woken, never the sender");
+  await call("/api/chat/" + room + "/post", { body: sealed, me: "lee-device-1", ends, endpoint: phoneB });
+  assert.deepEqual(store.t.pings.map(p => p.endpoint), [phoneB, phoneA]);
+  assert.deepEqual((await call("/api/chat/inbox", { endpoint: phoneB })).body.rooms, [{ room, n: 1 }], "the inbox says which room, never what");
+  assert.deepEqual((await call("/api/chat/inbox", { endpoint: phoneB })).body.rooms, [], "once");
+  r = await call("/api/chat/" + room + "/read", { since: 0 });
+  assert.equal(r.body.msgs.length, 3);
+  assert.deepEqual(Object.keys(r.body.msgs[0]).sort(), ["at", "body", "id", "me"], "scrambled text and a random device id, nothing else");
+  assert.equal((await call("/api/chat/" + room + "/read", { since: r.body.msgs[2].at })).body.msgs.length, 0);
+  // Leaving stops the alerts.
+  await call("/api/chat/" + room + "/watch", { me: "lee-device-1", on: false });
+  await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends, endpoint: phoneA });
+  assert.equal(store.t.pings.length, 2);
+
+  // Limits: 20 people, 500 messages.
+  for (let i = 0; i < C.LIMITS.people - 2; i++) await call("/api/chat/" + room + "/post", { body: sealed, me: "person-" + String(i).padStart(4, "0"), ends });
+  r = await call("/api/chat/" + room + "/post", { body: sealed, me: "one-too-many", ends });
+  assert.deepEqual([r.status, r.body.error], [403, "This chat is full. It holds 20 people."]);
+  assert.equal((await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends })).status, 200, "people already in can still talk");
+  const full = memoryChat(), id2 = (await W.derive("k:EEEEEEEEEEEEEEEEEEEEEE")).room;
+  for (let i = 0; i < C.LIMITS.messages; i++) full.t.msgs.push({ id: "m" + i, room: id2, me: "x", at: 1, body: "x" });
+  full.t.rooms.set(id2, { id: id2, ends, created: now });
+  const req = new Request(base + "/api/chat/" + id2 + "/post", { method: "POST", headers: { origin: base }, body: JSON.stringify({ body: sealed, me: "sam-device-1", ends }) });
+  assert.equal((await (await C.handleChat(req, {}, new URL(req.url), { store: full, now })).json()).error, "This chat is full. It holds 500 messages.");
+  // A room can't be made to outlive the limit.
+  const far = (await W.derive("k:FFFFFFFFFFFFFFFFFFFFFF")).room;
+  assert.equal((await call("/api/chat/" + far + "/post", { body: sealed, me: "sam-device-1", ends: now + 9e12 })).body.ends, now + C.LIMITS.life + day);
+
+  // Vanishing: on time, with everything in it, and it can't be brought back.
+  assert.equal(await C.cleanChats({}, ends + day - 60e3, { store }), 0, "not before");
+  now = ends + day + 60e3;
+  assert.equal((await call("/api/chat/" + room + "/read")).status, 410, "ended the moment it's due, even before the clean-up runs");
+  assert.ok(await C.cleanChats({}, now, { store }) >= 1);
+  assert.equal(store.t.msgs.filter(m => m.room === room).length, 0, "the messages are gone");
+  assert.equal(store.t.people.filter(p => p.room === room).length, 0, "and who was watching");
+  assert.equal((await call("/api/chat/" + room + "/post", { body: sealed, me: "sam-device-1", ends: now + day })).status, 410, "not brought back");
+
+  // End for everyone: at once.
+  now = Date.parse("2026-11-16T17:00:00Z");
+  const quick = (await W.derive("k:GGGGGGGGGGGGGGGGGGGGGG")).room;
+  await call("/api/chat/" + quick + "/post", { body: sealed, me: "sam-device-1", ends });
+  assert.deepEqual((await call("/api/chat/" + quick + "/end")).body, { ended: true });
+  assert.equal(store.t.msgs.filter(m => m.room === quick).length, 0);
+  assert.deepEqual(await call("/api/chat/" + quick + "/read"), { status: 410, body: { ended: true, msgs: [] } });
+
+  // On the page: a lazy file, opened from the reminder; alerts carry no words.
+  const app = readFileSync(join(root, "public/app.js"), "utf8"), sw = readFileSync(join(root, "public/sw.js"), "utf8");
+  assert.ok(app.includes('id="chatb">Chat about this</button>') && app.includes('import("/chat.js")'), "Chat about this, loaded only when tapped");
+  assert.ok(!firstVisit({ cache: true }).includes("chat.js") && !firstVisit({ cache: true }).includes("chat.css"), "not part of the first visit");
+  assert.ok(sw.includes('fetch("/api/chat/inbox"') && sw.includes('"New message in the chat"'), "the service worker says only that there's a message");
+  assert.match(readFileSync(join(root, "public/privacy/index.html"), "utf8"), /id="chat"/);
 });
 
 test("a slash date that could go either way follows the device's order: 12/5 is December 5 in the US, 12 May elsewhere", () => {
@@ -4118,4 +4485,161 @@ test("a reminder from a photo on the website: a camera button only where the bro
   assert.ok(app.includes("if(!fs.length&&img&&!PH.btn.hidden)"), "a photo dropped on the page is read the same way, and only where it can be");
   assert.ok(sp.includes('if (auto) el.querySelector(".sp-go").click();'));
   assert.ok(!/fetch\(|XMLHttpRequest|sendBeacon/.test(sp), "the photo is never sent anywhere");
+});
+
+test("chat photos and voice notes: scrambled on the device, sent only by signed-in accounts, kept privately, gone with the chat", async () => {
+  const C = await import("../worker/chat.js");
+  const { mkdtempSync, writeFileSync } = await import("node:fs"), { tmpdir } = await import("node:os"), { pathToFileURL } = await import("node:url");
+  const dir = mkdtempSync(join(tmpdir(), "rm-chat-"));
+  writeFileSync(join(dir, "chat.mjs"), readFileSync(join(root, "public/chat.js"), "utf8").replace('from "/remmynd.js"', "from " + JSON.stringify(pathToFileURL(join(root, "lib/remmynd.js")).href)));
+  const W = await import(pathToFileURL(join(dir, "chat.mjs")).href);
+  const { room, key } = await W.derive("k:HHHHHHHHHHHHHHHHHHHHHH"), other = await W.derive("k:IIIIIIIIIIIIIIIIIIIIII");
+
+  // On the device: bytes scrambled with the chat's key; a wrong key opens nothing.
+  const photo = new Uint8Array(5000).map((_, i) => i % 251);
+  const sealed = await W.sealBytes(key, photo);
+  assert.equal(sealed.length, photo.length + 28, "a 12-byte IV and a 16-byte tag, nothing else");
+  assert.deepEqual(await W.openBytes(key, sealed), photo);
+  assert.equal(await W.openBytes(other.key, sealed), null);
+
+  // On the server.
+  const store = memoryChat(), accounts = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const ends = now + 3600e3, sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now);
+  const objects = new Map(), bucket = {
+    put: async (k, v) => { objects.set(k, new Uint8Array(v)); },
+    get: async k => objects.has(k) ? { body: objects.get(k) } : null,
+    delete: async ks => { for (const k of [].concat(ks)) objects.delete(k); }
+  };
+  const deps = () => ({ store, accounts, files: bucket, now });
+  const json = async (path, body) => { const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify(body) }); const r = await C.handleChat(req, {}, new URL(req.url), deps()); return { status: r.status, body: await r.json() }; };
+  const upload = async (bytes, { cookie = sam, me = "sam-device-1", origin = base, r = room } = {}) => {
+    const req = new Request(base + "/api/chat/" + r + "/file?me=" + me, { method: "POST", headers: { "content-type": "application/octet-stream", origin, ...(cookie ? { cookie } : {}) }, body: bytes });
+    const res = await C.handleChat(req, {}, new URL(req.url), deps()); return { status: res.status, body: await res.json() };
+  };
+  const fetchFile = async (id, r = room) => { const req = new Request(base + "/api/chat/" + r + "/file/" + id); return C.handleChat(req, {}, new URL(req.url), deps()); };
+
+  assert.equal((await upload(sealed, { cookie: "" })).body.need, "signin", "signed-in accounts only");
+  assert.equal((await upload(sealed, { origin: "https://evil.example" })).status, 403, "this site only");
+  assert.equal((await upload(sealed)).status, 404, "into a room that exists");
+  await json("/api/chat/" + room + "/post", { body: await W.seal(key, { n: "Sam", t: "hi" }), me: "sam-device-1", ends });
+  assert.equal((await upload(sealed, { me: "someone-else-1" })).status, 403, "only someone already in the chat");
+  assert.equal((await upload(new Uint8Array(10))).status, 400, "not empty");
+  assert.equal((await upload(new Uint8Array(C.LIMITS.fileBytes + 1))).status, 413, "not too big");
+  const up = await upload(sealed);
+  assert.equal(up.status, 200);
+  assert.match(up.body.id, /^[a-f0-9]{20}$/);
+  assert.deepEqual([...objects.keys()], [room + "/" + up.body.id], "kept under the room, in the private bucket");
+  assert.deepEqual(objects.get(room + "/" + up.body.id), sealed, "the server keeps the scrambled bytes as they came");
+  assert.equal(store.t.uploads.size, 1);
+  assert.deepEqual([...store.t.uploads.keys()][0].split("|")[0], "user-sam-0001", "the daily count names the account and the day, never the chat");
+
+  // Back out: the same scrambled bytes, never cached, never run as a page.
+  const res = await fetchFile(up.body.id);
+  assert.equal(res.status, 200);
+  assert.deepEqual(new Uint8Array(await res.arrayBuffer()), sealed);
+  assert.equal(res.headers.get("content-type"), "application/octet-stream");
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+  assert.match(res.headers.get("content-security-policy"), /sandbox/);
+  assert.equal((await fetchFile("0".repeat(20))).status, 404);
+  assert.notEqual((await fetchFile("../../etc")).status, 200, "no paths out of the room");
+  assert.equal((await fetchFile(up.body.id, other.room)).status, 404, "only from its own room");
+
+  // Limits: per chat, and per account per day.
+  for (let i = 1; i < C.LIMITS.files; i++) assert.equal((await upload(sealed)).status, 200);
+  assert.equal((await upload(sealed)).body.error, "This chat is full. It holds 30 photos and voice notes.");
+  const r2 = other.room;
+  await json("/api/chat/" + r2 + "/post", { body: await W.seal(other.key, { n: "Sam", t: "hi" }), me: "sam-device-1", ends });
+  r2up: { const x = await upload(sealed, { r: r2 }); assert.equal(x.status, 429, "30 a day per account, whichever chats"); assert.match(x.body.error, /30 photos and voice notes today/); }
+  now += day;
+  assert.equal((await upload(sealed, { r: r2 })).status, 200, "a new day");
+
+  // Gone with the chat: End for everyone, and the clean-up after the end.
+  now -= day;
+  assert.ok([...objects.keys()].some(k => k.startsWith(room + "/")));
+  await json("/api/chat/" + room + "/end", {});
+  assert.ok(![...objects.keys()].some(k => k.startsWith(room + "/")), "End for everyone deletes its files");
+  assert.equal((await fetchFile(up.body.id)).status, 410);
+  assert.ok([...objects.keys()].some(k => k.startsWith(r2 + "/")));
+  assert.equal(await C.cleanChats({}, ends + day + 60e3, { store, files: bucket }), 1);
+  assert.equal(objects.size, 0, "the clean-up deletes the files too");
+
+  // The page: photos are redrawn on the device (no location), voice is capped at a minute, and the bucket is private.
+  const src = readFileSync(join(root, "public/chat.js"), "utf8"), toml = readFileSync(join(root, "wrangler.toml"), "utf8");
+  assert.ok(src.includes('c.getContext("2d").drawImage(img, 0, 0, w, h)') && src.includes('c.toBlob(r, "image/jpeg", q)'), "a photo is redrawn, which drops its location and camera details");
+  assert.ok(src.includes("setTimeout(() => rec && rec.stop(), 60000)"), "a voice note stops at a minute");
+  assert.match(toml, /\[\[r2_buckets\]\]\s*\nbinding = "CHAT_FILES"\s*\nbucket_name = "remmynd-chat-files"/);
+  assert.match(readFileSync(join(root, "public/_headers"), "utf8"), /media-src 'self' blob:/, "voice notes play from the device's own copy");
+});
+
+test("numbers: daily totals with nothing about who, and a private page only the admins can find", async () => {
+  const N = await import("../worker/numbers.js");
+  const base = "https://remmynd.space", day = 864e5, now = Date.parse("2026-11-16T17:00:00Z");
+
+  // Totals: a name, a day and a number. Stored in D1 that way, and nothing else.
+  const runs = [];
+  const db = { prepare: sql => ({ bind: (...a) => ({ run: async () => { runs.push({ sql, a }); } }), run: async () => { runs.push({ sql, a: [] }); } }) };
+  await N.tally({ DB: db }, "chat.message", 1, now);
+  await N.tally({ DB: db }, "alerts.set", 3, now);
+  await N.tally({ DB: db }, "Not A Name", 1, now);
+  await N.tally({ DB: db }, "chat.message", 0, now);
+  await N.tally({}, "chat.message", 1, now);
+  assert.match(runs[0].sql, /^CREATE TABLE IF NOT EXISTS daily \(day TEXT NOT NULL, name TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY \(day, name\)\)$/, "three columns: no account, email, device, address or link");
+  assert.deepEqual(runs.slice(1).map(r => r.a), [["2026-11-16", "chat.message", 1], ["2026-11-16", "alerts.set", 3]], "only real names and real amounts");
+  const broken = { prepare: () => { throw new Error("D1 is down"); } };
+  await N.tally({ DB: broken }, "chat.message", 1, now); // never throws
+
+  // Each event adds to its total, from the server, as it happens.
+  const seen = [];
+  const env = { TALLY: (name, n) => { seen.push([name, n]); } };
+  const C = await import("../worker/chat.js");
+  const store = memoryChat(), room = "R".repeat(22);
+  const req = new Request(base + "/api/chat/" + room + "/post", { method: "POST", headers: { origin: base }, body: JSON.stringify({ body: "abc", me: "sam-device-1", ends: now + day }) });
+  await C.handleChat(req, env, new URL(req.url), { store, now });
+  assert.deepEqual(seen, [["chat.started", 1], ["chat.message", 1]]);
+  const src = f => readFileSync(join(root, "worker", f), "utf8");
+  for (const [f, names] of Object.entries({ "account.js": ["account.signin", "email.sent"], "push.js": ["alerts.set", "alerts.sent"], "count.js": ["remind.tap"], "hosts.js": ["host.claimed", "launch.published"],
+    "follows.js": ["follow.new", "follow.end", "follow.mail"], "chat.js": ["chat.started", "chat.message", "chat.file"], "pro.js": ["pro.checkout"] }))
+    for (const n of names) { assert.ok(src(f).includes('tally(env, "' + n + '"'), f + " tallies " + n); assert.ok(N.NAMES[n], n + " has a label"); }
+  for (const f of ["account.js", "push.js", "count.js", "hosts.js", "follows.js", "chat.js", "pro.js"]) {
+    const calls = [...src(f).matchAll(/tally\(env, "[a-z.]+"([^)\n]*)\)/g)];
+    assert.ok(calls.length, f);
+    for (const c of calls) assert.match(c[1], /^(, (1|sent|pings\.length), now)?$/, f + " tallies a count and the time, nothing about who: " + c[0]);
+  }
+
+  // The page: only for signed-in admins. Everyone else gets the ordinary Not found, the same as any missing page.
+  const accounts = memoryStore(), admin = proAccount(accounts, "user-admin-01", "Owner@Example.com", now), other = proAccount(accounts, "user-other-01", "someone@example.com", now);
+  const missing = "<!doctype html><title>Not found</title><h1>That page isn't here</h1>";
+  const assets = { fetch: async () => new Response(missing, { status: 404, headers: { "content-type": "text/html; charset=utf-8" } }) };
+  const data = { daily: [{ day: "2026-11-16", name: "chat.message", n: 12 }, { day: "2026-11-15", name: "chat.message", n: 3 }, { day: "2026-11-05", name: "chat.message", n: 5 }, { day: "2026-11-16", name: "follow.new", n: 4 }],
+    signups: [now - 3600e3, now - 2 * day, now - 9 * day], totals: { accounts: 1234, hosts: 56, upcoming: 7, follows: 890, chats: 12, synced: 300 },
+    pro: [{ source: "polar", product: "monthly", trial: 0 }, { source: "apple", product: "yearly", trial: 0 }, { source: "polar", product: "monthly", trial: 1 }] };
+  const open = async (cookie, envX = { ADMIN_EMAILS: "owner@example.com, cofounder@example.com", ASSETS: assets }, method = "GET") => {
+    const r = new Request(base + "/admin", { method, headers: cookie ? { cookie } : {} });
+    const res = await N.adminResponse(r, envX, new URL(r.url), { accounts, now, data });
+    return { status: res.status, html: await res.text(), h: res.headers };
+  };
+  for (const [who, r] of [["signed out", await open("")], ["not an admin", await open(other)], ["no admins set", await open(admin, { ASSETS: assets })], ["a POST", await open(admin, undefined, "POST")]]) {
+    assert.equal(r.status, 404, who);
+    assert.equal(r.html, missing, who + ": the same page as anything missing");
+  }
+  const r = await open(admin);
+  assert.equal(r.status, 200, "an admin, whatever the case of the email");
+  assert.equal(r.h.get("cache-control"), "no-store");
+  assert.match(r.h.get("x-robots-tag"), /noindex/);
+  assert.match(r.h.get("content-security-policy"), /default-src 'none'.*frame-ancestors 'none'/);
+  assert.equal(r.h.get("x-frame-options"), "DENY");
+  assert.doesNotMatch(r.html, /<script/i, "no scripts");
+  assert.match(r.html, /<b>1,234<\/b><span>accounts<\/span>/);
+  assert.match(r.html, /<b>2<\/b><span>paying for Pro<\/span>/);
+  assert.match(r.html, /<b>1<\/b><span>on a Pro trial<\/span>/);
+  assert.match(r.html, /<b>\$16\.66<\/b><span>monthly revenue, estimated<\/span>/, "9.99 a month plus 79.99 a year over twelve; trials count as nothing");
+  assert.match(r.html, /<th scope="row">Chat messages<\/th><td>15<\/td><td>5<\/td><td class="up">\+200%<\/td><td>20<\/td>/, "this week, the week before, the change, thirty days");
+  assert.match(r.html, /<th scope="row">New accounts<\/th><td>2<\/td><td>1<\/td><td class="up">\+100%<\/td>/, "new accounts come from the accounts themselves");
+  assert.doesNotMatch(r.html, /owner@example\.com|someone@example\.com/i, "no one's email on the page");
+  assert.equal((await open(admin, undefined, "HEAD")).html, "");
+  // The route is the Worker's, and nothing links to it.
+  assert.ok(readFileSync(join(root, "worker/index.js"), "utf8").includes('if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);'));
+  assert.ok(!PAGES.some(p => /admin/.test(p)) && !/\/admin/.test(readFileSync(join(root, "public/sitemap.xml"), "utf8")), "not listed anywhere");
 });

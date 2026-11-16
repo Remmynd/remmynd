@@ -45,6 +45,12 @@ binding = "DB"
 database_name = "remmynd"
 database_id = "b0c76df1-abd8-4d65-8f0b-e3cd3d2156f2"
 
+# Vanishing chat photos and voice notes (worker/chat.js): scrambled on the device, so this bucket holds bytes
+# nobody here can read. Private: no public URL; files are served only through the Worker, and deleted with their chat.
+[[r2_buckets]]
+binding = "CHAT_FILES"
+bucket_name = "remmynd-chat-files"
+
 [triggers]
 crons = ["* * * * *"]
 

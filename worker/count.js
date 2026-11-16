@@ -9,6 +9,7 @@
 //                        Cloudflare's rate limiter, keyed in passing; remmynd stores no address.
 // Both are never cached.
 import { decode } from "../lib/remmynd.js";
+import { tally } from "./numbers.js";
 
 const MAX_PAYLOAD = 2000;
 export const PER_MINUTE = 600;
@@ -21,9 +22,11 @@ export const SCHEMA = [
   "CREATE INDEX IF NOT EXISTS counts_ends ON counts (ends)"
 ];
 
-/** SHA-256 of the link's payload, in hex: the only key a count has. */
+/** SHA-256 of the link's payload (of its launch, for a launch), in hex: the only key a count has. */
 export async function countKey(payload) {
-  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(payload));
+  // A launch's count follows the launch, not the words of its link: moving it to another time keeps every tap.
+  const r = decode(payload), basis = r && r.launch ? "launch:" + r.launch : payload;
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(basis));
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -37,7 +40,7 @@ export function d1Counts(db) {
     join: async (key, ends, minute, cap) => {
       const r = await db.prepare(
         "INSERT INTO counts (key, n, ends, win, win_n) VALUES (?, 1, ?, ?, 1) " +
-        "ON CONFLICT(key) DO UPDATE SET n = n + 1, win_n = CASE WHEN win = ? THEN win_n + 1 ELSE 1 END, win = ? " +
+        "ON CONFLICT(key) DO UPDATE SET n = n + 1, ends = MAX(ends, excluded.ends), win_n = CASE WHEN win = ? THEN win_n + 1 ELSE 1 END, win = ? " +
         "WHERE win <> ? OR win_n < ? RETURNING n").bind(key, ends, minute, minute, minute, minute, cap).first();
       return r ? r.n : null;
     },
@@ -83,6 +86,7 @@ export async function handleCount(request, env, url, { store, now = Date.now(), 
   }
   const n = await s.join(key, ends, Math.floor(now / 60000), PER_MINUTE);
   if (n == null) return json({ error: "Too many at once. Try again in a minute." }, 429);
+  await tally(env, "remind.tap", 1, now);
   return json({ n, you: n });
 }
 

@@ -1,0 +1,50 @@
+/* The chat sheet (chat.js). Built on app.css's .sheet and tokens; loaded only when a chat opens. */
+.chat-card{display:flex;flex-direction:column;max-height:min(720px,calc(100dvh - 96px));padding:20px 18px 14px}
+.chat-head{margin:0 48px 12px 2px}
+.chat-head b{display:block;font-size:18px;letter-spacing:-.02em;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-when{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.chat-body{display:flex;flex-direction:column;min-height:0;flex:1}
+.chat-tools{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:10px}
+.chat-tools .chip,.chat-msg .chip{margin-top:0;min-height:36px;padding:0 12px;font-size:13px;white-space:nowrap;flex:none}
+.chat-tools .chip[aria-pressed="true"]{background:var(--moment-tint);color:var(--on-moment-tint);border-color:transparent}
+.chat-tools .warn{color:#B42318}
+.chat-list{list-style:none;margin:0;padding:8px 2px;overflow-y:auto;flex:1;min-height:180px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--hairline)}
+.chat-empty,.chat-intro{color:var(--muted);font-size:14px;text-align:center;margin:auto;padding:24px 8px;max-width:34ch}
+.chat-intro{margin:6px auto 14px}
+.chat-msg{align-self:flex-start;max-width:82%;background:var(--well);border-radius:16px 16px 16px 6px;padding:8px 12px}
+.chat-msg.me{align-self:flex-end;background:var(--ink);color:var(--paper);border-radius:16px 16px 6px 16px}
+.chat-msg p{margin:0;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.chat-who{display:block;font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:2px}
+.chat-at{display:block;font-size:11px;opacity:.6;margin-top:2px;text-align:right}
+.chat-msg .chat-remind{margin-top:6px;background:var(--moment);color:var(--on-moment);border-color:transparent}
+.chat-bad{font-size:13px;color:var(--muted);font-style:italic}
+.chat-form{display:flex;gap:8px;padding-top:10px;border-top:1px solid var(--hairline)}
+.chat-form input,.chat-name input{flex:1;min-width:0;height:48px;padding:0 14px;border:1px solid var(--hairline);border-radius:var(--r-button);background:var(--well);color:var(--ink);font:400 16px var(--font)}
+.chat-form input:focus,.chat-name input:focus{outline:2px solid var(--moment);outline-offset:1px}
+.chat-form .btn{height:48px;padding:0 18px;width:auto;margin:0}
+.chat-name{display:flex;flex-direction:column;gap:10px;padding:8px 0}
+.chat-name label{font-weight:600;font-size:15px}
+.chat-name input{flex:none}
+.chat-note{font-size:12px;line-height:1.4;color:var(--muted);margin:10px 2px 0}
+.chat-note a{color:inherit}
+.chat-err{font-size:13px;color:#B42318;margin:6px 2px 0}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .chat-tools .warn,:root:not([data-theme="light"]) .chat-err{color:#FF8A80}}
+:root[data-theme="dark"] .chat-tools .warn,:root[data-theme="dark"] .chat-err{color:#FF8A80}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.chat-ic{flex:none;display:inline-flex;align-items:center;justify-content:center;width:44px;height:48px;border-radius:var(--r-button);border:1px solid var(--hairline);background:var(--card);color:var(--ink);cursor:pointer;padding:0}
+.chat-ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.chat-ic:focus-within,.chat-ic:focus-visible{outline:2px solid var(--moment);outline-offset:1px}
+.chat-mic.on{background:#B42318;border-color:transparent;color:#fff}
+.chat-file{margin:2px 0 4px;border-radius:12px;overflow:hidden;min-width:180px;max-width:260px;background:var(--hairline);display:flex;align-items:center;justify-content:center}
+.chat-file img{display:block;width:100%;height:100%;object-fit:cover}
+.chat-file.voice{background:none;min-width:220px;flex-direction:column;align-items:stretch}
+.chat-file audio{width:100%;height:40px}
+.chat-dur{font-size:11px;opacity:.6;margin-top:2px}
+.chat-loading{font-size:13px;color:var(--muted);padding:18px}
+.chat-rec{display:flex;align-items:center;gap:10px;padding:8px 2px;font-size:14px}
+.chat-rec .chip{margin:0 0 0 auto;min-height:32px;padding:0 12px;font-size:13px}
+.chat-rt{font-variant-numeric:tabular-nums;font-weight:600}
+.chat-rh{color:var(--muted);font-size:13px}
+.chat-dot{width:10px;height:10px;border-radius:50%;background:#B42318;animation:chatPulse 1s ease-in-out infinite}
+@keyframes chatPulse{50%{opacity:.3}}
+@media (prefers-reduced-motion:reduce){.chat-dot{animation:none}}

@@ -1,18 +1,20 @@
 /* remmynd on-device storage, shared by the page and the service worker (importScripts).
- * IndexedDB "remmynd", version 2. Everything here stays on this device; nothing is sent anywhere.
+ * IndexedDB "remmynd", version 3. Everything here stays on this device; nothing is sent anywhere.
  *   alerts     key id, index rkey   phone alerts waiting to be shown (push.js, sw.js)
  *   reminders  key rkey             reminders held on this device
  *   links      key share            links made on this device
+ *   chats      key room             chats this device wants alerts for (chat.js, sw.js)
  * Open the database only through this file. */
 (function (g) {
   "use strict";
-  const NAME = "remmynd", VERSION = 2;
+  const NAME = "remmynd", VERSION = 3;
   let opening = null;
 
   function upgrade(db, tx, oldVersion) {
     const has = n => db.objectStoreNames.contains(n);
     if (!has("alerts")) db.createObjectStore("alerts", { keyPath: "id" }).createIndex("rkey", "rkey");
     if (!has("links")) db.createObjectStore("links", { keyPath: "share" });
+    if (!has("chats")) db.createObjectStore("chats", { keyPath: "room" });
     if (!has("reminders")) {
       const reminders = db.createObjectStore("reminders", { keyPath: "rkey" });
       // From version 1: one reminder per group of alerts that share an rkey.

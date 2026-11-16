@@ -109,15 +109,13 @@ const MOBILE=IOS||/Mobi|Android/.test(UA),DEVICE=MOBILE?"phone":"computer";
 const PUSH_OK=!!window.__rmNative||("serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&OWN);
 const keepRec=()=>{const DB=window.remmyndDB;if(DB&&S.rec)DB.put("reminders",S.rec).catch(()=>{});};
 function hold(cal){const c=S.ctx;if(S.held||!c)return;keep("r:"+S.rkey);S.held=true;c.el.dataset.held="1";tick();setTimeout(chime,320);try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.isActive))navigator.vibrate(20);}catch(e){}
-  S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null,rep:R.describeRepeat(c.r.r)?c.r.r:"",first:linkStart(c.r).getTime()};
+  S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null,rep:R.describeRepeat(c.r.r)?c.r.r:"",first:linkStart(c.r).getTime(),...(c.r.u?{launch:c.r.u}:{})};
   keepRec();c.nd.nudge=false;countMe();
   /* Notifications where they are allowed: push.js asks inside this same tap, then fills the stack's row. */
   if(window.__rmPush)window.__rmPush.remind(c.nd,false);
   /* Swap Remind me for the stack after the tap, so the link it was on still opens the calendar. */
   setTimeout(renderBottom,60);}
-/* The public count (ADDENDUM-1, slice 5), only on a shared link whose host turned it on; a private link never reaches the server.
- * Remind me adds this device once (rm:counted remembers it, so removing and holding again doesn't add twice) and keeps your place
- * with the reminder. Removing or dropping it never takes one away: the number is how many tapped Remind me. */
+/* The public count: shared links whose host turned it on. Remind me adds this device once (rm:counted); removing never takes one away. */
 const counted=r=>!!r&&r.c===1&&!S.priv&&!S.key;
 function showCount(){const el=S.ctx&&S.ctx.el.querySelector(".t-count");if(!el)return;const l=R.countLabel(S.count);el.textContent=l;el.hidden=!l;}
 function countMe(){const r=S.r,k=S.rkey;if(!counted(r)||!S.rec)return;let done={};try{done=JSON.parse(localStorage.getItem("rm:counted")||"{}")||{};}catch(e){}
@@ -128,7 +126,7 @@ const VIA=()=>'<a class="via" href="'+BASE+'" target="_blank" rel="noopener">'+I
 const ALTS='<div class="alts" id="alts" hidden><a id="a-google" target="_blank" rel="noopener">Google</a><a id="a-apple">Apple</a><a id="a-outlook" target="_blank" rel="noopener">Outlook</a><a id="a-o365" target="_blank" rel="noopener">Office 365</a><button type="button" id="a-share">Reminders &amp; Notes</button><button type="button" id="a-copy">Copy</button><button type="button" id="a-qr">QR code</button></div>';
 function remindHTML(c){return(c.night?'<div class="sleep"><span>That’s <b>'+esc(fShort(c.start,TZ))+'</b> for you. Remind me at <b>'+esc(fShort(morningOf(c.start,TZ),TZ))+'</b> instead?</span><label class="switch"><input type="checkbox" id="sleep"'+(c.morning?" checked":"")+' aria-label="Remind me in the morning instead"><span></span></label></div>':'')+
   '<a class="remind" id="remind">'+I.bell+'Remind me</a><div class="t-sub">'+(PUSH_OK?"Calendar and a notification on this "+DEVICE+", in one tap.":"Adds it to your calendar, with alerts.")+'</div>'+
-  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+VIA();}
+  '<button type="button" class="more" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button>'+ALTS+(c.r.r?'':'<button type="button" class="more" id="chatb">Chat about this</button>')+VIA();}
 /* The stack (mock-up 05): what this one tap set up, plus the nudge switch. */
 /* Email: on for signed-in accounts (account.js), never for private links, which stay on the device. */
 let ACC={signedIn:false};
@@ -150,8 +148,7 @@ function stackHTML(c){const rec=S.rec||{},cal=rec.cal;
     '<div class="s-actions">'+(isHttp(c.r.l)?'<a class="btn" href="'+esc(c.r.l)+'" target="_blank" rel="noopener">Open the link</a>':'')+'<button type="button" class="btn" id="more" aria-expanded="false" aria-controls="alts">More ways to be reminded</button></div>'+ALTS+
     '<div class="s-add" id="s-add" hidden><span>Keep remmynd on your Home Screen for alerts.</span><button type="button" class="btn small" id="s-add-b">Add</button></div>'+
     '<button type="button" class="linkish s-remove" id="s-remove">Remove this reminder</button>'+VIA();}
-/* Follow through (step 5): before it starts the stack; from the start, Open the link, Not yet and Done;
- * after Not yet, the stack again until the new time; then the same question. */
+/* Follow through: the stack before the start; Open, Not yet and Done from it. */
 function phase(c){const now=Date.now(),r=S.rec||{};if(r.state==="kept")return"kept";if(r.state==="dropped")return"dropped";
   if(r.replanAt>now)return"later";if(now>=c.start.getTime()||r.replanAt)return"due";return"before";}
 const mapsUrl=place=>(IOS||MAC_SAFARI?"https://maps.apple.com/?q=":"https://www.google.com/maps/search/?api=1&query=")+encodeURIComponent(place);
@@ -182,6 +179,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
   on("#a-copy",x=>x.addEventListener("click",()=>copy(c.r.t+"\n"+fDate(c.start,TZ)+", "+fShort(c.start,TZ)+" ("+fZone(c.start,TZ)+")"+(c.r.l?"\n"+c.r.l:"")+"\n"+c.share,"Copied")));
   on("#a-qr",x=>x.addEventListener("click",()=>openQR(c.share,c.r.t)));
   on("#more",m=>m.addEventListener("click",()=>{const al=b.querySelector("#alts");al.hidden=!al.hidden;m.setAttribute("aria-expanded",String(!al.hidden));}));
+  on("#chatb",m=>{const go=()=>import("/chat.js").then(x=>x.open(c,S.priv));m.onclick=go;if(/chat=1/.test(location.search)&&!S.chat){S.chat=1;go();}});
   on("#sleep",sw=>sw.addEventListener("change",()=>{S.morning=sw.checked;renderTicket(c.el,c.r,c.o);}));
   on("#s-cal",a=>{const k=S.rec&&S.rec.cal||PREF;if(k==="apple")c.setApple(a);else{a.href=k==="google"?c.g:c.ol;a.target="_blank";a.rel="noopener";}
     if(!(S.rec&&S.rec.cal))a.addEventListener("click",()=>{if(S.rec){S.rec.cal=k;keepRec();setTimeout(renderBottom,60);}});});
@@ -196,7 +194,7 @@ function renderBottom(){const c=S.ctx;if(!c||!c.el.isConnected)return;const b=c.
     flip(false);later("r:"+k,()=>forgetRec(k),()=>flip(true),"Removed. Delete it from your calendar too.");}));
   on("#f-later",x=>x.addEventListener("click",openReplan));
   on("#t-last",x=>x.addEventListener("click",()=>lastCard(c.share,{title:c.r.t,start:c.start},x)));
-  /* Add to story: the joiner's card ("I'm in."), with the link copied inside this tap. Pass it on: the share sheet, or the link copied where there is none. A private link stays private: it's the one shared. */
+  /* Add to story: the joiner's card, with the link copied in the same tap. */
   on("#s-story",x=>x.addEventListener("click",()=>{const cb=navigator.clipboard,copied=cb&&cb.writeText?cb.writeText(c.share).then(()=>true,()=>false):Promise.resolve(false);
     import("/story.js").then(m=>m.open({ev:{title:c.r.t,start:c.start},link:c.share,timeZone:TZ,joiner:true,you:S.rec&&S.rec.you,copied,copy,toast,from:x})).catch(()=>toast("Couldn't open it here. Try again."));}));
   on("#s-pass",x=>x.addEventListener("click",()=>{if(navigator.share)navigator.share({title:c.r.t,url:c.share}).catch(e=>{if(!e||e.name!=="AbortError")copy(c.share,"Link copied");});else copy(c.share,"Link copied");}));
@@ -296,17 +294,15 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!QR.el.hidden)close
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.remove("act");t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2400);}
 function toastUndo(m,undo){const t=$("#toast"),b=document.createElement("button");t.textContent=m;b.type="button";b.className="toast-undo";b.textContent="Undo";
   b.addEventListener("click",()=>{t.classList.remove("show","act");undo();});t.append(b);t.classList.add("show","act");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show","act"),5000);}
-/* Delete with Undo: what is deleted disappears at once, but the delete itself waits 5 seconds, so Undo can
- * bring it back (a held reminder's alerts are cancelled only when the time is up). Leaving the page finishes it. */
+/* Delete with Undo: gone at once, deleted for real after 5 seconds. */
 const PEND=new Map();
 function later(key,run,undo,msg){PEND.set(key,{run,t:setTimeout(()=>{PEND.delete(key);run();},5000)});
   toastUndo(msg,()=>{const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);undo();});}
-/* Held again before its removal went through (Remind me within the 5 seconds, instead of Undo): the removal is called off,
- * so the new hold, its alerts and its stack stay, and the Undo toast goes with it. */
+/* Held again within the 5 seconds: the removal is called off. */
 function keep(key){const p=PEND.get(key);if(!p)return;clearTimeout(p.t);PEND.delete(key);$("#toast").classList.remove("show","act");}
 addEventListener("pagehide",()=>{for(const[k,p]of PEND){clearTimeout(p.t);PEND.delete(k);p.run();}});
 const forgetRec=k=>{if(window.remmyndDB)window.remmyndDB.del("reminders",k).catch(()=>{});if(window.__rmPush)window.__rmPush.cancel(k).catch(()=>{});};
-/* copy(): done runs only once it has really copied. quiet: nobody pressed Copy (Talk, /new?q=), so a browser that refuses without a tap gets no fallback and no message. */
+/* copy(): done runs only once it copied; quiet skips the fallback when nobody tapped. */
 function copy(text,msg,done,quiet){const ok=()=>{toast(msg||"Copied");if(done)done();};const fb=()=>{if(quiet)return;const ta=document.createElement("textarea");ta.value=text;ta.setAttribute("readonly","");ta.style.cssText="position:fixed;opacity:0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy")?ok():toast("Select the text and copy it");}catch(e){toast("Select the text and copy it");}ta.remove();};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(text).then(ok,fb);else fb();}
 async function shareIt(data,msg){if(navigator.share){try{await navigator.share(data);toast(msg);return;}catch(e){if(e&&e.name==="AbortError")return;}}copy(data.url,"Link copied. Paste it into Reminders or Notes.");}
@@ -323,9 +319,9 @@ const D={line:"",set:{},made:null,mode:"home",base:"home",editing:null,replace:n
 const short=u=>String(u||"").replace(/^https?:\/\//,"").replace(/\/$/,"");
 const webish=s=>/^(https?:\/\/|www\.)|^[\w-]+(\.[\w-]+)+(\/|$)/i.test(s);
 const nextHour=()=>new Date(Math.ceil((Date.now()+1)/36e5)*36e5);
-/* Talk shows only where the browser can listen: not without the API, not off https, and not in the iPhone Home Screen app, where speech recognition doesn't work. */
+/* Talk: only where the browser can listen (not in the iPhone Home Screen app). */
 const canTalk=w=>!!(w.SpeechRecognition||w.webkitSpeechRecognition)&&w.isSecureContext===true&&w.navigator.standalone!==true;
-/* A line with a clock time or "in 20 minutes" in it. Talk and /new?q= make the link by themselves only then; a day alone, or a part of the day, stays in the bar. */
+/* A clock time or "in 20 minutes": only then do Talk and /new?q= make the link by themselves. */
 const timed=p=>p.tokens.some(t=>t.type==="relative"||t.type==="time"&&!/^(?:this |in the )?(?:morning|afternoon|evening|night)$/i.test(t.text));
 function draft(){const p=R.parse(D.line,{timeZone:TZ});return Object.assign({title:p.title,start:p.start,dur:p.dur,place:p.place,notes:"",repeat:p.repeat},D.set);}
 function whenText(d){return fDate(d,TZ)+" · "+fShort(d,TZ);}
@@ -345,7 +341,7 @@ function renderDraft(){const d=draft();
   C.hint.textContent=!d.title?"Add what it is to make the link.":!d.start?"Add a time to make the link.":"Not a link yet. Press Enter to make it.";
   /* Short call: with a meeting link, or a line that reads like a call, offer 2, 5, 8 and 10 minutes. The check-in comes when it ends. */
   LEN.el.hidden=!callish(d);LEN.el.querySelectorAll(".len[data-min]").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.min===d.dur)));
-  /* Make it a video call: remmynd Calls makes a room that ends itself, then hands the call link back here as the place. A plain link, so this page asks no other host for anything. */
+  /* Make it a video call: remmynd Calls makes a room that ends itself and hands the link back as the place. */
   LEN.call.hidden=!(CALLS&&d.start&&!d.place);if(!LEN.call.hidden)LEN.call.href=CALLS+"/new?"+new URLSearchParams({t:d.title||"Call",at:d.start.toISOString(),d:String([2,5,8,10].includes(d.dur)?d.dur:5),back:"remmynd"});}
 /* Where short calls are made. Empty hides the link. */
 const CALLS="https://calls.remmynd.space";
@@ -360,7 +356,7 @@ function renderPane(){if(D.mode==="draft")return renderDraft();if(D.mode==="list
   renderTicket(C.prev,{t:x.title,s:pack(x.start),...(x.durationMinutes&&x.durationMinutes!==60?{d:x.durationMinutes}:{}),...(x.location?{l:x.location}:{}),...(x.notes?{n:x.notes}:{}),z:TZ},{interactive:false});}
 function renderMaker(){renderPane();}
 function clearDraft(){swap(()=>{D.line="";D.set={};D.replace=null;C.input.value="";closeEdit();setMode(D.made?"ready":D.base);renderMaker();});}
-/* The switch to the preview waits for the view transition; a link made meanwhile (Talk, /new?q=) wins, so the preview never comes back over the ready screen. */
+/* The preview waits for the view transition; a link made meanwhile wins. */
 C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.line.trim()||Object.keys(D.set).length);
   if(typing&&D.mode!=="draft"){D.mode="draft";swap(()=>{if(D.mode==="draft"){setMode("draft");renderDraft();}});}
   else if(typing)renderDraft();
@@ -368,8 +364,7 @@ C.input.addEventListener("input",()=>{D.line=C.input.value;const typing=!!(D.lin
 /* Smart paste: a long paste or an image can be read by the browser's own on-device AI, where it has one (smartpaste.js, loaded only then). */
 C.input.addEventListener("paste",e=>{const d=e.clipboardData;if(!d||!("LanguageModel" in self))return;const t=d.getData("text/plain")||"",image=[...d.files].find(f=>/^image\//.test(f.type))||null;
   if(image||t.length>80||/\n/.test(t.trim()))import("/smartpaste.js").then(m=>m.offer({text:t,image,form:C.form,put:newOne,toast,R,timeZone:TZ})).catch(()=>{});});
-/* A reminder from a photo: a poster, an invite, a screenshot, read by the same on-device AI, and only where the browser has it
- * (the iPhone app has its own camera). Choosing a photo is asking to read it, so it starts at once. Dropping one on the bar does the same. */
+/* A reminder from a photo, read by on-device AI where the browser has it. Choosing or dropping one starts reading. */
 const PH={btn:$("#photo"),in:$("#photo-in")},readPhoto=image=>import("/smartpaste.js").then(m=>m.offer({image,auto:true,form:C.form,put:newOne,toast,R,timeZone:TZ})).catch(()=>toast("Couldn't read photos here."));
 /* Shown only once the browser says it can read images on this device: a button that can only say no is worse than none. */
 if("LanguageModel" in self&&!window.__rmNative)LanguageModel.availability({expectedInputs:[{type:"text",languages:["en"]},{type:"image"}],expectedOutputs:[{type:"text",languages:["en"]}]}).then(a=>{if(a!=="unavailable")PH.btn.hidden=false;}).catch(()=>{});
@@ -412,8 +407,7 @@ F.count.addEventListener("change",()=>{const m=D.made;if(!m||F.priv.checked)retu
 F.share.addEventListener("click",()=>{const m=D.made;if(!m)return;shareIt({title:m.ev.title,text:"Get a reminder: "+m.ev.title,url:m.link},"Shared");});
 F.link.addEventListener("focus",()=>F.link.select());
 F.remind.insertAdjacentHTML("afterbegin",I.bell);
-/* Remind me, right after making it: open the new reminder and press its own Remind me inside this same tap,
- * so the calendar, notifications and the stack work exactly as on any reminder link. */
+/* Remind me right after making it: open the new reminder and press its Remind me in the same tap. */
 F.remind.addEventListener("click",()=>{const m=D.made;if(!m)return;const u=new URL(m.link);S.back=true;history.pushState(null,"",u.pathname+u.hash);route();const b=$("#remind");if(b)b.click();});
 F.edit.addEventListener("click",()=>{if(D.made)editMade(D.made.link);});
 $("#f-fix").addEventListener("click",()=>F.edit.click());
@@ -456,8 +450,7 @@ const EX=["Demo day Fri 5pm","Rent due 1st","Call Mum Sun 7:30pm"].map(line=>{co
 /* ---------- lists: Coming up and My links (mock-up 08) ---------- */
 const L={el:$("#lists"),body:$("#list-body"),hint:$("#list-hint"),tab:"coming",recs:[],links:[],has:false};
 const dayNum=(t,tz)=>{const p=parts(new Date(t),tz);return Date.UTC(p.y,p.mo-1,p.d)/864e5;};
-/* Last call (ADDENDUM-1, slice 7), for the host: from 24 hours before the start, a prompt to post a card. It says tomorrow or today
- * only when that's the day, and "in an hour" for the last hour; the card itself prints the date and time. No notifications. */
+/* Last call: from 24 hours before, a prompt for the host to post a card. */
 const lastCall=(start,now,tz)=>{const ms=start-now;if(ms<=0||ms>864e5)return"";if(ms<=36e5)return"Starts in an hour. Post a card?";const d=dayNum(start,tz)-dayNum(now,tz);return d===0?"Starts today. Post a card?":d===1?"Starts tomorrow. Post a card?":"";};
 /* Share your year: kept of due this year, counted as the kept line counts the month, from this device's own list. No streaks. */
 const yearCount=(recs,now,tz)=>{const p=parts(new Date(now),tz),from=zonedToUTC(p.y,1,1,0,0,tz).getTime();let k=0,n=0;for(const x of recs){const kept=x.state==="kept",t=kept?x.doneAt||x.start:Math.max(x.start+(x.dur||60)*6e4,x.replanAt||0);if(t>=from&&t<=now){n++;if(kept)k++;}}return{k,n,y:p.y};};
@@ -473,7 +466,7 @@ function upRow(x,now){const later=x.replanAt>now,t=later?x.replanAt:x.start,end=
   const st=kept?"kept":ringState(x.start,end,true,x.state,x.replanAt||0),g=kept?"kept":groupOf(t,now,TZ),d=new Date(t);
   const sub=kept?fDate(new Date(x.doneAt||x.start),TZ)+" · done":g==="today"?fShort(d,TZ)+" · "+(later?"back ":"")+relText(t,later?t+1:end,now):fDate(d,TZ)+" · "+fShort(d,TZ)+(x.host?" · "+x.host:"");
   const sub2=x.rep&&!kept?sub+" · "+R.describeRepeat(x.rep):sub;
-  const chip=st==="soon"?'<span class="li-chip">Soon</span>':st==="now"?'<span class="li-chip">Now</span>':"";
+  const chip=st==="soon"?'<span class="li-chip">Soon</span>':st==="now"?'<span class="li-chip">Now</span>':x.movedFrom&&!kept?'<span class="li-chip">Moved</span>':"";
   const acts=kept?[["delete","Delete"]]:[["replan","Re-plan"],["done","Done"],["delete","Delete"]];
   return{g,t:kept?(x.doneAt||x.start):t,html:'<div class="li n'+acts.length+'" data-rkey="'+esc(x.rkey)+'">'+ACTS(acts)+
     '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub2)+'</i></span>'+chip+'</a>'+MORE(x.title)+'</div>'};}
@@ -485,7 +478,18 @@ function linkRow(x,now){const d=new Date(x.start);
 const CNT=new Map();
 function readCounts(){for(const x of L.links||[]){const p=payloadOf(x.share),r=!x.private&&dec(p);if(!r||r.c!==1||CNT.has(p))continue;CNT.set(p,null);
   fetch("/count/"+p).then(a=>a.ok?a.json():null).then(j=>{if(j){CNT.set(p,j.n);if(D.mode==="lists"&&L.tab!=="coming")renderLists();}}).catch(()=>{});}}
-async function loadLists(){const DB=window.remmyndDB;if(!DB)return;try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}readCounts();
+/* Reminders saved from a host's launch follow it (follow.js), at most every five minutes. */
+let followedAt=0;
+const followJs=()=>window.remmyndFollow?Promise.resolve():new Promise((ok,no)=>{const x=document.createElement("script");x.src="/follow.js";x.onload=ok;x.onerror=no;document.head.append(x);});
+async function follow(){if(Date.now()-followedAt<3e5||!window.remmyndDB)return[];followedAt=Date.now();
+  if(!(await window.remmyndDB.getAll("reminders").catch(()=>[])).some(x=>x.launch&&x.state==="held"))return[];
+  await followJs().catch(()=>{});const F=window.remmyndFollow,P=window.__rmPush;if(!F)return[];
+  const ch=await F.check({move:(r,dt)=>P&&P.move(r,dt),drop:r=>P&&P.cancel(r.rkey)}).catch(()=>[]);if(!ch.length)return[];
+  const v=F.words(ch[0]);toast(v.title+". "+v.body);if(D.mode==="lists"&&!$("#home").hidden)renderLists();else if(D.mode==="home")setMode("home");
+  return ch.map(c=>({...F.words(c),rkey:c.rkey,share:c.share||""}));}
+window.__rmFollow=()=>{followedAt=0;return follow();};
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)follow();});
+async function loadLists(){const DB=window.remmyndDB;if(!DB)return;setTimeout(follow,1500);try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}readCounts();
   L.recs=L.recs.filter(x=>!PEND.has("r:"+x.rkey));L.links=L.links.filter(x=>!PEND.has("l:"+x.share));L.has=!!(L.recs.length||L.links.length);}
 async function renderLists(focusAt){await loadLists();const now=Date.now(),up=L.tab==="coming";
   $("#tab-coming").setAttribute("aria-current",up?"page":"false");$("#tab-links").setAttribute("aria-current",up?"false":"page");
@@ -545,13 +549,18 @@ function showView(r,key,priv){if(r.l&&!isHttp(r.l)&&webish(r.l))r={...r,l:"https
   renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
 /* /r/<payload> is a shared link, /#<payload> a private one (and every 1.x link), /#<name> a named page. */
 let routed="";
+/* An old link to a launch the host moved: open it as it is now, and say so. */
+function checkLaunch(r){fetch("/api/launch?ids="+encodeURIComponent(r.u),{cache:"no-store"}).then(x=>x.ok?x.json():null).then(j=>{const l=j&&j.launches&&j.launches[r.u];if(!l||S.r!==r)return;
+  if(l.cancelled)return toast("The host cancelled this. There's nothing to remind you of.");
+  const was=linkStart(r).getTime();if(l.start===was&&l.title===r.t||!l.link)return;const u=new URL(l.link,location.origin);if(u.origin!==location.origin)return;
+  history.replaceState(null,"",u.pathname);routed="";route();if(l.start!==was)toast("The host moved this from "+fDate(new Date(was),TZ)+", "+fShort(new Date(was),TZ)+".");}).catch(()=>{});}
 function route(){if(location.href===routed)return;routed=location.href;const p=location.pathname;
-  if(p.startsWith("/r/")){const r=dec(p.slice(3).replace(/\/+$/,""));return r?showView(r,null,false):showHome();}
+  if(p.startsWith("/r/")){const r=dec(p.slice(3).replace(/\/+$/,""));if(r&&r.u)checkLaunch(r);return r?showView(r,null,false):showHome();}
   if(p==="/new"||p==="/new/")return fromNew();
   if(p==="/share"||p==="/share/")return fromShare();
   const h=decodeURIComponent(location.hash.slice(1));if(h==="coming-up"||h==="links")return showLists(h==="links"?"links":"coming");
   const preset=PRESETS.get(h);if(typeof preset==="function")return showView(preset(),h,false);const r=h&&dec(h);if(r)return showView(r,null,true);D.base="home";if(D.mode==="lists")D.mode="home";showHome();}
-/* /new?t=…&at=… lands here only when the time has no zone. Read it in this device's zone with the library itself, then show the /r/ link. /new?q=<line> lands here too. */
+/* /new?t=…&at=… without a zone, or /new?q=<line>: read in this device's zone, then show the /r/ link. */
 function fromNew(){const q=new URLSearchParams(location.search),line=(q.get("q")||"").replace(/\s+/g," ").trim().slice(0,600);
   /* /new?q=<line>: the line in the bar, read like anything typed there. With a time in it, the link is made, as Talk does. */
   if(line){intoBar(line);const p=R.parse(line,{timeZone:TZ});if(timed(p))make(null,true);return;}

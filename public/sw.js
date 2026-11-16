@@ -2,7 +2,7 @@
 // 1. Caches the app so it opens offline.
 // 2. Shows reminder notifications. Pushes arrive EMPTY; the reminder details come from this
 //    device's own storage (IndexedDB), so the server never knows what you're reminded about.
-const CACHE = "remmynd-v16";
+const CACHE = "remmynd-v19";
 const SHELL = ["./", "./index.html", "./app.css", "./app.js", "./remmynd.js", "./ring.js", "./db.js", "./push.js", "./fonts/geist-5.3-latin.woff2", "./fonts/geist-mono-5.3-latin.woff2", "./manifest.webmanifest", "./icon.svg", "./favicon.ico", "./apple-touch-icon.png", "./icon-192.png", "./badge-mono-96.png", "./badge.svg", "./badge-dark.svg"];
 
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -28,7 +28,7 @@ self.addEventListener("fetch", e => {
 });
 
 /* ---------- on-device storage: db.js, shared with the page ---------- */
-importScripts("/db.js");
+importScripts("/db.js", "/follow.js");
 const DB = self.remmyndDB;
 const getAll = () => DB.getAll("alerts");
 const put = a => DB.put("alerts", a);
@@ -60,12 +60,12 @@ function words(a) {
 }
 const PLATFORM_HAS_ACTIONS = typeof Notification !== "undefined" && "actions" in Notification.prototype && (Notification.maxActions || 0) > 0;
 
-async function showDue() {
+async function showDue(saidSomething = false) {
   const now = Date.now();
   const list = await getAll().catch(() => []);
   const due = list.filter(a => !a.shown && a.at <= now + 120e3).sort((a, b) => a.at - b.at);
-  if (!due.length) {
-    // iPhone requires every push to show something; this only happens if this device's storage was cleared.
+  if (!due.length && !saidSomething) {
+    // iPhone requires every push to show something.
     await self.registration.showNotification("remmynd", { body: "You have a reminder. Open remmynd to see it.", icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: "remmynd-generic" });
   }
   const plans = new Map((await DB.getAll("reminders").catch(() => [])).map(r => [r.rkey, typeof r.plan === "string" ? r.plan.slice(0, 120) : ""]));
@@ -98,7 +98,36 @@ async function updateBadge() {
   try { today ? await self.navigator.setAppBadge(today) : await self.navigator.clearAppBadge(); } catch (e) {}
 }
 
-self.addEventListener("push", e => { e.waitUntil(showDue()); });
+/* A push may mean a held launch changed, or a followed host has news. */
+async function onPush() {
+  const F = self.remmyndFollow;
+  const changes = !F ? [] : await F.check({
+    move: async (rec, delta) => {
+      const mine = (await getAll().catch(() => [])).filter(a => a.rkey === rec.rkey && !a.shown);
+      await cancelAlerts(rec.rkey);
+      const moved = mine.map(a => ({ ...a, id: rid(), at: a.at + delta, start: rec.start, title: rec.title, place: rec.place || "", share: rec.share })).filter(a => a.at > Date.now() + 30e3);
+      for (const a of moved) await put(a);
+      const sub = moved.length && await self.registration.pushManager.getSubscription().catch(() => null);
+      if (sub) await fetch("/push/schedule", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint, pings: moved.map(a => ({ id: a.id, at: a.at, ...(a.launch ? { launch: a.launch } : {}) })) }) }).catch(() => {});
+    },
+    drop: rec => cancelAlerts(rec.rkey)
+  }).catch(() => []);
+  for (const c of changes) {
+    const v = F.words(c);
+    await self.registration.showNotification(v.title, { body: v.body, icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: c.rkey + ":change", data: { rkey: c.rkey, share: c.share, url: c.share || "/#coming-up" } });
+  }
+  // Followed hosts: announced, or live now (worker/follows.js).
+  let notes = [];
+  const sub = await self.registration.pushManager.getSubscription().catch(() => null);
+  if (sub) notes = ((await fetch("/api/follow/inbox", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).then(r => r.json()).catch(() => null)) || {}).notes || [];
+  for (const n of notes) await self.registration.showNotification(n.title, { body: n.body, icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: n.tag, data: { url: n.url } });
+  // Chats (worker/chat.js): the server knows only the room. The title and link stay on this device.
+  const rooms = sub ? ((await fetch("/api/chat/inbox", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).then(r => r.json()).catch(() => null)) || {}).rooms || [] : [];
+  const chats = rooms.length ? await DB.getAll("chats").catch(() => []) : [];
+  for (const c of rooms) { const k = chats.find(x => x.room === c.room); if (k) await self.registration.showNotification(k.title, { body: c.n > 1 ? c.n + " new messages in the chat" : "New message in the chat", icon: "/icon-192.png", badge: "/badge-mono-96.png", tag: "chat:" + c.room, data: { url: k.url } }); }
+  await showDue(changes.length + notes.length + rooms.length > 0);
+}
+self.addEventListener("push", e => { e.waitUntil(onPush()); });
 
 async function snooze(data) {
   const list = await getAll();

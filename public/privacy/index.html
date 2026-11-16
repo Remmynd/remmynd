@@ -84,6 +84,7 @@
       <li>When each reminder email is due, deleted once it's sent.</li>
     </ul>
     <p>Your page: if you claim one, the handle, name, line and link you give, and the launches you publish (title, time, length and the link they go to), are public at remmynd.space/@your-handle. Nothing else about you is shown. Change or delete any of it on Your page; deleting your account deletes all of it.</p>
+    <p>Following a launch: a reminder saved from a host’s launch carries that launch’s id. Your device asks remmynd now and then whether the launch moved or was cancelled; the question names only the launch, never you. For phone alerts on the web, the anonymous ping we keep also notes which launch it’s for, so a change can wake your device at once; it’s deleted with the ping.</p>
     <p>remmynd Pro: if you buy it, we keep which purchase is yours, which plan it is, until when, and whether it renews. On the website the payment is handled by <a href="https://polar.sh/legal/privacy-policy">Polar</a>, the merchant of record, which receives your email address and your payment details; in the iPhone app it is handled by Apple. We never see or keep a card number. Deleting your account deletes these records and ends a website purchase at once; a purchase made through Apple is cancelled in your iPhone's Settings.</p>
     <p>Email in: mail you send to your email-in address is read once, by our server, to make the reminder. It is not stored or logged; only the reminder made from it is kept, in your account.</p>
     <p>Reminder and sign-in emails are delivered by <a href="https://resend.com/legal/privacy-policy">Resend</a>, which receives your address and the email to send it. Every reminder email has a link to stop them. In your account you can turn emails off, sign out, or delete your account, which deletes everything above at once.</p>
@@ -102,6 +103,16 @@
 
     <h2 id="numbers">Numbers on this site</h2>
     <p>The For hosts page shows GitHub stars and npm downloads. Our server fetches them from GitHub and npm itself, at most once an hour. Your browser only talks to remmynd.space.</p>
+
+    <h2 id="follow">Following a host</h2>
+    <p>When you follow someone's page, we keep which host you follow, with your phone's notification address or your account. That is how we tell you about their launches. If you ask for email too, we send one email per launch to your account's address, and every email has a link to stop. The host sees how many people follow them, never who. Unfollow and the record is deleted. Deleting your account deletes your follows, and a host's followers list if you host.</p>
+
+    <h2 id="chat">Chat</h2>
+    <p>A reminder's chat is scrambled on your device before it's sent, with a key that lives in the link after the #, which browsers never send to us. We store only the scrambled text, so we can't read the messages or the names, and we don't know which reminder a chat belongs to. We delete the chat and every message 24 hours after the reminder ends, or as soon as anyone in it ends it for everyone. Your device keeps no copy. If you turn on alerts, we keep your device's notification address with that chat until it's deleted, and an alert says only that there's a new message. Anyone in a chat can still take a screenshot.</p>
+    <p>Photos and voice notes in a chat are scrambled the same way before they leave your device, and a photo is redrawn first, which removes its location and camera details. We keep them in private storage that has no public address, delete them with the chat, and can't open them. Sending one needs a signed-in account, so we can limit how many each account sends in a day; that count names the account and the day, not the chat.</p>
+
+    <h2 id="totals">Daily totals</h2>
+    <p>To see how remmynd is doing, our server adds to a few daily totals as it works: new accounts, sign-ins, phone alerts set and sent, emails sent, host pages, launches, follows, chats, messages, and Pro checkouts. Each total is a name, a day and a number. No account, email address, device, internet address or link is stored with it, and no script on our pages counts anything. Only the people who run remmynd can see the totals.</p>
 
     <h2 id="host">Hosting</h2>
     <p>remmynd runs on Cloudflare, which carries every request to the site, as any host does. See <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare's privacy policy</a>.</p>

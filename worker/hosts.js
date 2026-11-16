@@ -12,12 +12,19 @@
 //   POST /api/host { handle, name, bio, link }                     claim or change the handle and profile
 //   POST /api/host/launch { id?, title, start, dur, tz, dest, count }   publish a launch, or change one
 //   POST /api/host/launch/delete { id }
+//   GET  /api/launch?ids=a,b,c        public: what each launch is now (time, title, link), or that it was cancelled.
+//                                     Devices that saved a launch ask this to follow a change; it says nothing about who asks.
+//
+// Following a change: when a host moves, renames or cancels a launch, every alert waiting for it (worker/push.js
+// keeps which launch an alert is for, and nothing else) is pinged at once; each device then asks /api/launch,
+// moves or drops its own alerts and says what changed. Signed-in accounts' synced copies and emails move here.
 //
 // What is public: the handle, name, line and link the host gives, and the launches they publish. Nothing else.
-import { signedIn, d1Store } from "./account.js";
-import { encode, googleCalendarUrl } from "../lib/remmynd.js";
+import { signedIn, d1Store, mailsFor } from "./account.js";
+import { encode, googleCalendarUrl, LAUNCH_ID } from "../lib/remmynd.js";
 import { escapeHTML as esc } from "./preview.js";
 import { readCount } from "./count.js";
+import { tally } from "./numbers.js";
 
 export const HANDLE = /^[a-z0-9][a-z0-9_-]{2,29}$/;
 /** Words the site uses, or that would look like it speaks for remmynd. */
@@ -86,10 +93,10 @@ export function clockParts(ms) {
 
 /** Everything a launch page shows, and its links. */
 export function launchView(host, l, origin) {
-  const event = { title: l.title, start: new Date(l.start), durationMinutes: l.dur, location: l.dest, host: host.name || "@" + host.handle, timeZone: l.tz, count: !!l.count };
+  const event = { title: l.title, start: new Date(l.start), durationMinutes: l.dur, location: l.dest, host: host.name || "@" + host.handle, timeZone: l.tz, count: !!l.count, launch: l.id };
   const payload = encode(event);
   return {
-    id: l.id, slug: l.slug, title: l.title, start: l.start, dur: l.dur, tz: l.tz, dest: l.dest, count: !!l.count,
+    id: l.id, slug: l.slug, title: l.title, start: l.start, dur: l.dur, tz: l.tz, dest: l.dest, count: !!l.count, ver: l.updated,
     url: origin + "/@" + host.handle + "/" + l.slug, link: origin + "/r/" + payload, payload,
     ics: "/ics?d=" + payload, google: googleCalendarUrl(event, { base: origin + "/" }), destName: destName(l.dest)
   };
@@ -119,6 +126,40 @@ function cleanLaunch(body, now) {
   return { title, start: Math.round(start / 60000) * 60000, dur, tz, dest, count: !!body.count };
 }
 
+/**
+ * A launch changed or was cancelled: wake every device holding it, and move signed-in accounts' copies and emails.
+ * `now` is the launch as it is now, or null when it was cancelled.
+ */
+export async function followChange(store, id, now, at, origin) {
+  await store.wakeLaunch(id, at);
+  for (const it of await store.itemsForLaunch(id)) {
+    let d; try { d = JSON.parse(it.data); } catch { continue; }
+    if (!d || d.launch !== id || d.state !== "held") continue;
+    const next = now ? { ...d, title: now.title, start: now.start, dur: now.dur, place: now.dest, share: now.link, movedFrom: d.movedFrom || (d.start !== now.start ? d.start : undefined), ver: now.ver }
+      : { ...d, state: "dropped", cancelled: at };
+    await store.putItems(it.user_id, [{ kind: "reminder", key: it.key, data: JSON.stringify(next), deleted: false, updated: at }]);
+    const user = await store.userById(it.user_id);
+    await store.setMails(it.user_id, it.key, user && user.email_alerts ? mailsFor(next, at).map(m => ({ ...m, id: crypto.randomUUID().replace(/-/g, "").slice(0, 12) })) : []);
+  }
+}
+
+/** GET /api/launch?ids=…: what each launch is now. Public, the same for everyone who asks, and never cached: a device
+ * woken by a change must see it, not an answer from a minute ago. */
+export async function launchStateResponse(request, env, url, deps = {}) {
+  if (request.method !== "GET" && request.method !== "HEAD") return json({ error: "Use GET." }, 405);
+  if (!env.DB && !deps.store) return json({ launches: {} });
+  const ids = [...new Set((url.searchParams.get("ids") || "").split(",").filter(x => LAUNCH_ID.test(x)))].slice(0, 50);
+  const store = deps.store || d1Store(env.DB);
+  await store.ready();
+  const out = {};
+  for (const l of await store.launchesByIds(ids)) {
+    const v = launchView({ handle: l.handle, name: l.name }, l, url.origin);
+    out[l.id] = { title: v.title, start: v.start, dur: v.dur, dest: v.dest, url: v.url, link: v.link, ver: v.ver };
+  }
+  for (const g of await store.goneByIds(ids.filter(i => !out[i]))) out[g.id] = { cancelled: true, title: g.title, at: g.at };
+  return new Response(JSON.stringify({ launches: out }), { headers: { "content-type": "application/json", "cache-control": "no-store" } });
+}
+
 export async function handleHost(request, env, url, deps = {}) {
   if (!env.DB && !deps.store) return json({ error: "Accounts aren't set up on this server." }, 503);
   const store = deps.store || d1Store(env.DB), now = deps.now || Date.now();
@@ -129,7 +170,7 @@ export async function handleHost(request, env, url, deps = {}) {
     const host = await store.hostOf(user.id);
     if (!host) return { signedIn: true, host: null, launches: [] };
     const launches = (await store.launchesOf(user.id)).map(l => launchView(host, l, url.origin));
-    return { signedIn: true, host: { handle: host.handle, name: host.name, bio: host.bio, link: host.link, url: url.origin + "/@" + host.handle }, launches };
+    return { signedIn: true, host: { handle: host.handle, name: host.name, bio: host.bio, link: host.link, url: url.origin + "/@" + host.handle, followers: store.followCount ? await store.followCount(user.id) : 0 }, launches };
   };
   if (path === "/api/host" && (request.method === "GET" || request.method === "HEAD")) return json(user ? await out() : { signedIn: false });
   if (request.method !== "POST") return json({ error: "Use POST." }, 405);
@@ -144,6 +185,7 @@ export async function handleHost(request, env, url, deps = {}) {
     const mine = await store.hostOf(user.id), other = await store.hostByHandle(p.handle);
     if (other && other.user_id !== user.id) return json({ error: "That handle is taken. Try another." }, 409);
     await store.putHost({ user_id: user.id, ...p, created: mine ? mine.created : now, updated: now });
+    if (!mine) await tally(env, "host.claimed", 1, now);
     return json(await out());
   }
   const host = await store.hostOf(user.id);
@@ -158,11 +200,24 @@ export async function handleHost(request, env, url, deps = {}) {
     const id = was ? was.id : crypto.randomUUID().replace(/-/g, "").slice(0, 16);
     const slug = was ? was.slug : slugFor(l.title, new Set(mine.map(x => x.slug)));
     await store.putLaunch({ id, user_id: user.id, slug, ...l, created: was ? was.created : now, updated: now });
-    return json({ ...(await out()), id });
+    // Changed what a saver relies on: the time, the length, the title or where it goes. They follow.
+    const moved = was && (was.start !== l.start || was.dur !== l.dur || was.title !== l.title || was.dest !== l.dest);
+    if (moved) await followChange(store, id, launchView(host, { ...was, ...l, id, slug, updated: now }, url.origin), now, url.origin);
+    // A new launch, still to come: the host's followers hear about it (worker/follows.js).
+    let told = 0;
+    if (!was) await tally(env, "launch.published", 1, now);
+    if (!was && l.start > now) { const { tellFollowers } = await import("./follows.js"); const t = await tellFollowers(store, host, { id, ...l }, "announce", now); told = t.pushed + t.mailed; }
+    return json({ ...(await out()), id, followed: !!moved, told });
   }
   if (path === "/api/host/launch/delete") {
-    if (!mine.some(x => x.id === body.id)) return json({ error: "That launch isn't yours, or it was already deleted." }, 404);
+    const gone = mine.find(x => x.id === body.id);
+    if (!gone) return json({ error: "That launch isn't yours, or it was already deleted." }, 404);
     await store.deleteLaunch(user.id, body.id);
+    // Whoever saved it hears it's cancelled; its page says so instead of vanishing.
+    if (gone.start + gone.dur * 60e3 > now) {
+      await store.putGone({ id: gone.id, user_id: user.id, slug: gone.slug, title: gone.title, at: now });
+      await followChange(store, gone.id, null, now, url.origin);
+    }
     return json(await out());
   }
   return json({ error: "Not found." }, 404);
@@ -181,8 +236,16 @@ function clockHTML(l, now) {
     '<p class="at-state at-live-now">Live now</p><p class="at-state at-ended">This launch has happened.</p>';
 }
 
+/** Follow the host: the button and how many follow. public/at.js does the rest. */
+export function followHTML(host, n) {
+  const who = host.name || "@" + host.handle;
+  return '<div class="at-follow-row"><button type="button" class="btn small at-follow" data-handle="' + esc(host.handle) + '" data-name="' + esc(who) + '" aria-pressed="false">' +
+    '<span class="f-off">Follow ' + esc(who) + '</span><span class="f-on">Following</span></button><span class="at-followers" data-n="' + n + '">' + (n ? n.toLocaleString("en-US") + (n === 1 ? " follower" : " followers") : "") + '</span>' +
+    '<p class="at-follow-note" role="status" hidden></p></div>';
+}
+
 /** One launch: the clock, the time, and what to do. `big` for its own page, compact on the host's page. */
-export function launchHTML(host, l, v, now, { n = 0, big = true } = {}) {
+export function launchHTML(host, l, v, now, { n = 0, big = true, followers = null } = {}) {
   const go = v.dest ? '<a class="btn at-go" href="' + esc(v.dest) + '" rel="noopener" target="_blank">' +
     '<span class="p-before">Go to ' + esc(v.destName) + '</span><span class="p-live">It\'s live: go now</span><span class="p-ended">Visit ' + esc(v.destName) + '</span>' + ARROW + '</a>' : "";
   const count = l.count && n > 0 ? '<p class="at-count"><b>' + n.toLocaleString("en-US") + '</b> ' + (n === 1 ? "person" : "people") + ' will be reminded</p>' : "";
@@ -193,15 +256,16 @@ export function launchHTML(host, l, v, now, { n = 0, big = true } = {}) {
     clockHTML(l, now) + count +
     '<div class="at-actions"><a class="btn ink at-remind" href="' + esc("/r/" + v.payload) + '">' + BELL + 'Remind me</a>' + go + '</div>' +
     (big ? '<p class="at-more"><a href="' + esc(v.ics) + '">Add to Calendar</a><a href="' + esc(v.google) + '" rel="noopener" target="_blank">Google Calendar</a><button type="button" class="linkish at-share" data-url="' + esc(v.url) + '" data-title="' + esc(l.title) + '">Share</button></p>' : "") +
+    (big && followers != null ? followHTML(host, followers) : "") +
     '</article>';
 }
 
-function hostHTML(host, launches, origin, now) {
+function hostHTML(host, launches, origin, now, followers = 0) {
   const views = launches.map(l => ({ l, v: launchView(host, l, origin) }));
   const upcoming = views.filter(x => phaseOf(x.l, now) !== "ended"), past = views.filter(x => phaseOf(x.l, now) === "ended").reverse();
   const head = '<header class="at-host"><h1>' + esc(host.name || "@" + host.handle) + '</h1><p class="at-handle">@' + esc(host.handle) + '</p>' +
     (host.bio ? '<p class="at-bio">' + esc(host.bio) + '</p>' : "") +
-    (host.link ? '<p><a class="at-link" href="' + esc(host.link) + '" rel="noopener me" target="_blank">' + esc(host.link.replace(/^https?:\/\//, "").replace(/\/$/, "")) + '</a></p>' : "") + '</header>';
+    (host.link ? '<p><a class="at-link" href="' + esc(host.link) + '" rel="noopener me" target="_blank">' + esc(host.link.replace(/^https?:\/\//, "").replace(/\/$/, "")) + '</a></p>' : "") + followHTML(host, followers) + '</header>';
   const next = upcoming[0] ? '<section aria-labelledby="at-next"><h2 class="label" id="at-next">' + (phaseOf(upcoming[0].l, now) === "live" ? "Live now" : "Next") + '</h2>' + launchHTML(host, upcoming[0].l, upcoming[0].v, now, { big: false }) + '</section>' : "";
   const row = x => '<li><a href="' + esc(x.v.url) + '"><b>' + esc(x.l.title) + '</b><time datetime="' + new Date(x.l.start).toISOString() + '">' + esc(whenText(x.l.start, x.l.tz, now)) + '</time></a></li>';
   const later = upcoming.length > 1 ? '<section aria-labelledby="at-later"><h2 class="label" id="at-later">Coming up</h2><ul class="at-list">' + upcoming.slice(1).map(row).join("") + '</ul></section>' : "";
@@ -253,14 +317,20 @@ export async function hostPageResponse(request, env, url, deps = {}) {
     const next = launches.find(l => phaseOf(l, now) !== "ended");
     return page(env, url, { title: who + " · remmynd", canonical: url.origin + "/@" + host.handle,
       description: host.bio || (next ? "Next: " + next.title + ", " + whenText(next.start, next.tz, now) + ". Tap Remind me so you don't miss it." : "Launches by " + who + " on remmynd."),
-      html: hostHTML(host, launches, url.origin, now) });
+      html: hostHTML(host, launches, url.origin, now, store.followCount ? await store.followCount(host.user_id) : 0) });
   }
   const l = launches.find(x => x.slug === slug);
-  if (!l) return missing();
+  if (!l) {
+    const gone = (await store.goneOf(host.user_id)).find(g => g.slug === slug);
+    if (!gone) return missing();
+    return page(env, url, { status: 410, title: gone.title + " was cancelled", canonical: url.origin + "/@" + host.handle + "/" + slug,
+      description: who + " cancelled " + gone.title + ".",
+      html: '<div class="at-missing"><p class="at-by"><a href="/@' + esc(host.handle) + '">' + esc(who) + '</a></p><h1>' + esc(gone.title) + ' was cancelled</h1><p>The host took it down. If you saved it, your reminder was cancelled too.</p><p><a class="btn ink" href="/@' + esc(host.handle) + '">See ' + esc(who) + '’s other launches</a></p></div>' });
+  }
   const v = launchView(host, l, url.origin);
   const n = l.count ? await readCount(env, v.payload, { now, store: deps.counts }) : 0;
   const ph = phaseOf(l, now);
   return page(env, url, { title: l.title + " by " + who, canonical: v.url,
     description: (ph === "live" ? "Live now. " : ph === "ended" ? "This launch has happened. " : "") + whenText(l.start, l.tz, now) + "." + (ph === "before" ? " Tap Remind me so you don't miss it." : ""),
-    html: launchHTML(host, l, v, now, { n }) });
+    html: launchHTML(host, l, v, now, { n, followers: store.followCount ? await store.followCount(host.user_id) : 0 }) });
 }
