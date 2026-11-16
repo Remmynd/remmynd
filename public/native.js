@@ -27,6 +27,7 @@ export function boot({ R, TZ, holdImported, rkeyOf, replanOptions, unfloat, go, 
       const m = recs.some(x => x.rep) ? await repeats() : null;
       return recs.filter(x => !PEND.has("r:" + x.rkey)).map(x => ({ rkey: x.rkey, title: x.title || "", start: x.start, dur: x.dur || 60, place: x.place || "", share: x.share || "",
         state: x.state || "held", replanAt: x.replanAt || null, doneAt: x.doneAt || null, rep: x.rep || "", repeat: x.rep ? R.describeRepeat(x.rep) : "", of: x.of || "",
+        movedFrom: x.movedFrom || null, cancelled: x.cancelled || null,
         upcoming: m && x.rep && x.state === "held" ? m.upcoming(x) : [],
         alerts: alerts.filter(a => a.rkey === x.rkey && !a.shown).map(a => a.id) }));
     },

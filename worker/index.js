@@ -13,7 +13,7 @@ import { handleFeeds, calendarResponse, receiveEmail } from "./feed.js";
 import { handlePro, proBeforeDelete } from "./pro.js";
 import { handleCount, cleanCounts } from "./count.js";
 import { appSiteResponse } from "./appsite.js";
-import { handleHost, hostPageResponse } from "./hosts.js";
+import { handleHost, hostPageResponse, launchStateResponse } from "./hosts.js";
 
 const PRESETS = new Set(["example"]);
 
@@ -43,6 +43,7 @@ export default {
     if (url.pathname.startsWith("/cal/")) return calendarResponse(request, env, url);
     // Host pages: the API, and the public pages at /@handle and /@handle/<slug>. The bare template isn't a page.
     if (url.pathname === "/api/host" || url.pathname.startsWith("/api/host/")) return handleHost(request, env, url);
+    if (url.pathname === "/api/launch") return launchStateResponse(request, env, url);
     if (url.pathname.startsWith("/@") || url.pathname.startsWith("/%40")) return hostPageResponse(request, env, url);
     if (url.pathname === "/at" || url.pathname === "/at/") { const nf = await env.ASSETS.fetch(new Request(new URL("/404", url))); return new Response(nf.body, { status: 404, headers: nf.headers }); }
     if (url.pathname.startsWith("/api/")) return handleAccount(request, env, url, ctx);

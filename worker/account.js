@@ -55,6 +55,12 @@ export const SCHEMA = [
   "CREATE TABLE IF NOT EXISTS hosts (user_id TEXT PRIMARY KEY, handle TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', link TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL, updated INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS launches (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, start INTEGER NOT NULL, dur INTEGER NOT NULL DEFAULT 60, tz TEXT NOT NULL, dest TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, updated INTEGER NOT NULL, UNIQUE (user_id, slug))",
   "CREATE INDEX IF NOT EXISTS launches_user ON launches (user_id, start)",
+  // A launch the host took down: kept so whoever saved it hears it was cancelled, and its page can say so.
+  "CREATE TABLE IF NOT EXISTS launches_gone (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, at INTEGER NOT NULL)",
+  // Which launch an alert is for (worker/push.js makes it too), and the alerts table itself, so a change can wake them.
+  "CREATE TABLE IF NOT EXISTS pings (id TEXT PRIMARY KEY, endpoint TEXT NOT NULL, at INTEGER NOT NULL, created INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS ping_launch (id TEXT PRIMARY KEY, launch TEXT NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS ping_launch_launch ON ping_launch (launch)",
 ];
 
 /* ---------- storage: D1 in production, an in-memory stand-in in the tests ---------- */
@@ -71,7 +77,7 @@ export function d1Store(db) {
     createUser: u => run("INSERT INTO users (id, email, created, email_alerts, stop_token) VALUES (?, ?, ?, 1, ?)", u.id, u.email, u.created, u.stop_token),
     setEmailAlerts: (id, on) => run("UPDATE users SET email_alerts = ? WHERE id = ?", on ? 1 : 0, id),
     stopEmails: (id, token) => run("UPDATE users SET email_alerts = 0 WHERE id = ? AND stop_token = ?", id, token),
-    deleteUser: id => db.batch([...["passkeys", "sessions", "items", "mails", "feeds", "pro", "hosts", "launches"].map(t => st("DELETE FROM " + t + " WHERE user_id = ?", id)), st("DELETE FROM users WHERE id = ?", id)]),
+    deleteUser: id => db.batch([...["passkeys", "sessions", "items", "mails", "feeds", "pro", "hosts", "launches", "launches_gone"].map(t => st("DELETE FROM " + t + " WHERE user_id = ?", id)), st("DELETE FROM users WHERE id = ?", id)]),
     hostOf: id => one("SELECT * FROM hosts WHERE user_id = ?", id),
     hostByHandle: h => one("SELECT * FROM hosts WHERE handle = ?", h),
     putHost: h => run("INSERT INTO hosts (user_id, handle, name, bio, link, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET handle = excluded.handle, name = excluded.name, bio = excluded.bio, link = excluded.link, updated = excluded.updated",
@@ -80,6 +86,13 @@ export function d1Store(db) {
     putLaunch: l => run("INSERT INTO launches (id, user_id, slug, title, start, dur, tz, dest, count, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET title = excluded.title, start = excluded.start, dur = excluded.dur, tz = excluded.tz, dest = excluded.dest, count = excluded.count, updated = excluded.updated",
       l.id, l.user_id, l.slug, l.title, l.start, l.dur, l.tz, l.dest, l.count ? 1 : 0, l.created, l.updated),
     deleteLaunch: (userId, id) => run("DELETE FROM launches WHERE id = ? AND user_id = ?", id, userId),
+    launchesByIds: ids => ids.length ? all("SELECT l.*, h.handle, h.name FROM launches l JOIN hosts h ON h.user_id = l.user_id WHERE l.id IN (" + ids.map(() => "?").join(",") + ")", ...ids) : [],
+    goneByIds: ids => ids.length ? all("SELECT * FROM launches_gone WHERE id IN (" + ids.map(() => "?").join(",") + ")", ...ids) : [],
+    goneOf: id => all("SELECT * FROM launches_gone WHERE user_id = ?", id),
+    putGone: g => run("INSERT OR REPLACE INTO launches_gone (id, user_id, slug, title, at) VALUES (?, ?, ?, ?, ?)", g.id, g.user_id, g.slug, g.title, g.at),
+    // Every device holding the launch is pinged now; it checks, and moves or drops its own alerts.
+    wakeLaunch: (id, now) => run("UPDATE pings SET at = ? WHERE id IN (SELECT id FROM ping_launch WHERE launch = ?)", now, id),
+    itemsForLaunch: id => all("SELECT user_id, key, data FROM items WHERE kind = 'reminder' AND deleted = 0 AND data LIKE ?", '%"launch":"' + id + '"%'),
     passkeysOf: id => all("SELECT id, name, created, last_used FROM passkeys WHERE user_id = ? ORDER BY created", id),
     passkey: id => one("SELECT * FROM passkeys WHERE id = ?", id),
     addPasskey: p => run("INSERT INTO passkeys (id, user_id, public_key, alg, sign_count, name, created) VALUES (?, ?, ?, ?, 0, ?, ?)", p.id, p.userId, p.publicKey, p.alg, p.name, p.created),

@@ -81,7 +81,7 @@ function launchForm() {
     '<label class="hp-check"><input type="checkbox" id="lf-count"' + (l && l.count ? " checked" : "") + '>Show how many will be reminded</label>' +
     '<p class="hp-err" id="lf-err" role="alert"></p><div class="hp-row"><button class="btn ink" type="submit">' + (l ? "Save changes" : "Publish") + '</button>' +
     (l ? '<button class="btn" type="button" id="lf-x">Cancel</button>' : "") + '</div>' +
-    (l ? '<p class="hp-read">People who already tapped Remind me keep the old time for now.</p>' : "") + '</form>';
+    (l ? '<p class="hp-read">Everyone who tapped Remind me follows a change: their alerts move, and they\'re told once.</p>' : "") + '</form>';
 }
 
 function wireForm() {
@@ -107,7 +107,7 @@ function wireForm() {
       const r = await api("/api/host/launch", { id: was ? was.id : undefined, title: $("#lf-title").value, start, dur: dur.v, tz: TZ, dest: $("#lf-dest").value, count: $("#lf-count").checked });
       S = r; editing = null;
       const made = S.launches.find(l => l.id === r.id);
-      note = was ? "Saved." : "Published. Share " + short(made ? made.url : "") + " anywhere.";
+      note = !was ? "Published. Share " + short(made ? made.url : "") + " anywhere." : r.followed ? "Saved. Everyone who saved it gets the change, and their alerts move with it." : "Saved.";
       render();
     } catch (x) { err.textContent = x.message; btn.disabled = false; }
   });
@@ -117,13 +117,13 @@ function item(l) {
   const ph = phase(l), chip = ph === "live" ? '<span class="hp-chip live">Live</span>' : ph === "ended" ? '<span class="hp-chip">Ended</span>' : "";
   return '<li class="hp-item"><div><b>' + esc(l.title) + '</b>' + chip + '</div><span class="hp-meta">' + esc(when(l.start)) + (l.dest ? " · " + esc(short(l.dest)) : "") + '</span>' +
     '<div class="hp-row"><a class="btn" href="' + esc(l.url) + '">View</a><button type="button" class="btn" data-copy="' + esc(l.url) + '">Copy link</button>' +
-    '<button type="button" class="btn" data-edit="' + esc(l.id) + '">Edit</button><button type="button" class="btn" data-del="' + esc(l.id) + '">' + (armed === l.id ? "Yes, delete it" : "Delete") + '</button></div></li>';
+    '<button type="button" class="btn" data-edit="' + esc(l.id) + '">Edit</button><button type="button" class="btn" data-del="' + esc(l.id) + '">' + (ph === "ended" ? (armed === l.id ? "Yes, delete it" : "Delete") : (armed === l.id ? "Yes, cancel it" : "Cancel launch")) + '</button></div></li>';
 }
 
 async function del(id) {
   if (armed !== id) { armed = id; render(); setTimeout(() => { if (armed === id) { armed = null; render(); } }, 4000); return; }
   armed = null;
-  try { S = await api("/api/host/launch/delete", { id }); note = "Deleted. Its page is gone."; } catch (e) { note = e.message; }
+  try { S = await api("/api/host/launch/delete", { id }); note = "Cancelled. Everyone who saved it is told, and its page says so."; } catch (e) { note = e.message; }
   render();
 }
 

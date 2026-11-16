@@ -109,7 +109,7 @@ const MOBILE=IOS||/Mobi|Android/.test(UA),DEVICE=MOBILE?"phone":"computer";
 const PUSH_OK=!!window.__rmNative||("serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window&&OWN);
 const keepRec=()=>{const DB=window.remmyndDB;if(DB&&S.rec)DB.put("reminders",S.rec).catch(()=>{});};
 function hold(cal){const c=S.ctx;if(S.held||!c)return;keep("r:"+S.rkey);S.held=true;c.el.dataset.held="1";tick();setTimeout(chime,320);try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.isActive))navigator.vibrate(20);}catch(e){}
-  S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null,rep:R.describeRepeat(c.r.r)?c.r.r:"",first:linkStart(c.r).getTime()};
+  S.rec={rkey:S.rkey,title:c.r.t,start:c.start.getTime(),dur:c.r.d||60,place:c.r.l||"",host:c.r.h||"",z:c.r.z||"",share:c.share,state:"held",nudge:false,cal,heldAt:Date.now(),doneAt:null,replanAt:null,rep:R.describeRepeat(c.r.r)?c.r.r:"",first:linkStart(c.r).getTime(),...(c.r.u?{launch:c.r.u}:{})};
   keepRec();c.nd.nudge=false;countMe();
   /* Notifications where they are allowed: push.js asks inside this same tap, then fills the stack's row. */
   if(window.__rmPush)window.__rmPush.remind(c.nd,false);
@@ -466,7 +466,7 @@ function upRow(x,now){const later=x.replanAt>now,t=later?x.replanAt:x.start,end=
   const st=kept?"kept":ringState(x.start,end,true,x.state,x.replanAt||0),g=kept?"kept":groupOf(t,now,TZ),d=new Date(t);
   const sub=kept?fDate(new Date(x.doneAt||x.start),TZ)+" · done":g==="today"?fShort(d,TZ)+" · "+(later?"back ":"")+relText(t,later?t+1:end,now):fDate(d,TZ)+" · "+fShort(d,TZ)+(x.host?" · "+x.host:"");
   const sub2=x.rep&&!kept?sub+" · "+R.describeRepeat(x.rep):sub;
-  const chip=st==="soon"?'<span class="li-chip">Soon</span>':st==="now"?'<span class="li-chip">Now</span>':"";
+  const chip=st==="soon"?'<span class="li-chip">Soon</span>':st==="now"?'<span class="li-chip">Now</span>':x.movedFrom&&!kept?'<span class="li-chip">Moved</span>':"";
   const acts=kept?[["delete","Delete"]]:[["replan","Re-plan"],["done","Done"],["delete","Delete"]];
   return{g,t:kept?(x.doneAt||x.start):t,html:'<div class="li n'+acts.length+'" data-rkey="'+esc(x.rkey)+'">'+ACTS(acts)+
     '<a class="li-main" href="'+esc(x.share)+'">'+ringFor(new Date(x.start),st,28)+'<span><b>'+esc(x.title)+'</b><i>'+esc(sub2)+'</i></span>'+chip+'</a>'+MORE(x.title)+'</div>'};}
@@ -478,7 +478,18 @@ function linkRow(x,now){const d=new Date(x.start);
 const CNT=new Map();
 function readCounts(){for(const x of L.links||[]){const p=payloadOf(x.share),r=!x.private&&dec(p);if(!r||r.c!==1||CNT.has(p))continue;CNT.set(p,null);
   fetch("/count/"+p).then(a=>a.ok?a.json():null).then(j=>{if(j){CNT.set(p,j.n);if(D.mode==="lists"&&L.tab!=="coming")renderLists();}}).catch(()=>{});}}
-async function loadLists(){const DB=window.remmyndDB;if(!DB)return;try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}readCounts();
+/* Reminders saved from a host's launch follow it (follow.js), at most every five minutes. */
+let followedAt=0;
+const followJs=()=>window.remmyndFollow?Promise.resolve():new Promise((ok,no)=>{const x=document.createElement("script");x.src="/follow.js";x.onload=ok;x.onerror=no;document.head.append(x);});
+async function follow(){if(Date.now()-followedAt<3e5||!window.remmyndDB)return[];followedAt=Date.now();
+  if(!(await window.remmyndDB.getAll("reminders").catch(()=>[])).some(x=>x.launch&&x.state==="held"))return[];
+  await followJs().catch(()=>{});const F=window.remmyndFollow,P=window.__rmPush;if(!F)return[];
+  const ch=await F.check({move:(r,dt)=>P&&P.move(r,dt),drop:r=>P&&P.cancel(r.rkey)}).catch(()=>[]);if(!ch.length)return[];
+  const v=F.words(ch[0]);toast(v.title+". "+v.body);if(D.mode==="lists"&&!$("#home").hidden)renderLists();else if(D.mode==="home")setMode("home");
+  return ch.map(c=>({...F.words(c),rkey:c.rkey,share:c.share||""}));}
+window.__rmFollow=()=>{followedAt=0;return follow();};
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)follow();});
+async function loadLists(){const DB=window.remmyndDB;if(!DB)return;setTimeout(follow,1500);try{[L.recs,L.links]=await Promise.all([DB.getAll("reminders"),DB.getAll("links")]);}catch(e){}readCounts();
   L.recs=L.recs.filter(x=>!PEND.has("r:"+x.rkey));L.links=L.links.filter(x=>!PEND.has("l:"+x.share));L.has=!!(L.recs.length||L.links.length);}
 async function renderLists(focusAt){await loadLists();const now=Date.now(),up=L.tab==="coming";
   $("#tab-coming").setAttribute("aria-current",up?"page":"false");$("#tab-links").setAttribute("aria-current",up?"false":"page");
@@ -538,8 +549,13 @@ function showView(r,key,priv){if(r.l&&!isHttp(r.l)&&webish(r.l))r={...r,l:"https
   renderTicket($("#t-view"),r,{interactive:true});document.title=r.t+" · remmynd";window.scrollTo(0,0);}
 /* /r/<payload> is a shared link, /#<payload> a private one (and every 1.x link), /#<name> a named page. */
 let routed="";
+/* An old link to a launch the host moved: open it as it is now, and say so. */
+function checkLaunch(r){fetch("/api/launch?ids="+encodeURIComponent(r.u),{cache:"no-store"}).then(x=>x.ok?x.json():null).then(j=>{const l=j&&j.launches&&j.launches[r.u];if(!l||S.r!==r)return;
+  if(l.cancelled)return toast("The host cancelled this. There's nothing to remind you of.");
+  const was=linkStart(r).getTime();if(l.start===was&&l.title===r.t||!l.link)return;const u=new URL(l.link,location.origin);if(u.origin!==location.origin)return;
+  history.replaceState(null,"",u.pathname);routed="";route();if(l.start!==was)toast("The host moved this from "+fDate(new Date(was),TZ)+", "+fShort(new Date(was),TZ)+".");}).catch(()=>{});}
 function route(){if(location.href===routed)return;routed=location.href;const p=location.pathname;
-  if(p.startsWith("/r/")){const r=dec(p.slice(3).replace(/\/+$/,""));return r?showView(r,null,false):showHome();}
+  if(p.startsWith("/r/")){const r=dec(p.slice(3).replace(/\/+$/,""));if(r&&r.u)checkLaunch(r);return r?showView(r,null,false):showHome();}
   if(p==="/new"||p==="/new/")return fromNew();
   if(p==="/share"||p==="/share/")return fromShare();
   const h=decodeURIComponent(location.hash.slice(1));if(h==="coming-up"||h==="links")return showLists(h==="links"?"links":"coming");

@@ -122,7 +122,7 @@
    * its length, or 30 minutes if the link has none) asking "did you make it?"; and, with the nudge
    * switch on, nudges 10, 20 and 30 minutes after the start. Overnight (sleep-safe) it's one morning alert. */
   function plan(d, rkey) {
-    const start = d.start.getTime(), base = { rkey, title: d.r.t, start, place: d.r.l || "", share: d.share, shown: false };
+    const start = d.start.getTime(), base = { rkey, title: d.r.t, start, place: d.r.l || "", share: d.share, shown: false, ...(d.r.u ? { launch: d.r.u } : {}) };
     if (d.morningAt) return [{ ...base, id: rid(), at: d.morningAt.getTime(), kind: "after" }];
     const list = [{ ...base, id: rid(), at: start - 3600e3, kind: "before" }, { ...base, id: rid(), at: start, kind: "start" },
       { ...base, id: rid(), at: start + (d.r.d || 30) * 60e3, kind: "check" }];
@@ -145,7 +145,8 @@
     }
     const sub = await subscription();
     await putMany(alerts);
-    try { await post("/push/schedule", { endpoint: sub.endpoint, pings: alerts.map(a => ({ id: a.id, at: a.at })) }); }
+    // A launch's alerts also say which launch, so a change of time can wake this device (follow.js).
+    try { await post("/push/schedule", { endpoint: sub.endpoint, pings: alerts.map(a => ({ id: a.id, at: a.at, ...(a.launch ? { launch: a.launch } : {}) })) }); }
     catch (e) { await delMany(alerts.map(a => a.id)); throw e; }
     refreshBadge();
     return alerts;
@@ -223,7 +224,15 @@
     try { n ? await navigator.setAppBadge(n) : await navigator.clearAppBadge(); } catch (e) {}
   }
 
-  window.__rmPush = { remind, renderRow, cancel, replan, setNudge, native: !!NATIVE, ask: NATIVE ? native : null };
+  /* A launch moved (follow.js): its waiting alerts move by the same amount, with the new words and link. */
+  async function move(rec, delta) {
+    const mine = (await getAll()).filter(a => a.rkey === rec.rkey && !a.shown);
+    if (!mine.length) return 0;
+    await cancel(rec.rkey);
+    const moved = mine.map(a => ({ ...a, id: rid(), at: a.at + delta, start: rec.start, title: rec.title, place: rec.place || "", share: rec.share }));
+    return (await schedule(moved).catch(() => [])).length;
+  }
+  window.__rmPush = { remind, renderRow, cancel, replan, setNudge, move, native: !!NATIVE, ask: NATIVE ? native : null };
   if (NATIVE) native("permission", { ask: false }).then(r => { nperm = r.status || "default"; });
   window.addEventListener("rm:stack", e => renderRow(e.detail));
   if (window.__rmLast && window.__rmLast.type === "stack") renderRow(window.__rmLast.detail);

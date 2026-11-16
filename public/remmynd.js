@@ -101,8 +101,12 @@ function normalise(event) {
   const count = event.count === true || event.count === 1 || event.count === "1";
   const repeat = event.repeat ? normaliseRepeat(event.repeat) : "";
   if (event.repeat && !repeat) throw new RangeError('repeat must be a rule like "d", "w:1,2,3,4,5", "2w", "m" or "y"');
-  return { title, start, durationMinutes, location, notes, host, timeZone, ...(count ? { count: true } : {}), ...(repeat ? { repeat } : {}) };
+  // A launch on a host page (worker/hosts.js): its id, so whoever saved the link can follow a change of time.
+  const launch = LAUNCH_ID.test(String(event.launch ?? "")) ? String(event.launch) : "";
+  return { title, start, durationMinutes, location, notes, host, timeZone, ...(count ? { count: true } : {}), ...(repeat ? { repeat } : {}), ...(launch ? { launch } : {}) };
 }
+/** A launch's id, as host pages make them. */
+export const LAUNCH_ID = /^[A-Za-z0-9]{8,32}$/;
 
 /* ---------- links ---------- */
 
@@ -117,6 +121,7 @@ export function encode(event) {
   if (e.timeZone) r.z = e.timeZone;
   if (e.count) r.c = 1;
   if (e.repeat) r.r = e.repeat;
+  if (e.launch) r.u = e.launch;
   return b64urlEncode(JSON.stringify(r));
 }
 
@@ -159,7 +164,8 @@ export function decode(linkOrFragment) {
       location: r.l || "", notes: r.n || "", host: r.h || "",
       timeZone: typeof r.z === "string" && validZone(r.z) ? r.z : "",
       ...(r.c === 1 ? { count: true } : {}),
-      ...(normaliseRepeat(r.r) ? { repeat: normaliseRepeat(r.r) } : {})
+      ...(normaliseRepeat(r.r) ? { repeat: normaliseRepeat(r.r) } : {}),
+      ...(typeof r.u === "string" && LAUNCH_ID.test(r.u) ? { launch: r.u } : {})
     };
   } catch { return null; }
 }

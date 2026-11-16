@@ -3076,6 +3076,12 @@ function memoryStore() {
     launchesOf: async id => [...t.launches.values()].filter(l => l.user_id === id).sort((a, b) => a.start - b.start).map(l => ({ ...l })),
     putLaunch: async l => { t.launches.set(l.id, { ...l, count: l.count ? 1 : 0 }); },
     deleteLaunch: async (u, id) => { const l = t.launches.get(id); if (l && l.user_id === u) t.launches.delete(id); },
+    launchesByIds: async ids => [...t.launches.values()].filter(l => ids.includes(l.id)).map(l => ({ ...l, handle: t.hosts.get(l.user_id).handle, name: t.hosts.get(l.user_id).name })),
+    goneByIds: async ids => [...(t.gone || new Map()).values()].filter(g => ids.includes(g.id)),
+    goneOf: async id => [...(t.gone || new Map()).values()].filter(g => g.user_id === id),
+    putGone: async g => { (t.gone ||= new Map()).set(g.id, { ...g }); },
+    wakeLaunch: async (id, now) => { for (const [pid, l] of (t.pingLaunch || new Map())) if (l === id && t.pings && t.pings.get(pid)) t.pings.get(pid).at = now; },
+    itemsForLaunch: async id => [...t.items.values()].filter(x => x.kind === "reminder" && !x.deleted && (x.data || "").includes('"launch":"' + id + '"')).map(x => ({ user_id: x.user_id, key: x.key, data: x.data })),
     proOf: async id => [...t.pro.values()].filter(r => r.user_id === id).map(r => ({ ...r })),
     proByRef: async (source, ref) => { const r = t.pro.get(source + "|" + ref); return r ? { ...r } : null; },
     putPro: async p => { t.pro.set(p.source + "|" + p.ref, { source: p.source, ref: p.ref, user_id: p.userId, product: p.product, until: p.until, trial: p.trial ? 1 : 0, renews: p.renews ? 1 : 0, env: p.env || "", updated: p.updated, moved: p.moved || 0, voided: p.voided || 0 }); },
@@ -3668,7 +3674,7 @@ test("calendar feed and email in: one private address each, kept only as a hash,
   const acct = readFileSync(join(root, "public/account.js"), "utf8"), idx = readFileSync(join(root, "worker/index.js"), "utf8"), acc = readFileSync(join(root, "worker/account.js"), "utf8");
   assert.ok(acct.includes('feedRow("cal"') && acct.includes('feedRow("in"'));
   assert.ok(idx.includes('url.pathname.startsWith("/cal/")') && idx.includes("async email(message, env, ctx)"));
-  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro", "hosts", "launches"]'));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS feeds") && acc.includes('"mails", "feeds", "pro", "hosts", "launches", "launches_gone"]'));
 });
 
 /* remmynd Pro: an account with a session, as the account tests make one, for the Pro tests. */
@@ -4054,10 +4060,12 @@ test("host pages: a handle, launches with a countdown, and a button that goes li
   assert.equal((await view("/@nobody")).status, 404);
   assert.equal((await view("/@a")).status, 404);
   assert.equal((await view("/@maya/x/y")).status, 404);
-  // Deleting takes the page down; deleting the account takes everything.
+  // Cancelling an upcoming launch: its page says so; deleting the account takes everything.
   await call("/api/host/launch/delete", { id: l.id });
-  assert.equal((await view("/@maya/orbit-on-product-hunt")).status, 404);
-  assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes('"pro", "hosts", "launches"]'));
+  p = await view("/@maya/orbit-on-product-hunt");
+  assert.equal(p.status, 410);
+  assert.match(p.html, /Orbit 1\.0 on Product Hunt was cancelled/);
+  assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes('"pro", "hosts", "launches", "launches_gone"]'));
 
   // The helpers.
   assert.equal(H.safeLink("producthunt.com/posts/x"), "https://producthunt.com/posts/x");
@@ -4081,4 +4089,98 @@ test("host pages on the website: the template, the clock, Your page, and the way
   assert.ok(readFileSync(join(root, "public/account.js"), "utf8").includes('<a class="btn ac-wide" href="/host">Open your page</a>'));
   assert.ok(readFileSync(join(root, "public/launch/index.html"), "utf8").includes('<a href="/host">Put it on your page</a>'));
   assert.ok(readFileSync(join(root, "public/privacy/index.html"), "utf8").includes("are public at remmynd.space/@your-handle"));
+});
+
+test("savers follow a change: a launch moved, renamed or cancelled reaches everyone who saved it", async () => {
+  const H = await import("../worker/hosts.js"), C = await import("../worker/count.js");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  let now = Date.parse("2026-11-16T17:00:00Z");
+  const maya = proAccount(store, "um", "maya@example.com", now), lee = proAccount(store, "ul", "lee@example.com", now);
+  const call = async (path, body, { cookie = maya } = {}) => {
+    const req = new Request(base + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", origin: base, cookie }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await H.handleHost(req, {}, new URL(req.url), { store, now });
+    return res.json();
+  };
+  const state = async ids => (await (await H.launchStateResponse(new Request(base + "/api/launch?ids=" + ids), {}, new URL(base + "/api/launch?ids=" + ids), { store })).json()).launches;
+  await call("/api/host", { handle: "maya", name: "Maya Chen" });
+  const start = Date.parse("2026-11-26T00:30:00Z");
+  let r = await call("/api/host/launch", { title: "Orbit launch", start, tz: "America/New_York", dest: "producthunt.com/posts/orbit", count: true });
+  const l = r.launches[0];
+
+  // The link carries the launch, and the library reads it back.
+  assert.equal(R.decode(l.link).launch, l.id);
+  assert.equal(R.decode(R.createLink({ title: "X", start: "2026-12-01T10:00:00Z", launch: "bad id!" })).launch, undefined, "only a real launch id");
+  // The count follows the launch, not the words of its link.
+  const moved = R.createLink({ ...R.decode(l.link), start: new Date(start + day) });
+  assert.equal(await C.countKey(l.link.split("/r/")[1]), await C.countKey(moved.split("/r/")[1]));
+  assert.notEqual(await C.countKey(R.createLink({ title: "Plain", start: new Date(start) }).split("/r/")[1]), await C.countKey(R.createLink({ title: "Plain", start: new Date(start + day) }).split("/r/")[1]));
+
+  // The public answer: what it is now. It names no one and can be cached.
+  let s = await state(l.id + ",nonsense!,ZZZZZZZZZZZZ");
+  assert.deepEqual(Object.keys(s), [l.id]);
+  assert.equal((await H.launchStateResponse(new Request(base + "/api/launch?ids=" + l.id), {}, new URL(base + "/api/launch?ids=" + l.id), { store })).headers.get("cache-control"), "no-store", "a woken device sees the change, not an old answer");
+  assert.deepEqual([s[l.id].title, s[l.id].start, s[l.id].dest], ["Orbit launch", start, "https://producthunt.com/posts/orbit"]);
+
+  // Someone saved it: a web device's alerts for it (worker/push.js keeps only which launch) and a signed-in copy with emails.
+  store.t.pings = new Map([["p1", { at: start - 3600e3 }], ["p2", { at: start }]]);
+  store.t.pingLaunch = new Map([["p1", l.id], ["p2", l.id]]);
+  const rec = { rkey: "k1", title: "Orbit launch", start, dur: 60, place: l.dest, share: l.link, state: "held", launch: l.id };
+  await store.putItems("ul", [{ kind: "reminder", key: "r:k1", data: JSON.stringify(rec), deleted: false, updated: now }]);
+  await store.setMails("ul", "r:k1", [{ id: "m1", kind: "before", at: start - 3600e3 }]);
+
+  // Renaming the host's own profile changes nothing for savers; moving the launch does.
+  now += 60e3;
+  r = await call("/api/host/launch", { id: l.id, title: "Orbit launch", start: start + day, tz: "America/New_York", dest: "producthunt.com/posts/orbit", count: true });
+  assert.equal(r.followed, true);
+  assert.deepEqual([...store.t.pings.values()].map(p => p.at), [now, now], "every device holding it is pinged now, to check");
+  const copy = JSON.parse([...store.t.items.values()].find(x => x.key === "r:k1").data);
+  assert.deepEqual([copy.start, copy.movedFrom, R.decode(copy.share).start.getTime()], [start + day, start, start + day], "the synced copy moved, its link too");
+  assert.deepEqual([...store.t.mails.values()].filter(m => m.user_id === "ul").map(m => m.at).sort(), [start + day - 3600e3, start + day], "its emails moved");
+  s = await state(l.id);
+  assert.equal(s[l.id].start, start + day);
+  // Saving with nothing a saver relies on changed doesn't ping anyone.
+  r = await call("/api/host/launch", { id: l.id, title: "Orbit launch", start: start + day, tz: "America/New_York", dest: "producthunt.com/posts/orbit", count: false });
+  assert.equal(r.followed, false);
+
+  // Cancelled: savers hear it, their copies are dropped and their emails stop.
+  now += 60e3;
+  await call("/api/host/launch/delete", { id: l.id });
+  s = await state(l.id);
+  assert.deepEqual([s[l.id].cancelled, s[l.id].title], [true, "Orbit launch"]);
+  assert.equal(JSON.parse([...store.t.items.values()].find(x => x.key === "r:k1").data).state, "dropped");
+  assert.equal([...store.t.mails.values()].filter(m => m.user_id === "ul").length, 0);
+  assert.ok(lee);
+});
+
+test("savers follow a change on the device: alerts move with the launch, the device says so once", async () => {
+  const vm = await import("node:vm");
+  const day = 864e5, now = Date.parse("2026-11-16T17:00:00Z"), start = Date.parse("2026-11-26T00:30:00Z");
+  const stores = { reminders: new Map([["k1", { rkey: "k1", title: "Orbit launch", start, dur: 60, place: "https://ph.com/a", share: "https://remmynd.space/r/old", state: "held", launch: "L1234567" }],
+    ["k2", { rkey: "k2", title: "Gala", start, dur: 60, state: "held", launch: "L7654321" }], ["k3", { rkey: "k3", title: "Not a launch", start, state: "held" }]]) };
+  const DB = { getAll: async st => [...stores[st].values()].map(v => ({ ...v })), put: async (st, v) => { stores[st].set(v.rkey, { ...v }); } };
+  const asked = [];
+  const ctx = { self: { remmyndDB: DB }, Intl, Date, Promise, Set,
+    fetch: async url => { asked.push(url); return { ok: true, json: async () => ({ launches: { L1234567: { title: "Orbit launch", start: start + day, dur: 60, dest: "https://ph.com/a", link: "https://remmynd.space/r/new", ver: 2 }, L7654321: { cancelled: true, title: "Gala" } } }) }; } };
+  vm.createContext(ctx);
+  vm.runInContext(readFileSync(join(root, "public/follow.js"), "utf8"), ctx);
+  const moves = [], drops = [];
+  const changes = JSON.parse(JSON.stringify(await ctx.self.remmyndFollow.check({ now, move: (r, dt) => moves.push([r.rkey, dt, r.share]), drop: r => drops.push(r.rkey) })));
+  assert.deepEqual(asked, ["/api/launch?ids=L1234567,L7654321"], "only the launches held here, by id");
+  assert.deepEqual(moves, [["k1", day, "https://remmynd.space/r/new"]]);
+  assert.deepEqual(drops, ["k2"]);
+  assert.deepEqual(changes.map(c => c.kind), ["moved", "cancelled"]);
+  assert.deepEqual([stores.reminders.get("k1").start, stores.reminders.get("k1").movedFrom], [start + day, start]);
+  assert.equal(stores.reminders.get("k2").state, "dropped");
+  assert.match(ctx.self.remmyndFollow.words(changes[0]).title, /^Moved: Orbit launch$/);
+  assert.equal(ctx.self.remmyndFollow.words(changes[1]).title, "Cancelled: Gala");
+  // Asked again with nothing new: nothing moves twice.
+  moves.length = 0;
+  assert.deepEqual((await ctx.self.remmyndFollow.check({ now, move: (r, dt) => moves.push(dt) })).length, 0);
+
+  const push = readFileSync(join(root, "public/push.js"), "utf8"), sw = readFileSync(join(root, "public/sw.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8"), wp = readFileSync(join(root, "worker/push.js"), "utf8");
+  assert.ok(push.includes("...(a.launch ? { launch: a.launch } : {})") && wp.includes("INSERT OR REPLACE INTO ping_launch (id, launch)"), "a launch's alerts say which launch, and only that");
+  assert.ok(push.includes("async function move(rec, delta)") && push.includes("window.__rmPush = { remind, renderRow, cancel, replan, setNudge, move,"));
+  assert.ok(sw.includes('importScripts("/db.js", "/follow.js")') && sw.includes("await showDue(changes.length > 0);"), "the service worker follows first, and says what changed instead of the generic line");
+  assert.ok(app.includes("...(c.r.u?{launch:c.r.u}:{})") && app.includes("'<span class=\"li-chip\">Moved</span>'") && app.includes("function checkLaunch(r)"));
+  assert.ok(readFileSync(join(root, "public/native.js"), "utf8").includes("movedFrom: x.movedFrom || null"));
 });
