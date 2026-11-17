@@ -16,6 +16,7 @@ import { appSiteResponse } from "./appsite.js";
 import { handleHost, hostPageResponse, launchStateResponse } from "./hosts.js";
 import { handleFollow, followLive, sendFollowMails, saverAlerts } from "./follows.js";
 import { handleChat, cleanChats } from "./chat.js";
+import { handleCrew, cleanCrews } from "./crews.js";
 import { adminResponse } from "./numbers.js";
 
 const PRESETS = new Set(["example"]);
@@ -49,6 +50,7 @@ export default {
     if (url.pathname === "/api/launch") return launchStateResponse(request, env, url);
     if (url.pathname === "/api/launch/go") return handleHost(request, env, url);
     if (url.pathname.startsWith("/api/chat/")) return handleChat(request, env, url);
+    if (url.pathname.startsWith("/api/crew/")) return handleCrew(request, env, url);
     if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);
     if (url.pathname === "/api/follow" || url.pathname.startsWith("/api/follow/") || url.pathname === "/api/unfollow") return handleFollow(request, env, url);
     if (url.pathname.startsWith("/@") || url.pathname.startsWith("/%40")) return hostPageResponse(request, env, url);
@@ -108,6 +110,7 @@ export default {
     // Follow: launches that just went live are told to their followers; follow emails go out a few at a time.
     ctx.waitUntil(followLive(env).then(() => saverAlerts(env)).then(() => sendFollowMails(env)).catch(() => {}));
     ctx.waitUntil(cleanChats(env).catch(() => {}));
+    ctx.waitUntil(cleanCrews(env).catch(() => {}));
     // Once an hour: forget counts 30 days after their reminder ended.
     if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 17) ctx.waitUntil(cleanCounts(env));
   }

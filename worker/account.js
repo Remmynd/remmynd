@@ -358,6 +358,8 @@ export async function handleAccount(request, env, url, ctx, deps = {}) {
   }
   if (path === "/api/account/delete") {
     await store.deleteUser(user.id);
+    // Their place in any crew goes too (worker/crews.js keeps its own tables).
+    if (env.DB) { try { const { crewStore } = await import("./crews.js"); const cs = crewStore(env.DB); await cs.ready(); await cs.deleteUser(user.id); } catch {} }
     return json({ ok: true }, 200, { "set-cookie": cookie(url, "", 0) });
   }
   if (path === "/api/account/settings") {
