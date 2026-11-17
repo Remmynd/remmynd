@@ -46,3 +46,10 @@ CREATE INDEX IF NOT EXISTS counts_ends ON counts (ends);
 CREATE TABLE IF NOT EXISTS hosts (user_id TEXT PRIMARY KEY, handle TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', link TEXT NOT NULL DEFAULT '', created INTEGER NOT NULL, updated INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS launches (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, slug TEXT NOT NULL, title TEXT NOT NULL, start INTEGER NOT NULL, dur INTEGER NOT NULL DEFAULT 60, tz TEXT NOT NULL, dest TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL, updated INTEGER NOT NULL, UNIQUE (user_id, slug));
 CREATE INDEX IF NOT EXISTS launches_user ON launches (user_id, start);
+
+-- Crews (worker/crews.js): who's doing a shared reminder together. First names and statuses only; gone a day after it ends.
+CREATE TABLE IF NOT EXISTS crews (id TEXT PRIMARY KEY, ends INTEGER NOT NULL, created INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS crew_members (crew TEXT NOT NULL, user_id TEXT NOT NULL, mid TEXT NOT NULL, name TEXT NOT NULL, status TEXT NOT NULL, at INTEGER NOT NULL, kudos INTEGER NOT NULL DEFAULT 0, joined INTEGER NOT NULL, PRIMARY KEY (crew, user_id));
+CREATE INDEX IF NOT EXISTS crew_members_user ON crew_members (user_id);
+CREATE TABLE IF NOT EXISTS crew_kudos (crew TEXT NOT NULL, from_mid TEXT NOT NULL, to_mid TEXT NOT NULL, at INTEGER NOT NULL, seen INTEGER NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS crew_kudos_to ON crew_kudos (to_mid, seen);

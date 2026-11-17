@@ -4866,3 +4866,103 @@ test("Your page inside the iPhone app: Get Pro opens Apple's sheet, never the we
   assert.ok(/Get Pro in the app\\?'s Settings tab\./.test(readFileSync(join(root, "public/account.js"), "utf8")), "the account sheet in the app has no checkout either");
 });
 
+
+/* Crews in memory, the same shape as worker/crews.js's D1 store. */
+function memoryCrews() {
+  const t = { crews: new Map(), members: [], kudos: [] };
+  const drop = id => { t.crews.delete(id); t.members = t.members.filter(m => m.crew !== id); t.kudos = t.kudos.filter(k => k.crew !== id); };
+  return { t,
+    ready: async () => {},
+    crew: async id => t.crews.get(id) || null,
+    make: async (id, ends, now) => { if (!t.crews.has(id)) t.crews.set(id, { id, ends, created: now }); },
+    members: async id => t.members.filter(m => m.crew === id).sort((a, b) => a.joined - b.joined).map(m => ({ ...m })),
+    member: async (id, u) => t.members.find(m => m.crew === id && m.user_id === u) || null,
+    put: async m => { const was = t.members.find(x => x.crew === m.crew && x.user_id === m.user_id); if (was) was.name = m.name; else t.members.push({ ...m, kudos: 0 }); },
+    status: async (id, u, s, at) => { const m = t.members.find(x => x.crew === id && x.user_id === u); if (m) { m.status = s; m.at = at; } },
+    leave: async (id, u) => { t.members = t.members.filter(m => !(m.crew === id && m.user_id === u)); },
+    lastKudos: async (id, f, to) => Math.max(0, ...t.kudos.filter(k => k.crew === id && k.from_mid === f && k.to_mid === to).map(k => k.at)),
+    kudos: async (id, f, to, at) => { t.kudos.push({ crew: id, from_mid: f, to_mid: to, at, seen: 0 }); const m = t.members.find(x => x.crew === id && x.mid === to); if (m) m.kudos++; },
+    inbox: async u => { const mids = t.members.filter(m => m.user_id === u).map(m => m.mid); const rows = t.kudos.filter(k => !k.seen && mids.includes(k.to_mid));
+      for (const k of rows) k.seen = 1; return rows.map(k => ({ crew: k.crew, from_mid: k.from_mid, at: k.at, name: (t.members.find(m => m.crew === k.crew && m.mid === k.from_mid) || {}).name })); },
+    clean: async now => { const old = [...t.crews.values()].filter(c => c.ends < now - 864e5); for (const c of old) drop(c.id); return old.length; },
+    deleteUser: async u => { t.members = t.members.filter(m => m.user_id !== u); },
+  };
+}
+
+test("crews: first names and statuses for a shared reminder, kudos between friends, gone a day after it ends", async () => {
+  const K = await import("../worker/crews.js");
+  const accounts = memoryStore(), store = memoryCrews(), base = "https://remmynd.space";
+  let now = Date.parse("2026-11-17T12:00:00Z");
+  const sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now), lee = proAccount(accounts, "user-lee-0001", "lee@example.com", now);
+  const id = "AbCdEfGhIjKlMnOpQrStUv", ends = now + 3 * 3600e3;
+  const call = async (path, body, { cookie = "", origin = base } = {}) => {
+    const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin, ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body || {}) });
+    const res = await K.handleCrew(req, {}, new URL(req.url), { store, accounts, now });
+    return { status: res.status, body: await res.json() };
+  };
+
+  // Signed in only, this site only, a well-formed id only.
+  assert.equal((await call("/api/crew/" + id + "/read", {})).status, 401);
+  assert.equal((await call("/api/crew/" + id + "/read", {}, { cookie: sam, origin: "https://evil.example" })).status, 403);
+  assert.equal((await call("/api/crew/short/read", {}, { cookie: sam })).status, 404);
+  assert.deepEqual((await call("/api/crew/" + id + "/read", {}, { cookie: sam })).body, { ends: null, members: [] }, "no crew yet");
+  assert.equal((await call("/api/crew/" + id + "/status", { status: "way" }, { cookie: sam })).status, 404);
+
+  // Joining: a first name, cleaned; the crew is made on the first join.
+  assert.equal((await call("/api/crew/" + id + "/join", { name: "  ", ends }, { cookie: sam })).status, 400);
+  let r = await call("/api/crew/" + id + "/join", { name: " Sam <b>Rivera</b>\n", ends }, { cookie: sam });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.members[0].name, "Sam bRivera/b");
+  assert.equal(r.body.members[0].me, true);
+  assert.equal(r.body.members[0].status, "none");
+  assert.match(r.body.members[0].id, /^[a-f0-9]{12}$/);
+  assert.equal(r.body.ends, ends + 864e5);
+  assert.equal(K.cleanName("x".repeat(80)).length, 30);
+  r = await call("/api/crew/" + id + "/join", { name: "Lee", ends: ends + 999e9 }, { cookie: lee });
+  assert.equal(r.body.members.length, 2);
+  assert.equal(r.body.members.filter(m => m.me).map(m => m.name).join(), "Lee", "each sees which one is them");
+  assert.ok(!JSON.stringify(r.body).includes("user-sam"), "accounts are never shown");
+  assert.equal(store.t.crews.get(id).ends, ends, "the first join set when it ends");
+
+  // Statuses.
+  assert.equal((await call("/api/crew/" + id + "/status", { status: "dancing" }, { cookie: sam })).status, 400);
+  now += 60e3;
+  r = await call("/api/crew/" + id + "/status", { status: "late5" }, { cookie: sam });
+  assert.deepEqual(r.body.members.map(m => [m.name.slice(0, 3), m.status]), [["Sam", "late5"], ["Lee", "none"]]);
+  assert.equal(r.body.members[0].at, now);
+  r = await call("/api/crew/" + id + "/status", { status: "made" }, { cookie: lee });
+  assert.equal(r.body.members[1].status, "made");
+
+  // Kudos: to someone else in the crew, not too often; the one who got it sees it once.
+  const samId = r.body.members[0].id, leeId = r.body.members[1].id;
+  assert.equal((await call("/api/crew/" + id + "/kudos", { to: leeId }, { cookie: lee })).status, 400, "not to yourself");
+  assert.equal((await call("/api/crew/" + id + "/kudos", { to: "abcdefabcdef" }, { cookie: sam })).status, 404);
+  r = await call("/api/crew/" + id + "/kudos", { to: leeId }, { cookie: sam });
+  assert.equal(r.body.members[1].kudos, 1);
+  assert.equal((await call("/api/crew/" + id + "/kudos", { to: leeId }, { cookie: sam })).status, 429);
+  now += 11e3;
+  assert.equal((await call("/api/crew/" + id + "/kudos", { to: leeId }, { cookie: sam })).body.members[1].kudos, 2);
+  assert.deepEqual((await call("/api/crew/mine", {}, { cookie: lee })).body.kudos.map(k => k.from), ["Sam bRivera/b", "Sam bRivera/b"]);
+  assert.deepEqual((await call("/api/crew/mine", {}, { cookie: lee })).body.kudos, [], "once");
+  assert.equal(samId.length, 12);
+
+  // Renaming keeps your place and status; leaving takes you out; a full crew says so.
+  r = await call("/api/crew/" + id + "/join", { name: "Sammy", ends }, { cookie: sam });
+  assert.deepEqual(r.body.members.map(m => [m.name, m.status]), [["Sammy", "late5"], ["Lee", "made"]]);
+  assert.deepEqual((await call("/api/crew/" + id + "/leave", {}, { cookie: lee })).body, { left: true });
+  assert.equal((await call("/api/crew/" + id + "/status", { status: "way" }, { cookie: lee })).status, 403);
+  for (let i = 0; i < K.CREW_LIMITS.members - 1; i++) store.t.members.push({ crew: id, user_id: "u" + i, mid: i.toString(16).padStart(12, "0"), name: "P" + i, status: "none", at: now, kudos: 0, joined: now + i });
+  assert.equal((await call("/api/crew/" + id + "/join", { name: "Lee", ends }, { cookie: lee })).status, 403);
+
+  // A day after it ends: gone, for everyone.
+  now = ends + 864e5 + 60e3;
+  assert.equal((await call("/api/crew/" + id + "/read", {}, { cookie: sam })).status, 410);
+  assert.equal(await K.cleanCrews({}, now, { store }), 1);
+  assert.equal(store.t.members.length, 0);
+
+  // Wired in: the route, the cron, the schema, and deleting an account.
+  const idx = readFileSync(join(root, "worker/index.js"), "utf8");
+  assert.ok(idx.includes('url.pathname.startsWith("/api/crew/")') && idx.includes("cleanCrews(env)"));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS crew_members"));
+  assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes("cs.deleteUser(user.id)"));
+});
