@@ -52,7 +52,7 @@ export default {
     if (url.pathname === "/api/launch/go") return handleHost(request, env, url);
     if (url.pathname.startsWith("/api/chat/")) return handleChat(request, env, url);
     if (url.pathname.startsWith("/api/crew/")) return handleCrew(request, env, url);
-    if (url.pathname === "/api/push/apple" || url.pathname === "/api/push/apple/off") return handleApple(request, env, url);
+    if (["/api/push/apple", "/api/push/apple/off", "/api/push/apple/test"].includes(url.pathname)) return handleApple(request, env, url);
     if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);
     if (url.pathname === "/api/follow" || url.pathname.startsWith("/api/follow/") || url.pathname === "/api/unfollow") return handleFollow(request, env, url);
     if (url.pathname.startsWith("/@") || url.pathname.startsWith("/%40")) return hostPageResponse(request, env, url);
