@@ -5070,6 +5070,11 @@ function memoryChallenges() {
 
 test("last one standing: check in by the deadline every day, in the challenge's time zone, or you're out", async () => {
   const X = await import("../worker/challenges.js");
+  // Every feature's tables share one database: no two may use the same table name (passkey sign-in owns "challenges").
+  const tables = sql => sql.map(q => (q.match(/CREATE TABLE IF NOT EXISTS (\w+)/) || [])[1]).filter(Boolean);
+  const owners = [(await import("../worker/account.js")).SCHEMA, (await import("../worker/count.js")).SCHEMA, (await import("../worker/chat.js")).CHAT_SCHEMA,
+    (await import("../worker/crews.js")).CREW_SCHEMA, (await import("../worker/apns.js")).APNS_SCHEMA, X.CHALLENGE_SCHEMA].flatMap(tables);
+  assert.equal(new Set(owners).size, owners.length, "a table name is used twice: " + owners.filter((t, i) => owners.indexOf(t) !== i));
   const accounts = memoryStore(), store = memoryChallenges(), base = "https://remmynd.space";
   // 9 PM in New York on 18 Nov 2026 (02:00 UTC on the 19th).
   let now = Date.parse("2026-11-19T02:00:00Z");

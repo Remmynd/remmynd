@@ -24,7 +24,7 @@ export const LENGTHS = [7, 14, 21, 30];
 const CODE = /^[a-z0-9]{8}$/, HHMM = /^([01]\d|2[0-3]):[0-5]\d$/, DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const CHALLENGE_SCHEMA = [
-  "CREATE TABLE IF NOT EXISTS challenges (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, days INTEGER NOT NULL, deadline TEXT NOT NULL, tz TEXT NOT NULL, start TEXT NOT NULL, ends INTEGER NOT NULL, created INTEGER NOT NULL)",
+  "CREATE TABLE IF NOT EXISTS challenge_runs (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, days INTEGER NOT NULL, deadline TEXT NOT NULL, tz TEXT NOT NULL, start TEXT NOT NULL, ends INTEGER NOT NULL, created INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS challenge_people (code TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT NOT NULL, joined INTEGER NOT NULL, PRIMARY KEY (code, user_id))",
   "CREATE INDEX IF NOT EXISTS challenge_people_user ON challenge_people (user_id)",
   "CREATE TABLE IF NOT EXISTS challenge_days (code TEXT NOT NULL, user_id TEXT NOT NULL, day INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (code, user_id, day))",
@@ -37,19 +37,19 @@ export function challengeStore(db) {
   const st = (sql, ...a) => db.prepare(sql).bind(...a);
   return {
     ready: () => (ready ||= db.batch(CHALLENGE_SCHEMA.map(s => db.prepare(s))).catch(e => { ready = null; throw e; })),
-    get: code => one("SELECT * FROM challenges WHERE code = ?", code),
-    make: c => st("INSERT INTO challenges (code, user_id, title, days, deadline, tz, start, ends, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", c.code, c.user_id, c.title, c.days, c.deadline, c.tz, c.start, c.ends, c.created).run(),
-    madeBy: async (user, now) => ((await one("SELECT COUNT(*) AS n FROM challenges WHERE user_id = ? AND ends > ?", user, now)) || {}).n || 0,
+    get: code => one("SELECT * FROM challenge_runs WHERE code = ?", code),
+    make: c => st("INSERT INTO challenge_runs (code, user_id, title, days, deadline, tz, start, ends, created) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", c.code, c.user_id, c.title, c.days, c.deadline, c.tz, c.start, c.ends, c.created).run(),
+    madeBy: async (user, now) => ((await one("SELECT COUNT(*) AS n FROM challenge_runs WHERE user_id = ? AND ends > ?", user, now)) || {}).n || 0,
     people: code => all("SELECT * FROM challenge_people WHERE code = ? ORDER BY joined", code),
     person: (code, user) => one("SELECT * FROM challenge_people WHERE code = ? AND user_id = ?", code, user),
     join: p => st("INSERT INTO challenge_people (code, user_id, name, joined) VALUES (?, ?, ?, ?) ON CONFLICT (code, user_id) DO UPDATE SET name = excluded.name", p.code, p.user_id, p.name, p.joined).run(),
     leave: (code, user) => db.batch([st("DELETE FROM challenge_days WHERE code = ? AND user_id = ?", code, user), st("DELETE FROM challenge_people WHERE code = ? AND user_id = ?", code, user)]),
     days: code => all("SELECT user_id, day FROM challenge_days WHERE code = ?", code),
     checkin: (code, user, day, at) => st("INSERT OR IGNORE INTO challenge_days (code, user_id, day, at) VALUES (?, ?, ?, ?)", code, user, day, at).run(),
-    mine: user => all("SELECT c.* FROM challenges c JOIN challenge_people p ON p.code = c.code WHERE p.user_id = ? ORDER BY c.ends", user),
+    mine: user => all("SELECT c.* FROM challenge_runs c JOIN challenge_people p ON p.code = c.code WHERE p.user_id = ? ORDER BY c.ends", user),
     clean: async now => {
-      const old = await all("SELECT code FROM challenges WHERE ends < ? LIMIT 100", now - CHALLENGE_LIMITS.keepDays * DAY);
-      if (old.length) await db.batch(old.flatMap(r => ["challenge_days", "challenge_people"].map(t => st("DELETE FROM " + t + " WHERE code = ?", r.code)).concat(st("DELETE FROM challenges WHERE code = ?", r.code))));
+      const old = await all("SELECT code FROM challenge_runs WHERE ends < ? LIMIT 100", now - CHALLENGE_LIMITS.keepDays * DAY);
+      if (old.length) await db.batch(old.flatMap(r => ["challenge_days", "challenge_people"].map(t => st("DELETE FROM " + t + " WHERE code = ?", r.code)).concat(st("DELETE FROM challenge_runs WHERE code = ?", r.code))));
       return old.length;
     },
     deleteUser: user => db.batch([st("DELETE FROM challenge_days WHERE user_id = ?", user), st("DELETE FROM challenge_people WHERE user_id = ?", user)]),

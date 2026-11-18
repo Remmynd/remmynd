@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS apns_devices (token TEXT PRIMARY KEY, user_id TEXT NO
 CREATE INDEX IF NOT EXISTS apns_devices_user ON apns_devices (user_id);
 
 -- Challenges (worker/challenges.js): last one standing. First names and check-in days; gone a week after it ends.
-CREATE TABLE IF NOT EXISTS challenges (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, days INTEGER NOT NULL, deadline TEXT NOT NULL, tz TEXT NOT NULL, start TEXT NOT NULL, ends INTEGER NOT NULL, created INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS challenge_runs (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, days INTEGER NOT NULL, deadline TEXT NOT NULL, tz TEXT NOT NULL, start TEXT NOT NULL, ends INTEGER NOT NULL, created INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS challenge_people (code TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT NOT NULL, joined INTEGER NOT NULL, PRIMARY KEY (code, user_id));
 CREATE INDEX IF NOT EXISTS challenge_people_user ON challenge_people (user_id);
 CREATE TABLE IF NOT EXISTS challenge_days (code TEXT NOT NULL, user_id TEXT NOT NULL, day INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (code, user_id, day));
