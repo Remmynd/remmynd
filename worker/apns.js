@@ -71,7 +71,7 @@ export async function tellAccounts(env, users, alert, data = {}, deps = {}) {
   await store.ready();
   let sent = 0;
   for (const d of await store.of(users)) {
-    const status = await sendApple(env, d, { aps: { alert, sound: "default", "thread-id": data.crew || "remmynd" }, ...data }, { collapse: data.collapse }, deps);
+    const status = await sendApple(env, d, { aps: { alert, sound: "default", "thread-id": data.crew || "remmynd", "content-available": 1 }, ...data }, { collapse: data.collapse }, deps);
     if (status === 200) sent++;
     if (status === 410 || status === 400) await store.drop(d.token);
   }
