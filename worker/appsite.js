@@ -7,7 +7,7 @@ export const IOS_APP = "TT8BA4JZW6.space.remmynd.app";
 
 export const APP_SITE = {
   webcredentials: { apps: [IOS_APP] },
-  applinks: { details: [{ appIDs: [IOS_APP], components: [{ "/": "/r/*" }, { "/": "/new" }, { "/": "/new/*" }] }] }
+  applinks: { details: [{ appIDs: [IOS_APP], components: [{ "/": "/r/*" }, { "/": "/new" }, { "/": "/new/*" }, { "/": "/x/*" }] }] }
 };
 
 export function appSiteResponse(request) {
