@@ -15,6 +15,7 @@
 
 import { signedIn, d1Store } from "./account.js";
 import { tally } from "./numbers.js";
+import { tellAccounts } from "./apns.js";
 
 const DAY = 864e5;
 export const CREW_LIMITS = { members: 30, name: 30, life: 400 * DAY, after: DAY, kudosGap: 10e3 };
@@ -80,6 +81,12 @@ export async function cleanCrews(env, now = Date.now(), deps = {}) {
   return store.clean(now);
 }
 
+/** What a push says when someone checks in. Never which reminder: the server doesn't know. */
+export function checkInWords(name, status) {
+  const w = { way: "is on the way", late5: "is running 5 minutes late", late15: "is running 15 minutes late", cant: "can't make it", made: "made it" }[status];
+  return w ? { title: "Your crew", body: name + " " + w + "." } : null;
+}
+
 const view = (m, me) => ({ id: m.mid, name: m.name, status: m.status, at: m.at, kudos: m.kudos, ...(m.user_id === me ? { me: true } : {}) });
 
 export async function handleCrew(request, env, url, deps = {}) {
@@ -125,8 +132,15 @@ export async function handleCrew(request, env, url, deps = {}) {
   if (!me) return json({ error: "Join the crew first." }, 403);
   if (act === "status") {
     if (!STATUSES.includes(body.status)) return json({ error: "That isn't a status." }, 400);
+    const changed = me.status !== body.status;
     await store.status(id, user, body.status, now);
     if (body.status === "made") await tally(env, "crew.made", 1, now);
+    // Everyone else in the crew hears it, on their iPhone (worker/apns.js).
+    const words = changed && checkInWords(me.name, body.status);
+    if (words) {
+      const others = (await store.members(id)).filter(m => m.user_id !== user).map(m => m.user_id);
+      await (deps.tell || tellAccounts)(env, others, words, { crew: id, kind: "checkin", collapse: "crew-" + id + "-" + me.mid });
+    }
     return out();
   }
   if (act === "kudos") {
@@ -136,6 +150,8 @@ export async function handleCrew(request, env, url, deps = {}) {
     if (now - await store.lastKudos(id, me.mid, to) < CREW_LIMITS.kudosGap) return json({ error: "Give it a few seconds." }, 429);
     await store.kudos(id, me.mid, to, now);
     await tally(env, "crew.kudos", 1, now);
+    const target = (await store.members(id)).find(m => m.mid === to);
+    if (target) await (deps.tell || tellAccounts)(env, [target.user_id], { title: "Kudos from " + me.name, body: "Nice one. Keep it going." }, { crew: id, kind: "kudos" });
     return out();
   }
   if (act === "leave") { await store.leave(id, user); return json({ left: true }); }

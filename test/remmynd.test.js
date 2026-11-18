@@ -4966,3 +4966,72 @@ test("crews: first names and statuses for a shared reminder, kudos between frien
   assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("CREATE TABLE IF NOT EXISTS crew_members"));
   assert.ok(readFileSync(join(root, "worker/account.js"), "utf8").includes("cs.deleteUser(user.id)"));
 });
+
+test("Apple push: a signed provider token, device tokens per account, crew check-ins and kudos told to the others", async () => {
+  const A = await import("../worker/apns.js"), K = await import("../worker/crews.js");
+  const { generateKeyPairSync, createPublicKey, verify } = await import("node:crypto");
+  // A throwaway P-256 key, as Apple's .p8 is.
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const pem = privateKey.export({ type: "pkcs8", format: "pem" });
+  const env = { APNS_KEY: pem, APNS_KEY_ID: "ABC123DEFG", APNS_TEAM: "TT8BA4JZW6" };
+  let now = Date.parse("2026-11-18T10:00:00Z");
+  const jwt = await A.providerToken(env, now);
+  const [h, c, s] = jwt.split(".");
+  assert.deepEqual(JSON.parse(Buffer.from(h, "base64url")), { alg: "ES256", kid: "ABC123DEFG" });
+  assert.deepEqual(JSON.parse(Buffer.from(c, "base64url")), { iss: "TT8BA4JZW6", iat: Math.floor(now / 1000) });
+  assert.ok(verify("sha256", Buffer.from(h + "." + c), { key: publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(s, "base64url")), "Apple can check the signature");
+  assert.equal(await A.providerToken(env, now + 40 * 60e3), jwt, "reused within the hour");
+  assert.notEqual(await A.providerToken(env, now + 51 * 60e3), jwt, "renewed before Apple's hour is up");
+  assert.equal(A.configured({}), false);
+
+  // Sending: the right host for each phone, the topic, and tokens Apple says are gone are forgotten.
+  const devices = new Map(), store = { ready: async () => {}, put: async d => devices.set(d.token, d), drop: async t => devices.delete(t),
+    of: async users => [...devices.values()].filter(d => users.includes(d.user_id)), deleteUser: async u => { for (const [t, d] of devices) if (d.user_id === u) devices.delete(t); } };
+  const sent = [];
+  const fetch = async (url, init) => { sent.push({ url, init }); return { status: url.includes("dead") ? 410 : 200 }; };
+  const accounts = memoryStore(), base = "https://remmynd.space";
+  const sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now), lee = proAccount(accounts, "user-lee-0001", "lee@example.com", now);
+  const reg = async (cookie, body, path = "/api/push/apple") => {
+    const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base, cookie }, body: JSON.stringify(body) });
+    const res = await A.handleApple(req, env, new URL(req.url), { store, accounts, now }); return { status: res.status, body: await res.json() };
+  };
+  assert.equal((await reg("", { token: "a".repeat(64) })).status, 401);
+  assert.equal((await reg(sam, { token: "nope" })).status, 400);
+  assert.deepEqual((await reg(sam, { token: "A".repeat(64), env: "sandbox" })).body, { ok: true, sending: true });
+  assert.equal(devices.get("a".repeat(64)).env, "sandbox");
+  await reg(lee, { token: "b".repeat(64) });
+  devices.set("dead" + "c".repeat(60), { token: "dead" + "c".repeat(60), user_id: "user-lee-0001", env: "production" });
+  assert.equal(await A.tellAccounts(env, ["user-lee-0001"], { title: "T", body: "B" }, { crew: "x" }, { store, fetch }), 1);
+  assert.ok(sent[0].url.startsWith("https://api.push.apple.com/3/device/"));
+  assert.equal(sent[0].init.headers["apns-topic"], "space.remmynd.app");
+  assert.match(sent[0].init.headers.authorization, /^bearer ey/);
+  assert.equal(devices.has("dead" + "c".repeat(60)), false, "a gone token is forgotten");
+  await A.tellAccounts(env, ["user-sam-0001"], { title: "T", body: "B" }, {}, { store, fetch });
+  assert.ok(sent.at(-1).url.startsWith("https://api.sandbox.push.apple.com/"), "test builds go to the sandbox");
+  assert.equal(await A.tellAccounts({}, ["user-sam-0001"], {}, {}, { store, fetch }), 0, "nothing without the key");
+  assert.deepEqual((await reg(sam, { token: "a".repeat(64) }, "/api/push/apple/off")).body, { ok: true });
+  assert.equal(devices.has("a".repeat(64)), false);
+
+  // Crews tell the others: a check-in (only when it changes), a kudos to the one who got it. Never which reminder.
+  const told = [], crews = memoryCrews(), id = "AbCdEfGhIjKlMnOpQrStUv";
+  const tell = async (e, users, alert, data) => { told.push({ users, alert, data }); return users.length; };
+  const call = async (path, body, cookie) => {
+    const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base, cookie }, body: JSON.stringify(body || {}) });
+    const res = await K.handleCrew(req, {}, new URL(req.url), { store: crews, accounts, now, tell }); return res.json();
+  };
+  await call("/api/crew/" + id + "/join", { name: "Sam", ends: now + 3600e3 }, sam);
+  const joined = await call("/api/crew/" + id + "/join", { name: "Lee", ends: now + 3600e3 }, lee);
+  await call("/api/crew/" + id + "/status", { status: "way" }, sam);
+  assert.deepEqual(told.at(-1), { users: ["user-lee-0001"], alert: { title: "Your crew", body: "Sam is on the way." }, data: { crew: id, kind: "checkin", collapse: told.at(-1).data.collapse } });
+  await call("/api/crew/" + id + "/status", { status: "way" }, sam);
+  assert.equal(told.length, 1, "the same status twice tells nobody again");
+  await call("/api/crew/" + id + "/status", { status: "none" }, sam);
+  assert.equal(told.length, 1, "clearing it tells nobody");
+  await call("/api/crew/" + id + "/kudos", { to: joined.members.find(m => m.name === "Sam").id }, lee);
+  assert.deepEqual(told.at(-1).users, ["user-sam-0001"]);
+  assert.equal(told.at(-1).alert.title, "Kudos from Lee");
+  assert.equal(K.checkInWords("Lee", "late15").body, "Lee is running 15 minutes late.");
+  assert.ok(!JSON.stringify(told).includes("Orbit"), "pushes never name the reminder");
+  assert.ok(readFileSync(join(root, "worker/index.js"), "utf8").includes('url.pathname === "/api/push/apple"'));
+  assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("apns_devices"));
+});
