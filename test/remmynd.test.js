@@ -3446,7 +3446,7 @@ test("the app, natively: Apple's app-site file for passkeys and links, the app-o
   const site = await res.json();
   assert.deepEqual(site.webcredentials, { apps: ["TT8BA4JZW6.space.remmynd.app"] });
   assert.deepEqual(site.applinks.details[0].appIDs, ["TT8BA4JZW6.space.remmynd.app"]);
-  assert.deepEqual(site.applinks.details[0].components.map(c => c["/"]), ["/r/*", "/new", "/new/*"], "shared reminders and /new links open in the app");
+  assert.deepEqual(site.applinks.details[0].components.map(c => c["/"]), ["/r/*", "/new", "/new/*", "/x/*"], "shared reminders, /new and challenge links open in the app");
   assert.equal(W.IOS_APP, "TT8BA4JZW6.space.remmynd.app");
   assert.equal((await worker.fetch(new Request("https://remmynd.space/.well-known/apple-app-site-association", { method: "POST" }), shellEnv())).status, 405);
   assert.doesNotMatch(JSON.stringify(site), /@|email|user/i, "nothing about anyone in it");
@@ -5046,4 +5046,116 @@ test("Apple push: a signed provider token, device tokens per account, crew check
     return (await A.handleApple(req, {}, new URL(req.url), { store, accounts, now })).status; };
   assert.equal(await off(lee), 503, "says so when push isn't switched on");
   assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("apns_devices"));
+});
+
+/* Challenges in memory, the same shape as worker/challenges.js's D1 store. */
+function memoryChallenges() {
+  const t = { ch: new Map(), people: [], days: [] };
+  return { t,
+    ready: async () => {},
+    get: async code => t.ch.get(code) || null,
+    make: async c => { t.ch.set(c.code, { ...c }); },
+    madeBy: async (u, now) => [...t.ch.values()].filter(c => c.user_id === u && c.ends > now).length,
+    people: async code => t.people.filter(p => p.code === code).sort((a, b) => a.joined - b.joined).map(p => ({ ...p })),
+    person: async (code, u) => t.people.find(p => p.code === code && p.user_id === u) || null,
+    join: async p => { const was = t.people.find(x => x.code === p.code && x.user_id === p.user_id); if (was) was.name = p.name; else t.people.push({ ...p }); },
+    leave: async (code, u) => { t.people = t.people.filter(p => !(p.code === code && p.user_id === u)); t.days = t.days.filter(d => !(d.code === code && d.user_id === u)); },
+    days: async code => t.days.filter(d => d.code === code).map(d => ({ user_id: d.user_id, day: d.day })),
+    checkin: async (code, u, day, at) => { if (!t.days.some(d => d.code === code && d.user_id === u && d.day === day)) t.days.push({ code, user_id: u, day, at }); },
+    mine: async u => [...t.ch.values()].filter(c => t.people.some(p => p.code === c.code && p.user_id === u)),
+    clean: async now => { const old = [...t.ch.values()].filter(c => c.ends < now - 7 * 864e5); for (const c of old) { t.ch.delete(c.code); t.people = t.people.filter(p => p.code !== c.code); t.days = t.days.filter(d => d.code !== c.code); } return old.length; },
+    deleteUser: async u => { t.people = t.people.filter(p => p.user_id !== u); t.days = t.days.filter(d => d.user_id !== u); },
+  };
+}
+
+test("last one standing: check in by the deadline every day, in the challenge's time zone, or you're out", async () => {
+  const X = await import("../worker/challenges.js");
+  const accounts = memoryStore(), store = memoryChallenges(), base = "https://remmynd.space";
+  // 9 PM in New York on 18 Nov 2026 (02:00 UTC on the 19th).
+  let now = Date.parse("2026-11-19T02:00:00Z");
+  const sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now), lee = proAccount(accounts, "user-lee-0001", "lee@example.com", now), kim = proAccount(accounts, "user-kim-0001", "kim@example.com", now);
+  const call = async (path, body, cookie = sam) => {
+    const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base, ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body || {}) });
+    const res = await X.handleChallenge(req, {}, new URL(req.url), { store, accounts, now });
+    return { status: res.status, body: await res.json() };
+  };
+
+  // The time zone maths: local date and minutes, and a deadline found across a time-zone offset.
+  assert.deepEqual(X.localNow("America/New_York", now), { date: "2026-11-18", minutes: 21 * 60 });
+  const c0 = { start: "2026-11-19", deadline: "07:00", tz: "America/New_York", days: 3 };
+  assert.equal(new Date(X.deadlineAt(c0, 0)).toISOString(), "2026-11-19T12:00:00.000Z", "7 AM in New York is noon UTC in November");
+  assert.equal(new Date(X.deadlineAt({ ...c0, tz: "Asia/Kolkata" }, 2)).toISOString(), "2026-11-21T01:30:00.000Z");
+  assert.equal(X.addDays("2026-12-31", 1), "2027-01-01");
+
+  // Making one: signed in, sensible, starting tomorrow by default; the maker is in it.
+  assert.equal((await call("/api/challenge/new", { title: "7am club", days: 21, deadline: "07:00", tz: "America/New_York" }, "")).status, 401);
+  assert.equal((await call("/api/challenge/new", { title: "", days: 21, deadline: "07:00" })).status, 400);
+  assert.equal((await call("/api/challenge/new", { title: "x", days: 200, deadline: "07:00" })).status, 400);
+  assert.equal((await call("/api/challenge/new", { title: "x", days: 7, deadline: "7am" })).status, 400);
+  assert.equal((await call("/api/challenge/new", { title: "x", days: 7, deadline: "07:00", tz: "America/New_York", start: "2026-11-18" })).status, 400, "today's 7 AM has passed");
+  let r = await call("/api/challenge/new", { title: " 7am <club> ", days: 3, deadline: "07:00", tz: "America/New_York", name: "Sam" });
+  assert.equal(r.status, 200);
+  const code = r.body.code;
+  assert.match(code, /^[a-z0-9]{8}$/);
+  assert.equal(r.body.title, "7am club");
+  assert.equal(r.body.start, "2026-11-19");
+  assert.deepEqual([r.body.started, r.body.standing, r.body.mine, r.body.today.index], [1, 1, true, -1]);
+
+  // Joining: before it starts, with a first name; others see first names only.
+  assert.equal((await call("/api/challenge/" + code + "/join", { name: "" }, lee)).status, 400);
+  r = await call("/api/challenge/" + code + "/join", { name: "Lee" }, lee);
+  assert.deepEqual(r.body.members.map(m => [m.name, !!m.me]), [["Sam", false], ["Lee", true]]);
+  assert.ok(!JSON.stringify(r.body).includes("user-"), "accounts are never shown");
+  assert.equal((await call("/api/challenge/" + code + "/checkin", {}, lee)).body.error, "It hasn't started yet. The first check-in is on 2026-11-19.");
+  assert.equal((await call("/api/challenge/" + code + "/checkin", {}, kim)).status, 403, "join first");
+
+  // Day 1, 6:30 AM New York: both check in. Kim joins in time (before the first deadline).
+  now = Date.parse("2026-11-19T11:30:00Z");
+  await call("/api/challenge/" + code + "/checkin", {}, sam);
+  r = await call("/api/challenge/" + code + "/checkin", {}, lee);
+  assert.equal(r.body.members.find(m => m.me).today, true);
+  assert.equal((await call("/api/challenge/" + code + "/join", { name: "Kim" }, kim)).status, 200);
+  // After the deadline: Kim missed day 1 and is out; joining has closed.
+  now = Date.parse("2026-11-19T12:05:00Z");
+  r = await call("/api/challenge/" + code + "/read", {}, sam);
+  assert.deepEqual([r.body.started, r.body.standing], [3, 2]);
+  assert.equal(r.body.members.find(m => m.name === "Kim").out, 0);
+  assert.equal((await call("/api/challenge/" + code + "/checkin", {}, sam)).body.error, "Today's check-in closed at 07:00.");
+  const dana = proAccount(accounts, "user-dan-0001", "dana@example.com", now);
+  assert.equal((await call("/api/challenge/" + code + "/join", { name: "Dana" }, dana)).status, 403, "joining closes at the first deadline");
+  assert.equal((await call("/api/challenge/" + code + "/checkin", {}, kim)).status, 400, "an out player can't check in");
+
+  // Day 2: only Sam checks in. Lee is out after the deadline.
+  now = Date.parse("2026-11-20T11:00:00Z");
+  await call("/api/challenge/" + code + "/checkin", {}, sam);
+  now = Date.parse("2026-11-20T12:30:00Z");
+  r = await call("/api/challenge/" + code + "/read", {}, lee);
+  assert.equal(r.body.standing, 1);
+  assert.equal(r.body.members.find(m => m.me).out, 1);
+  assert.equal(r.body.members[0].name, "Sam", "still standing first");
+
+  // Day 3: Sam finishes.
+  now = Date.parse("2026-11-21T11:59:00Z");
+  await call("/api/challenge/" + code + "/checkin", {}, sam);
+  now = Date.parse("2026-11-21T13:00:00Z");
+  r = await call("/api/challenge/" + code + "/read", {}, sam);
+  assert.deepEqual(r.body.members.find(m => m.me), { name: "Sam", kept: 3, out: null, done: true, today: true, me: true });
+  assert.equal(r.body.today.over, true);
+  assert.equal((await call("/api/challenge/mine", {}, sam)).body.challenges.length, 1);
+
+  // The public page: counts, never names; joining closed now.
+  const page = await (await X.challengePage(new Request(base + "/x/" + code), {}, new URL(base + "/x/" + code), { store, now })).text();
+  assert.match(page, /7am club/);
+  assert.match(page, /<b>3<\/b><span>started<\/span>/);
+  assert.match(page, /<b>1<\/b><span>still standing<\/span>/);
+  assert.ok(!page.includes("Lee") && !page.includes("Kim"), "no names on the public page");
+  assert.match(page, /Joining has closed/);
+  assert.equal((await X.challengePage(new Request(base + "/x/nope"), {}, new URL(base + "/x/nope"), { store, now })).status, 404);
+
+  // A week after it ends: gone.
+  now = Date.parse("2026-11-29T00:00:00Z");
+  assert.equal(await X.cleanChallenges({}, now, { store }), 1);
+  assert.equal(store.t.people.length, 0);
+  const idx = readFileSync(join(root, "worker/index.js"), "utf8");
+  assert.ok(idx.includes('url.pathname.startsWith("/x/")') && idx.includes("cleanChallenges(env)"));
 });
