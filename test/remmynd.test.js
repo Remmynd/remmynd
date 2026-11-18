@@ -4993,7 +4993,7 @@ test("Apple push: a signed provider token, device tokens per account, crew check
   const sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now), lee = proAccount(accounts, "user-lee-0001", "lee@example.com", now);
   const reg = async (cookie, body, path = "/api/push/apple") => {
     const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base, cookie }, body: JSON.stringify(body) });
-    const res = await A.handleApple(req, env, new URL(req.url), { store, accounts, now }); return { status: res.status, body: await res.json() };
+    const res = await A.handleApple(req, env, new URL(req.url), { store, accounts, now, fetch }); return { status: res.status, body: await res.json() };
   };
   assert.equal((await reg("", { token: "a".repeat(64) })).status, 401);
   assert.equal((await reg(sam, { token: "nope" })).status, 400);
@@ -5032,6 +5032,18 @@ test("Apple push: a signed provider token, device tokens per account, crew check
   assert.equal(told.at(-1).alert.title, "Kudos from Lee");
   assert.equal(K.checkInWords("Lee", "late15").body, "Lee is running 15 minutes late.");
   assert.ok(!JSON.stringify(told).includes("Orbit"), "pushes never name the reminder");
-  assert.ok(readFileSync(join(root, "worker/index.js"), "utf8").includes('url.pathname === "/api/push/apple"'));
+  assert.ok(readFileSync(join(root, "worker/index.js"), "utf8").includes('"/api/push/apple/test"'));
+  // A test push: to your own phones, once a minute, with Apple's answer for each.
+  await reg(sam, { token: "e".repeat(64), env: "sandbox" });
+  let r = await reg(sam, {}, "/api/push/apple/test");
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { sent: 1, phones: [{ env: "sandbox", status: 200 }] });
+  assert.ok(sent.at(-1).url.startsWith("https://api.sandbox.push.apple.com/3/device/" + "e".repeat(64)), "to Sam's own phone");
+  assert.equal((await reg(sam, {}, "/api/push/apple/test")).status, 429, "once a minute");
+  const nobody = proAccount(accounts, "user-new-0001", "new@example.com", now);
+  assert.equal((await reg(nobody, {}, "/api/push/apple/test")).status, 404, "no iPhone yet");
+  const off = async (cookie) => { const req = new Request(base + "/api/push/apple/test", { method: "POST", headers: { "content-type": "application/json", origin: base, cookie }, body: "{}" });
+    return (await A.handleApple(req, {}, new URL(req.url), { store, accounts, now })).status; };
+  assert.equal(await off(lee), 503, "says so when push isn't switched on");
   assert.ok(readFileSync(join(root, "worker/schema.sql"), "utf8").includes("apns_devices"));
 });

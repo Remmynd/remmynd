@@ -4,6 +4,7 @@
 //
 //   POST /api/push/apple { token, env }   this phone's device token ("sandbox" for test builds, else production)
 //   POST /api/push/apple/off { token }    forget it (signing out)
+//   POST /api/push/apple/test {}          one "Push works" to your own phones, at most once a minute
 //
 // Secrets: APNS_KEY (the .p8 file's contents), APNS_KEY_ID, APNS_TEAM. Without them nothing is sent.
 
@@ -64,19 +65,23 @@ export async function sendApple(env, device, payload, { type = "alert", topic = 
   } catch { return 0; }
 }
 
-/** An alert to every phone of these accounts. Tokens Apple says are gone are forgotten. */
-export async function tellAccounts(env, users, alert, data = {}, deps = {}) {
+/** An alert to every phone of these accounts. Tokens Apple says are gone are forgotten. With `report`, answers
+ * Apple's status for each phone too. */
+export async function tellAccounts(env, users, alert, data = {}, deps = {}, report) {
   if (!configured(env) || !users.length || (!env.DB && !deps.store)) return 0;
   const store = deps.store || apnsStore(env.DB);
   await store.ready();
   let sent = 0;
   for (const d of await store.of(users)) {
     const status = await sendApple(env, d, { aps: { alert, sound: "default", "thread-id": data.crew || "remmynd", "content-available": 1 }, ...data }, { collapse: data.collapse }, deps);
+    if (report) report.push({ env: d.env, status });
     if (status === 200) sent++;
     if (status === 410 || status === 400) await store.drop(d.token);
   }
   return sent;
 }
+
+const lastTest = new Map();
 
 export async function handleApple(request, env, url, deps = {}) {
   if (!env.DB && !deps.store) return json({ error: "Push isn't set up on this server." }, 503);
@@ -87,6 +92,15 @@ export async function handleApple(request, env, url, deps = {}) {
   if (!s) return json({ error: "Sign in first.", need: "signin" }, 401);
   let body = {};
   try { body = JSON.parse((await request.text()).slice(0, 2048)) || {}; } catch {}
+  if (url.pathname.replace(/\/+$/, "").endsWith("/test")) {
+    if (!configured(env)) return json({ error: "Push isn't switched on for this server yet." }, 503);
+    if (now - (lastTest.get(s.user.id) || 0) < 60e3) return json({ error: "One test a minute. Try again shortly." }, 429);
+    lastTest.set(s.user.id, now);
+    const report = [];
+    const sent = await (deps.tell || tellAccounts)(env, [s.user.id], { title: "Push works", body: "Your crew can reach you, even with the app closed." }, { kind: "test" }, deps, report);
+    if (!report.length && !sent) return json({ error: "This account has no iPhone registered yet. Open remmynd on your iPhone and allow notifications." }, 404);
+    return json({ sent, phones: report });
+  }
   const token = String(body.token || "");
   if (!TOKEN.test(token)) return json({ error: "That isn't a device token." }, 400);
   const store = deps.store || apnsStore(env.DB);
