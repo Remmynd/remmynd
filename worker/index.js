@@ -17,6 +17,7 @@ import { handleHost, hostPageResponse, launchStateResponse } from "./hosts.js";
 import { handleFollow, followLive, sendFollowMails, saverAlerts } from "./follows.js";
 import { handleChat, cleanChats } from "./chat.js";
 import { handleCrew, cleanCrews } from "./crews.js";
+import { handleApple } from "./apns.js";
 import { adminResponse } from "./numbers.js";
 
 const PRESETS = new Set(["example"]);
@@ -51,6 +52,7 @@ export default {
     if (url.pathname === "/api/launch/go") return handleHost(request, env, url);
     if (url.pathname.startsWith("/api/chat/")) return handleChat(request, env, url);
     if (url.pathname.startsWith("/api/crew/")) return handleCrew(request, env, url);
+    if (url.pathname === "/api/push/apple" || url.pathname === "/api/push/apple/off") return handleApple(request, env, url);
     if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);
     if (url.pathname === "/api/follow" || url.pathname.startsWith("/api/follow/") || url.pathname === "/api/unfollow") return handleFollow(request, env, url);
     if (url.pathname.startsWith("/@") || url.pathname.startsWith("/%40")) return hostPageResponse(request, env, url);

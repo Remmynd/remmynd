@@ -53,3 +53,7 @@ CREATE TABLE IF NOT EXISTS crew_members (crew TEXT NOT NULL, user_id TEXT NOT NU
 CREATE INDEX IF NOT EXISTS crew_members_user ON crew_members (user_id);
 CREATE TABLE IF NOT EXISTS crew_kudos (crew TEXT NOT NULL, from_mid TEXT NOT NULL, to_mid TEXT NOT NULL, at INTEGER NOT NULL, seen INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS crew_kudos_to ON crew_kudos (to_mid, seen);
+
+-- Apple push (worker/apns.js): an iPhone's device token, against its account.
+CREATE TABLE IF NOT EXISTS apns_devices (token TEXT PRIMARY KEY, user_id TEXT NOT NULL, env TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS apns_devices_user ON apns_devices (user_id);
