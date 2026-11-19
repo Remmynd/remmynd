@@ -307,11 +307,12 @@ export async function dropPage(request, env, url, deps = {}) {
   const body = '<p class="eye">A drop from ' + esc(d.name) + '</p><h1 id="h">' + (d.opens <= now ? "It's open" : "Opens soon") + '</h1>' +
     '<div id="c" class="big"></div><div id="out"></div>' +
     '<p><a class="btn" href="https://remmynd.space/d/' + esc(id) + '">Open in the remmynd app</a></p><p class="small" id="s">Only people with this exact link can open it. remmynd itself can\'t see what\'s inside.</p>' +
-    '<script nonce="' + nonce + '">(' + viewer.toString() + ')(' + JSON.stringify({ id, opens: d.opens, now }) + ');</script>';
+    '<script nonce="' + nonce + '">var __name = function (f) { return f; };(' + viewer.toString() + ')(' + JSON.stringify({ id, opens: d.opens, now }) + ');</script>';
   return page("A drop from " + d.name + " · remmynd", body, nonce);
 }
 
-// Runs in the browser: the countdown, then fetch the scrambled drop and unscramble it with the key from the link.
+// Runs in the browser: the countdown, then fetch the scrambled drop and unscramble it with the key from the link. It's sent as its
+// own source text, and the bundler wraps functions in a __name() helper, so the page defines that helper too.
 function viewer(o) {
   const $ = id => document.getElementById(id), skew = Date.now() - o.now;
   const un = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), c => c.charCodeAt(0));

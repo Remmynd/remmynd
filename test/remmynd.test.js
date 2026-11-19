@@ -5252,6 +5252,7 @@ test("drops: scrambled on the phone with the key in the link, and nothing is han
   assert.match(html, /A drop from Sam/);
   assert.ok(!html.includes(meta), "the page doesn't carry the scrambled message before it opens");
   assert.match(pg.headers.get("content-security-policy"), /script-src 'nonce-[a-f0-9]{32}'/);
+  assert.match(html, /<script nonce="[a-f0-9]{32}">var __name = function \(f\) \{ return f; \};\(/, "the bundler's __name() helper is defined, or the opener crashes in the browser");
 
   // Lee saves it (Lee's phone then sets its own alert for the opening), and once it's time it unscrambles with the key.
   assert.equal((await call("/api/drop/" + id + "/save", { on: true }, lee)).body.saved, true);
