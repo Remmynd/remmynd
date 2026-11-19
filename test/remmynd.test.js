@@ -5253,17 +5253,13 @@ test("drops: scrambled on the phone with the key in the link, and nothing is han
   assert.ok(!html.includes(meta), "the page doesn't carry the scrambled message before it opens");
   assert.match(pg.headers.get("content-security-policy"), /script-src 'nonce-[a-f0-9]{32}'/);
 
-  // Lee saves it; when it opens, Lee and Sam are told once, and it unscrambles with the key.
+  // Lee saves it (Lee's phone then sets its own alert for the opening), and once it's time it unscrambles with the key.
   assert.equal((await call("/api/drop/" + id + "/save", { on: true }, lee)).body.saved, true);
   assert.equal((await call("/api/drop/mine", {}, lee)).body.drops.length, 1);
-  await D.runDrops({}, now, deps());
-  assert.equal(told.length, 0, "nothing until it opens");
+  assert.equal((await call("/api/drop/mine", {}, sam)).body.drops[0].saves, 1, "the maker sees how many are waiting for it");
   now = opens + 1000;
   await D.runDrops({}, now, deps());
-  await D.runDrops({}, now + 60e3, deps());
-  assert.equal(told.length, 1, "told once");
-  assert.deepEqual(told[0].users.sort(), ["user-lee-0001", "user-sam-0001"]);
-  assert.equal(told[0].data.drop, id);
+  assert.equal(told.length, 0, "no push for a drop: the phones alert on their own");
   const late = await call("/api/drop/" + id + "/read", {}, "");
   assert.equal(late.body.open, true);
   const sealed = Buffer.from(late.body.meta, "base64url");

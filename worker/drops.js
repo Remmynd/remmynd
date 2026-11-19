@@ -13,7 +13,7 @@
 //   POST /api/drop/<id>/file      scrambled bytes                the photo or voice note, once, before it opens
 //   POST /api/drop/<id>/read      {}                             when it opens, and once open the scrambled message
 //   GET  /api/drop/<id>/file                                     the scrambled bytes, once it's open
-//   POST /api/drop/<id>/save      { on }                         tell me when it opens (signed in)
+//   POST /api/drop/<id>/save      { on }                         keep it in my list, so my phone tells me when it opens
 //   POST /api/drop/mine           {}                             drops you made or saved
 //   GET  /d/<id>                                                 the page: a countdown, then the drop itself
 //
@@ -67,9 +67,6 @@ export function dropStore(db) {
     saves: async id => ((await one("SELECT COUNT(*) AS n FROM drop_saves WHERE id = ?", id)) || {}).n || 0,
     save: (id, user, on) => on ? st("INSERT OR IGNORE INTO drop_saves (id, user_id) VALUES (?, ?)", id, user).run() : st("DELETE FROM drop_saves WHERE id = ? AND user_id = ?", id, user).run(),
     myDrops: user => all("SELECT d.* FROM drop_items d WHERE d.user_id = ? OR d.id IN (SELECT id FROM drop_saves WHERE user_id = ?) ORDER BY d.opens DESC LIMIT 50", user, user),
-    toTell: now => all("SELECT * FROM drop_items WHERE told = 0 AND opens <= ? LIMIT 50", now),
-    savers: async id => (await all("SELECT user_id FROM drop_saves WHERE id = ?", id)).map(r => r.user_id),
-    toldDrop: id => st("UPDATE drop_items SET told = 1 WHERE id = ?", id).run(),
 
     dare: c => one("SELECT * FROM dare_items WHERE code = ?", c),
     makeDare: d => st("INSERT INTO dare_items (code, user_id, name, what, by_at, told, created) VALUES (?, ?, ?, ?, ?, 0, ?)", d.code, d.user_id, d.name, d.what, d.by_at, d.created).run(),
@@ -126,20 +123,16 @@ function dropView(d, user, now, extra = {}) {
 }
 function dareView(d, takers, user, now) {
   const closed = d.by_at <= now;
-  const people = takers.map(t => ({ tid: t.tid, name: t.name, state: t.proof ? "done" : closed ? "missed" : "taken", at: t.proof || t.taken, me: !!user && t.user_id === user }));
+  const people = takers.map(t => ({ tid: t.tid, name: t.name, state: t.proof ? "done" : closed ? "missed" : "taken", at: t.proof || t.taken, taken: t.taken, me: !!user && t.user_id === user }));
   return { code: d.code, what: d.what, from: d.name, by: d.by_at, closed, mine: !!user && d.user_id === user, took: people.length, done: people.filter(p => p.state === "done").length, people };
 }
 
-/** Every minute: tell people a drop opened, tell a darer their dare closed, and clear out what's 30 days old. */
+/** Every minute: tell a darer their dare closed, and clear out what's 30 days old. */
 export async function runDrops(env, now = Date.now(), deps = {}) {
   if (!env.DB && !deps.store) return 0;
   const store = deps.store || dropStore(env.DB), tell = deps.tell || tellAccounts, bucket = deps.files || env.CHAT_FILES;
   await store.ready();
-  for (const d of await store.toTell(now)) {
-    await store.toldDrop(d.id);
-    const to = [...new Set([d.user_id, ...await store.savers(d.id)])];
-    await tell(env, to, { title: "A drop just opened", body: "From " + d.name + ". Open it in remmynd." }, { drop: d.id, kind: "drop", collapse: "d" + d.id }, deps);
-  }
+  // A drop opening is told by the phones themselves (a local alert at the opening time, which needs no connection).
   for (const d of await store.daresToTell(now)) {
     await store.toldDare(d.code);
     const t = await store.takers(d.code), done = t.filter(x => x.proof).length;
