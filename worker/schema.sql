@@ -63,3 +63,11 @@ CREATE TABLE IF NOT EXISTS challenge_runs (code TEXT PRIMARY KEY, user_id TEXT N
 CREATE TABLE IF NOT EXISTS challenge_people (code TEXT NOT NULL, user_id TEXT NOT NULL, name TEXT NOT NULL, joined INTEGER NOT NULL, PRIMARY KEY (code, user_id));
 CREATE INDEX IF NOT EXISTS challenge_people_user ON challenge_people (user_id);
 CREATE TABLE IF NOT EXISTS challenge_days (code TEXT NOT NULL, user_id TEXT NOT NULL, day INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (code, user_id, day));
+CREATE TABLE IF NOT EXISTS drop_items (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, opens INTEGER NOT NULL, meta TEXT NOT NULL, file INTEGER NOT NULL, told INTEGER NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS drop_items_user ON drop_items (user_id);
+CREATE TABLE IF NOT EXISTS drop_saves (id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (id, user_id));
+CREATE INDEX IF NOT EXISTS drop_saves_user ON drop_saves (user_id);
+CREATE TABLE IF NOT EXISTS dare_items (code TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, what TEXT NOT NULL, by_at INTEGER NOT NULL, told INTEGER NOT NULL, created INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS dare_items_user ON dare_items (user_id);
+CREATE TABLE IF NOT EXISTS dare_takers (code TEXT NOT NULL, user_id TEXT NOT NULL, tid TEXT NOT NULL, name TEXT NOT NULL, taken INTEGER NOT NULL, proof INTEGER, PRIMARY KEY (code, user_id));
+CREATE INDEX IF NOT EXISTS dare_takers_user ON dare_takers (user_id);

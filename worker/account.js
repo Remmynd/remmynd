@@ -361,6 +361,7 @@ export async function handleAccount(request, env, url, ctx, deps = {}) {
     // Their place in any crew goes too (worker/crews.js keeps its own tables).
     if (env.DB) { try { const { crewStore } = await import("./crews.js"); const cs = crewStore(env.DB); await cs.ready(); await cs.deleteUser(user.id); } catch {} }
     if (env.DB) { try { const { challengeStore } = await import("./challenges.js"); const ch = challengeStore(env.DB); await ch.ready(); await ch.deleteUser(user.id); } catch {} }
+    if (env.DB) { try { const { deleteDropsOf } = await import("./drops.js"); await deleteDropsOf(env, user.id); } catch {} }
     if (env.DB) { try { const { apnsStore } = await import("./apns.js"); const as = apnsStore(env.DB); await as.ready(); await as.deleteUser(user.id); } catch {} }
     return json({ ok: true }, 200, { "set-cookie": cookie(url, "", 0) });
   }

@@ -3446,7 +3446,7 @@ test("the app, natively: Apple's app-site file for passkeys and links, the app-o
   const site = await res.json();
   assert.deepEqual(site.webcredentials, { apps: ["TT8BA4JZW6.space.remmynd.app"] });
   assert.deepEqual(site.applinks.details[0].appIDs, ["TT8BA4JZW6.space.remmynd.app"]);
-  assert.deepEqual(site.applinks.details[0].components.map(c => c["/"]), ["/r/*", "/new", "/new/*", "/x/*"], "shared reminders, /new and challenge links open in the app");
+  assert.deepEqual(site.applinks.details[0].components.map(c => c["/"]), ["/r/*", "/new", "/new/*", "/x/*", "/d/*", "/dare/*"], "shared reminders, /new, challenge, drop and dare links open in the app");
   assert.equal(W.IOS_APP, "TT8BA4JZW6.space.remmynd.app");
   assert.equal((await worker.fetch(new Request("https://remmynd.space/.well-known/apple-app-site-association", { method: "POST" }), shellEnv())).status, 405);
   assert.doesNotMatch(JSON.stringify(site), /@|email|user/i, "nothing about anyone in it");
@@ -5073,7 +5073,7 @@ test("last one standing: check in by the deadline every day, in the challenge's 
   // Every feature's tables share one database: no two may use the same table name (passkey sign-in owns "challenges").
   const tables = sql => sql.map(q => (q.match(/CREATE TABLE IF NOT EXISTS (\w+)/) || [])[1]).filter(Boolean);
   const owners = [(await import("../worker/account.js")).SCHEMA, (await import("../worker/count.js")).SCHEMA, (await import("../worker/chat.js")).CHAT_SCHEMA,
-    (await import("../worker/crews.js")).CREW_SCHEMA, (await import("../worker/apns.js")).APNS_SCHEMA, X.CHALLENGE_SCHEMA].flatMap(tables);
+    (await import("../worker/crews.js")).CREW_SCHEMA, (await import("../worker/apns.js")).APNS_SCHEMA, X.CHALLENGE_SCHEMA, (await import("../worker/drops.js")).DROP_SCHEMA].flatMap(tables);
   assert.equal(new Set(owners).size, owners.length, "a table name is used twice: " + owners.filter((t, i) => owners.indexOf(t) !== i));
   const accounts = memoryStore(), store = memoryChallenges(), base = "https://remmynd.space";
   // 9 PM in New York on 18 Nov 2026 (02:00 UTC on the 19th).
@@ -5163,4 +5163,178 @@ test("last one standing: check in by the deadline every day, in the challenge's 
   assert.equal(store.t.people.length, 0);
   const idx = readFileSync(join(root, "worker/index.js"), "utf8");
   assert.ok(idx.includes('url.pathname.startsWith("/x/")') && idx.includes("cleanChallenges(env)"));
+});
+
+/* Drops and dares in memory, the same shape as worker/drops.js's D1 store, plus a bucket. */
+function memoryDrops() {
+  const drops = new Map(), saves = new Set(), dares = new Map(), takers = [];
+  const store = {
+    ready: async () => {},
+    drop: async id => drops.get(id) || null,
+    makeDrop: async d => { drops.set(d.id, { ...d, told: 0 }); },
+    setFile: async (id, size) => { drops.get(id).file = size; },
+    waiting: async (u, now) => [...drops.values()].filter(d => d.user_id === u && d.opens > now).length,
+    saved: async (id, u) => saves.has(id + " " + u),
+    saves: async id => [...saves].filter(k => k.startsWith(id + " ")).length,
+    save: async (id, u, on) => { on ? saves.add(id + " " + u) : saves.delete(id + " " + u); },
+    myDrops: async u => [...drops.values()].filter(d => d.user_id === u || saves.has(d.id + " " + u)),
+    toTell: async now => [...drops.values()].filter(d => !d.told && d.opens <= now),
+    savers: async id => [...saves].filter(k => k.startsWith(id + " ")).map(k => k.split(" ")[1]),
+    toldDrop: async id => { drops.get(id).told = 1; },
+    dare: async c => dares.get(c) || null,
+    makeDare: async d => { dares.set(d.code, { ...d, told: 0 }); },
+    open: async (u, now) => [...dares.values()].filter(d => d.user_id === u && d.by_at > now).length,
+    takers: async c => takers.filter(t => t.code === c),
+    taker: async (c, u) => takers.find(t => t.code === c && t.user_id === u) || null,
+    take: async t => { const had = takers.find(x => x.code === t.code && x.user_id === t.user_id); if (had) had.name = t.name; else takers.push({ ...t, proof: null }); },
+    proved: async (c, u, at) => { takers.find(t => t.code === c && t.user_id === u).proof = at; },
+    myDares: async u => [...dares.values()].filter(d => d.user_id === u || takers.some(t => t.code === d.code && t.user_id === u)),
+    daresToTell: async now => [...dares.values()].filter(d => !d.told && d.by_at <= now),
+    toldDare: async c => { dares.get(c).told = 1; },
+    clean: async now => {
+      const keys = [];
+      for (const d of [...drops.values()]) if (d.opens < now - 30 * 864e5) { if (d.file > 0) keys.push("drops/" + d.id); drops.delete(d.id); }
+      for (const d of [...dares.values()]) if (d.by_at < now - 30 * 864e5) { takers.filter(t => t.code === d.code && t.proof).forEach(t => keys.push("dares/" + d.code + "/" + t.tid)); dares.delete(d.code); }
+      return keys;
+    },
+  };
+  const objects = new Map();
+  const files = { put: async (k, b) => { objects.set(k, b); }, get: async k => objects.has(k) ? { body: objects.get(k) } : null, delete: async ks => { for (const k of [].concat(ks)) objects.delete(k); } };
+  return { store, files, objects, drops, dares };
+}
+
+test("drops: scrambled on the phone with the key in the link, and nothing is handed over before it opens", async () => {
+  const D = await import("../worker/drops.js");
+  const accounts = memoryStore(), m = memoryDrops(), base = "https://remmynd.space", told = [];
+  let now = Date.parse("2026-11-19T10:00:00Z");
+  const sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now), lee = proAccount(accounts, "user-lee-0001", "lee@example.com", now);
+  const tell = async (env, users, alert, data) => { told.push({ users, alert, data }); return users.length; };
+  const deps = () => ({ store: m.store, files: m.files, accounts, now, tell });
+  const call = async (path, body, cookie = sam, raw) => {
+    const req = new Request(base + path, { method: "POST", headers: { "content-type": raw ? "application/octet-stream" : "application/json", origin: base, ...(cookie ? { cookie } : {}) }, body: raw || JSON.stringify(body || {}) });
+    const res = await D.handleDrop(req, {}, new URL(req.url), deps());
+    return { status: res.status, body: await res.json() };
+  };
+  const get = async path => D.handleDrop(new Request(base + path), {}, new URL(base + path), deps());
+
+  // The phone's side: a random key, the message sealed as iv || ciphertext || tag, base64url.
+  const b64u = b => Buffer.from(b).toString("base64url");
+  const raw = crypto.getRandomValues(new Uint8Array(32)), key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+  const seal = async bytes => { const iv = crypto.getRandomValues(new Uint8Array(12)); return new Uint8Array([...iv, ...new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes))]); };
+  const meta = b64u(await seal(new TextEncoder().encode(JSON.stringify({ kind: "photo", text: "Happy birthday, Lee" }))));
+  const opens = now + 2 * 3600e3;
+
+  // Making one: signed in, a sensible time, a scrambled message only.
+  assert.equal((await call("/api/drop/new", { opens, meta, file: true, name: "Sam" }, "")).status, 401);
+  assert.equal((await call("/api/drop/new", { opens: now - 1, meta, name: "Sam" })).status, 400, "not in the past");
+  assert.equal((await call("/api/drop/new", { opens: now + 400 * 864e5, meta, name: "Sam" })).status, 400, "not more than a year ahead");
+  assert.equal((await call("/api/drop/new", { opens, meta: "Happy birthday <b>Lee</b>", name: "Sam" })).status, 400, "plain words are refused: only scrambled text");
+  const made = await call("/api/drop/new", { opens, meta, file: true, name: "Sam" });
+  assert.equal(made.status, 200);
+  const id = made.body.id;
+  assert.match(id, /^[a-z0-9]{10}$/);
+  assert.equal(made.body.meta, null, "even the maker gets nothing back before it opens");
+
+  // The photo: only from the maker, once, scrambled bytes.
+  const photo = await seal(new Uint8Array(500).fill(7));
+  assert.equal((await call("/api/drop/" + id + "/file", null, lee, photo)).status, 403);
+  assert.equal((await call("/api/drop/" + id + "/file", null, sam, new Uint8Array(5))).status, 400, "too short to be scrambled");
+  assert.equal((await call("/api/drop/" + id + "/file", null, sam, photo)).status, 200);
+  assert.equal((await call("/api/drop/" + id + "/file", null, sam, photo)).status, 400, "only once");
+  assert.ok(m.objects.has("drops/" + id));
+
+  // Before it opens: anyone with the link sees who it's from and when; nothing else, and the file is refused.
+  const early = await call("/api/drop/" + id + "/read", {}, "");
+  assert.deepEqual([early.status, early.body.from, early.body.open, early.body.meta, early.body.opens], [200, "Sam", false, null, opens]);
+  assert.equal((await get("/api/drop/" + id + "/file")).status, 425);
+  const pg = await D.dropPage(new Request(base + "/d/" + id), {}, new URL(base + "/d/" + id), deps());
+  const html = await pg.text();
+  assert.match(html, /A drop from Sam/);
+  assert.ok(!html.includes(meta), "the page doesn't carry the scrambled message before it opens");
+  assert.match(pg.headers.get("content-security-policy"), /script-src 'nonce-[a-f0-9]{32}'/);
+  assert.match(html, /<script nonce="[a-f0-9]{32}">var __name = function \(f\) \{ return f; \};\(/, "the bundler's __name() helper is defined, or the opener crashes in the browser");
+
+  // Lee saves it (Lee's phone then sets its own alert for the opening), and once it's time it unscrambles with the key.
+  assert.equal((await call("/api/drop/" + id + "/save", { on: true }, lee)).body.saved, true);
+  assert.equal((await call("/api/drop/mine", {}, lee)).body.drops.length, 1);
+  assert.equal((await call("/api/drop/mine", {}, sam)).body.drops[0].saves, 1, "the maker sees how many are waiting for it");
+  now = opens + 1000;
+  await D.runDrops({}, now, deps());
+  assert.equal(told.length, 0, "no push for a drop: the phones alert on their own");
+  const late = await call("/api/drop/" + id + "/read", {}, "");
+  assert.equal(late.body.open, true);
+  const sealed = Buffer.from(late.body.meta, "base64url");
+  const opened = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: sealed.subarray(0, 12) }, key, sealed.subarray(12))));
+  assert.equal(opened.text, "Happy birthday, Lee");
+  const f = await get("/api/drop/" + id + "/file");
+  assert.equal(f.status, 200);
+  assert.equal(f.headers.get("content-type"), "application/octet-stream");
+
+  // 30 days after it opened, it's gone, with its file.
+  await D.runDrops({}, opens + 31 * 864e5, { ...deps(), now: opens + 31 * 864e5 });
+  assert.equal(m.drops.size, 0);
+  assert.ok(!m.objects.has("drops/" + id));
+  assert.equal((await call("/api/drop/" + id + "/read", {}, "")).status, 404);
+});
+
+test("dares: take it, prove it with a photo before the time runs out, and the darer hears about it", async () => {
+  const D = await import("../worker/drops.js");
+  const accounts = memoryStore(), m = memoryDrops(), base = "https://remmynd.space", told = [];
+  let now = Date.parse("2026-11-19T10:00:00Z");
+  const sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now), lee = proAccount(accounts, "user-lee-0001", "lee@example.com", now), kim = proAccount(accounts, "user-kim-0001", "kim@example.com", now);
+  const tell = async (env, users, alert, data) => { told.push({ users, alert, data }); return users.length; };
+  const deps = () => ({ store: m.store, files: m.files, accounts, now, tell });
+  const call = async (path, body, cookie = sam, raw) => {
+    const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base, ...(cookie ? { cookie } : {}) }, body: raw || JSON.stringify(body || {}) });
+    const res = await D.handleDare(req, {}, new URL(req.url), deps());
+    return { status: res.status, body: await res.json() };
+  };
+  const by = now + 9 * 3600e3;
+
+  assert.equal((await call("/api/dare/new", { what: "50 push-ups", by, name: "Sam" }, "")).status, 401);
+  assert.equal((await call("/api/dare/new", { what: "", by, name: "Sam" })).status, 400);
+  assert.equal((await call("/api/dare/new", { what: "x", by: now + 60e3, name: "Sam" })).status, 400, "at least 10 minutes");
+  const made = await call("/api/dare/new", { what: "50 push-ups <now>", by, name: "Sam" });
+  assert.equal(made.status, 200);
+  const code = made.body.code;
+  assert.equal(made.body.what, "50 push-ups now", "no markup kept");
+
+  // Taking it: a first name, and Sam hears once.
+  assert.equal((await call("/api/dare/" + code + "/take", { name: "" }, lee)).status, 400);
+  assert.equal((await call("/api/dare/" + code + "/proof", null, lee, new Uint8Array(100))).status, 403, "take it first");
+  assert.equal((await call("/api/dare/" + code + "/take", { name: "Lee" }, lee)).status, 200);
+  await call("/api/dare/" + code + "/take", { name: "Lee" }, lee);
+  await call("/api/dare/" + code + "/take", { name: "Kim" }, kim);
+  assert.deepEqual(told.map(t => t.alert.title), ["Lee took your dare", "Kim took your dare"]);
+
+  // Lee proves it; Sam hears, and the proof comes back as scrambled bytes only.
+  const r = await call("/api/dare/" + code + "/proof", null, lee, new Uint8Array(300).fill(3));
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body.people.map(p => [p.name, p.state, p.me]), [["Lee", "done", true], ["Kim", "taken", false]]);
+  assert.equal(told.at(-1).alert.title, "Lee did your dare");
+  const tid = r.body.people[0].tid;
+  const proof = await D.handleDare(new Request(base + "/api/dare/" + code + "/proof/" + tid), {}, new URL(base + "/api/dare/" + code + "/proof/" + tid), deps());
+  assert.equal(proof.status, 200);
+  assert.equal(proof.headers.get("content-security-policy"), "default-src 'none'; sandbox");
+
+  // The public page: counts, no names.
+  const pg = await (await D.darePage(new Request(base + "/dare/" + code), {}, new URL(base + "/dare/" + code), deps())).text();
+  assert.match(pg, /Sam dares you/);
+  assert.match(pg, /<b>2<\/b><span>took it<\/span>/);
+  assert.ok(!pg.includes("Lee") && !pg.includes("Kim"), "no takers' names on the public page");
+
+  // Time's up: Kim missed it, no more proofs, and Sam hears the result once.
+  now = by + 1;
+  assert.equal((await call("/api/dare/" + code + "/proof", null, kim, new Uint8Array(300))).status, 400);
+  assert.equal((await call("/api/dare/" + code + "/take", { name: "Jo" }, sam)).status, 400);
+  assert.deepEqual((await call("/api/dare/" + code + "/read", {}, kim)).body.people.map(p => p.state), ["done", "missed"]);
+  await D.runDrops({}, now, deps());
+  await D.runDrops({}, now + 60e3, deps());
+  assert.equal(told.filter(t => t.alert.title === "Your dare closed").length, 1);
+  assert.match(told.at(-1).alert.body, /^1 of 2 did it/);
+
+  // 30 days on, the dare and the proof photo are gone.
+  await D.runDrops({}, by + 31 * 864e5, { ...deps(), now: by + 31 * 864e5 });
+  assert.equal(m.dares.size, 0);
+  assert.equal(m.objects.size, 0);
 });
