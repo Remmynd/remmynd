@@ -19,6 +19,7 @@ import { handleChat, cleanChats } from "./chat.js";
 import { handleCrew, cleanCrews } from "./crews.js";
 import { handleApple } from "./apns.js";
 import { handleChallenge, challengePage, cleanChallenges } from "./challenges.js";
+import { handleDrop, handleDare, dropPage, darePage, runDrops } from "./drops.js";
 import { adminResponse } from "./numbers.js";
 
 const PRESETS = new Set(["example"]);
@@ -55,6 +56,10 @@ export default {
     if (url.pathname.startsWith("/api/crew/")) return handleCrew(request, env, url);
     if (url.pathname.startsWith("/api/challenge/")) return handleChallenge(request, env, url);
     if (url.pathname.startsWith("/x/")) return challengePage(request, env, url);
+    if (url.pathname.startsWith("/api/drop/")) return handleDrop(request, env, url);
+    if (url.pathname.startsWith("/api/dare/")) return handleDare(request, env, url);
+    if (url.pathname.startsWith("/d/")) return dropPage(request, env, url);
+    if (url.pathname.startsWith("/dare/")) return darePage(request, env, url);
     if (["/api/push/apple", "/api/push/apple/off", "/api/push/apple/test"].includes(url.pathname)) return handleApple(request, env, url);
     if (url.pathname === "/admin" || url.pathname === "/admin/") return adminResponse(request, env, url);
     if (url.pathname === "/api/follow" || url.pathname.startsWith("/api/follow/") || url.pathname === "/api/unfollow") return handleFollow(request, env, url);
@@ -117,6 +122,7 @@ export default {
     ctx.waitUntil(cleanChats(env).catch(() => {}));
     ctx.waitUntil(cleanCrews(env).catch(() => {}));
     ctx.waitUntil(cleanChallenges(env).catch(() => {}));
+    ctx.waitUntil(runDrops(env).catch(() => {}));
     // Once an hour: forget counts 30 days after their reminder ended.
     if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 17) ctx.waitUntil(cleanCounts(env));
   }

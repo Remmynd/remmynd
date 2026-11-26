@@ -102,7 +102,7 @@ export function standing(c, kept, now) {
 // ---------- the API ----------
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-const code = () => { const a = crypto.getRandomValues(new Uint8Array(8)), abc = "abcdefghjkmnpqrstuvwxyz23456789"; return [...a].map(x => abc[x % abc.length]).join(""); };
+const code = () => { const a = crypto.getRandomValues(new Uint8Array(8)), abc = "abcdefghjkmnpqrstuvwxyz023456789"; return [...a].map(x => abc[x & 31]).join(""); };
 const line = (v, n) => String(v || "").replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, n);
 const isZone = tz => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; } };
 async function readBody(request) { try { const b = JSON.parse((await request.text()).slice(0, 4096)); return b && typeof b === "object" ? b : {}; } catch { return {}; } }
