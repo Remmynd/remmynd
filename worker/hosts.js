@@ -34,6 +34,7 @@ import { escapeHTML as esc } from "./preview.js";
 import { readCount } from "./count.js";
 import { tally } from "./numbers.js";
 import { planOf, FREE } from "./pro.js";
+import { ogImageURL, inText } from "./ogimage.js";
 
 export const HANDLE = /^[a-z0-9][a-z0-9_-]{2,29}$/;
 /** Words the site uses, or that would look like it speaks for remmynd. */
@@ -353,8 +354,12 @@ function hostHTML(host, launches, origin, now, followers = 0) {
 const NOT_FOUND = '<div class="at-missing"><h1>Not here</h1><p>There’s no page at this address. The handle may have changed, or the launch was taken down.</p><p><a class="btn ink" href="/launch">Make a launch countdown</a></p></div>';
 
 /** The page, from public/at/index.html (our own template), with its text and preview tags filled in. */
-export function fillPage(tpl, { title, description, canonical, html }) {
+export function fillPage(tpl, { title, description, canonical, html, image }) {
   const a = esc;
+  if (image) tpl = tpl
+    .replace(/(<meta property="og:image" content=")[^"]*"/, "$1" + a(image) + '"')
+    .replace(/(<meta name="twitter:image" content=")[^"]*"/, "$1" + a(image) + '"')
+    .replace(/(<meta property="og:image:alt" content=")[^"]*"/, "$1" + a(title) + '"');
   return tpl
     .replace(/<title>[^<]*<\/title>/, "<title>" + a(title) + "</title>")
     .replace(/(<meta name="description" content=")[^"]*"/, "$1" + a(description) + '"')
@@ -373,6 +378,29 @@ async function page(env, url, { status = 200, ...fill }) {
   for (const h of ["content-security-policy", "permissions-policy", "referrer-policy", "x-content-type-options", "x-frame-options", "strict-transport-security"]) { const v = tpl.headers.get(h); if (v) res.headers.set(h, v); }
   if (status !== 200) res.headers.set("x-robots-tag", "noindex");
   return res;
+}
+
+/**
+ * The card for the live picture of /@handle or /@handle/<slug> (worker/og.js), or null when there's no such page.
+ * A host's own page shows their next launch; a launch shows its state, saves and the host's followers.
+ */
+export async function hostCard(env, handle, slug, deps = {}) {
+  if (!env.DB && !deps.store) return null;
+  const store = deps.store || d1Store(env.DB), now = deps.now || Date.now();
+  await store.ready();
+  const host = HANDLE.test(handle) ? await store.hostByHandle(handle) : null;
+  if (!host) return null;
+  const launches = await store.launchesOf(host.user_id), who = host.name || "@" + host.handle;
+  const followers = store.followCount ? await store.followCount(host.user_id) : 0;
+  const l = slug ? launches.find(x => x.slug === slug) : launches.find(x => phaseOf(x, now) !== "ended");
+  if (slug && !l) return null;
+  const fans = followers >= 10 ? [{ n: followers, label: "followers" }] : [];
+  if (!l) return { theme: "light", eye: "@" + host.handle, title: who, line: host.bio || "Launches on remmynd", big: "", stats: fans };
+  const ph = phaseOf(l, now), v = launchView(host, l, "https://remmynd.space");
+  const n = l.count ? await readCount(env, v.payload, { now, store: deps.counts }) : 0;
+  return { theme: "light", eye: slug ? "Launch · @" + host.handle : "Next from @" + host.handle, title: l.title, line: whenText(l.start, l.tz, now),
+    big: ph === "live" ? "Live now" : ph === "ended" ? "Ended" : inText(l.start - now), tone: ph === "live" ? "live" : ph === "ended" ? "quiet" : "",
+    stats: [n ? { n, label: "saved" } : null, ...fans].filter(Boolean) };
 }
 
 export async function hostPageResponse(request, env, url, deps = {}) {
@@ -397,7 +425,7 @@ export async function hostPageResponse(request, env, url, deps = {}) {
     (plan.pro ? "" : '<p class="at-made"><a href="/launch">Made with remmynd. Make your own launch page</a></p>') + '</div>';
   if (!slug) {
     const next = launches.find(l => phaseOf(l, now) !== "ended");
-    return page(env, url, { title: who + " · remmynd", canonical: url.origin + "/@" + host.handle,
+    return page(env, url, { title: who + " · remmynd", canonical: url.origin + "/@" + host.handle, image: ogImageURL(url.origin, "/@" + host.handle, now),
       description: host.bio || (next ? "Next: " + next.title + ", " + whenText(next.start, next.tz, now) + ". Tap Remind me so you don't miss it." : "Launches by " + who + " on remmynd."),
       html: dress(hostHTML(host, launches, url.origin, now, store.followCount ? await store.followCount(host.user_id) : 0)) });
   }
@@ -412,7 +440,7 @@ export async function hostPageResponse(request, env, url, deps = {}) {
   const v = launchView(host, l, url.origin);
   const n = l.count ? await readCount(env, v.payload, { now, store: deps.counts }) : 0;
   const ph = phaseOf(l, now);
-  return page(env, url, { title: l.title + " by " + who, canonical: v.url,
+  return page(env, url, { title: l.title + " by " + who, canonical: v.url, image: ogImageURL(url.origin, "/@" + host.handle + "/" + l.slug, now),
     description: (ph === "live" ? "Live now. " : ph === "ended" ? "This launch has happened. " : "") + whenText(l.start, l.tz, now) + "." + (ph === "before" ? " Tap Remind me so you don't miss it." : ""),
     html: dress(launchHTML(host, l, v, now, { n, followers: store.followCount ? await store.followCount(host.user_id) : 0 })) });
 }

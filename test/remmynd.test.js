@@ -528,7 +528,9 @@ test("worker: /r/ links get escaped preview tags and are never cached", async ()
     assert.ok(html.includes('<meta name="twitter:title" content="Demo day">'));
     assert.ok(html.includes('<meta name="twitter:description" content="Fri 13 Nov, 5:00 PM IST · Tap to get reminded">'));
     assert.ok(html.includes('<meta property="og:url" content="https://remmynd.space' + path + '">'));
-    assert.ok(html.includes('<meta property="og:image" content="https://remmynd.space/og.png">'), "the image stays the static og.png");
+    assert.match(html, new RegExp('<meta property="og:image" content="https://remmynd.space/og' + path + '\\.png\\?v=[0-9a-z]+">'), "the image is this reminder's live picture");
+    assert.equal(count(html, /property="og:image"/g), 1, "the shell's static picture is replaced, not doubled");
+    assert.equal(count(html, /name="twitter:image"/g), 1);
     assert.equal(count(html, /property="og:title"/g), 1);
     assert.equal(count(html, /<title>/g), 1);
     assert.equal(count(html, /rel="canonical"/g), 0);
@@ -5337,4 +5339,108 @@ test("dares: take it, prove it with a photo before the time runs out, and the da
   await D.runDrops({}, by + 31 * 864e5, { ...deps(), now: by + 31 * 864e5 });
   assert.equal(m.dares.size, 0);
   assert.equal(m.objects.size, 0);
+});
+
+test("link previews: each shared page gets a live picture, drawn here as a PNG, showing only what the page shows", async () => {
+  const O = await import("../worker/ogimage.js"), G = await import("../worker/og.js");
+  const { inflateSync } = await import("node:zlib");
+  const base = "https://remmynd.space";
+
+  // The PNG itself: the signature, a 1200 × 630 RGB header, chunks whose checksums add up, and pixels that unpack.
+  const readPNG = bytes => {
+    const b = Buffer.from(bytes);
+    assert.deepEqual([...b.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    const chunks = {};
+    for (let at = 8; at < b.length;) {
+      const len = b.readUInt32BE(at), type = b.toString("latin1", at + 4, at + 8), body = b.subarray(at + 8, at + 8 + len);
+      const crc = (() => { let c = 0xFFFFFFFF; for (const x of b.subarray(at + 4, at + 8 + len)) { c ^= x; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; } return (c ^ 0xFFFFFFFF) >>> 0; })();
+      assert.equal(b.readUInt32BE(at + 8 + len), crc, type + " checksum");
+      chunks[type] = body; at += 12 + len;
+    }
+    assert.equal(chunks.IHDR.readUInt32BE(0), 1200); assert.equal(chunks.IHDR.readUInt32BE(4), 630);
+    assert.equal(chunks.IHDR[8], 8); assert.equal(chunks.IHDR[9], 2);
+    const raw = inflateSync(chunks.IDAT), row = 1200 * 3, px = Buffer.alloc(row * 630);
+    for (let y = 0; y < 630; y++) for (let i = 0; i < row; i++) px[y * row + i] = (raw[y * (row + 1) + 1 + i] + (y ? px[(y - 1) * row + i] : 0)) & 255;
+    return (x, y) => [...px.subarray((y * 1200 + x) * 3, (y * 1200 + x) * 3 + 3)];
+  };
+  const at = readPNG(await O.cardPNG({ theme: "dark", eye: "Dare", title: "50 push-ups 💪 café", line: "Prove it", big: "2h left", stats: [{ n: 3, label: "took it" }] }));
+  assert.deepEqual(at(5, 5), O.THEMES.dark.bg, "the corner is the background");
+  let inked = 0;
+  for (let x = 72; x < 900; x++) if (at(x, 280).join() !== O.THEMES.dark.bg.join()) inked++;
+  assert.ok(inked > 50, "the title is drawn");
+  assert.ok(readPNG(await O.cardPNG({ theme: "light", title: "x".repeat(400) })), "a long title is cut, not drawn off the edge");
+
+  // Words for time, and the five-minute address that makes a newly sent link fetch a fresh picture.
+  assert.equal(O.inText(30e3), "in 1 min");
+  assert.equal(O.inText(134 * 60e3), "in 2h 14m");
+  assert.equal(O.inText(180 * 60e3), "in 3h");
+  assert.equal(O.inText(5 * 864e5), "in 5 days");
+  assert.equal(O.leftText(134 * 60e3), "2h 14m left");
+  const t0 = Date.parse("2026-11-27T10:00:00Z");
+  assert.equal(O.ogImageURL(base, "/x/abc", t0), O.ogImageURL(base, "/x/abc", t0 + 60e3), "the same within five minutes");
+  assert.notEqual(O.ogImageURL(base, "/x/abc", t0), O.ogImageURL(base, "/x/abc", t0 + 300e3), "new after five");
+  assert.ok(!O.ogImageTags('"><script>', "<b>", s => s.replace(/[<>"]/g, "")).includes("<script"), "escaped");
+
+  // A reminder link: its state, from the link alone.
+  const start = new Date(t0 + 134 * 60e3), p = R.encode({ title: "Gym", start, durationMinutes: 60, timeZone: "Europe/London" });
+  let card = await G.cardFor({}, "/r/" + p, { now: t0 });
+  assert.equal(card.title, "Gym"); assert.equal(card.big, "in 2h 14m"); assert.equal(card.eye, "Reminder");
+  assert.equal((await G.cardFor({}, "/r/" + p, { now: t0 + 140 * 60e3 })).big, "Live now");
+  assert.equal((await G.cardFor({}, "/r/" + p, { now: t0 + 999 * 60e3 })).tone, "quiet");
+  assert.equal(await G.cardFor({}, "/r/not-a-link", { now: t0 }), null);
+
+  // The route: a PNG kept five minutes; anything unknown gets the plain picture, so a preview always has one.
+  const get = path => G.ogResponse(new Request(base + path), {}, new URL(base + path), null, { now: t0, cache: null });
+  let res = await get("/og/r/" + p + ".png?v=1");
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "image/png");
+  assert.equal(res.headers.get("cache-control"), "public, max-age=300");
+  readPNG(new Uint8Array(await res.arrayBuffer()));
+  for (const bad of ["/og/r/zz.png", "/og/x/nope.png", "/og/nothing.png", "/og/r/" + p + ".gif", "/og/d/aaaaaaaaaa.png"]) {
+    res = await get(bad);
+    assert.equal(res.status, 302, bad); assert.equal(res.headers.get("location"), base + "/og.png", bad);
+  }
+  assert.equal((await G.ogResponse(new Request(base + "/og/r/" + p + ".png", { method: "POST" }), {}, new URL(base + "/og/r/" + p + ".png"), null, { cache: null })).status, 405);
+  const worker = (await import("../worker/index.js")).default;
+  assert.equal((await worker.fetch(new Request(base + "/og/nothing.png"), {}, { waitUntil() {} })).status, 302, "the Worker routes /og/");
+
+  // A challenge, a drop and a dare: counts and times only. A drop never shows what's inside.
+  const accounts = memoryStore(), ch = memoryChallenges(), dr = memoryDrops();
+  let now = Date.parse("2026-11-19T02:00:00Z");
+  const sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now);
+  const post = async (fn, path, body, deps) => {
+    const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base, cookie: sam }, body: JSON.stringify(body) });
+    return (await fn(req, {}, new URL(req.url), { accounts, now, ...deps })).json();
+  };
+  const X = await import("../worker/challenges.js"), D = await import("../worker/drops.js");
+  const code = (await post(X.handleChallenge, "/api/challenge/new", { title: "7am club", days: 21, deadline: "07:00", tz: "America/New_York", name: "Sam" }, { store: ch })).code;
+  card = await G.cardFor({}, "/x/" + code, { store: ch, now });
+  assert.equal(card.title, "7am club"); assert.equal(card.theme, "dark");
+  assert.deepEqual(card.stats.map(s => s.label), ["started", "still in", "days"]);
+  assert.equal(card.stats[0].n, 1);
+  assert.ok(!JSON.stringify(card).includes("Sam"), "no names");
+  const page = await (await X.challengePage(new Request(base + "/x/" + code), {}, new URL(base + "/x/" + code), { store: ch, now })).text();
+  assert.match(page, new RegExp('<meta property="og:image" content="' + base + "/og/x/" + code + '\\.png\\?v=[0-9a-z]+">'));
+
+  const raw = crypto.getRandomValues(new Uint8Array(60)), meta = Buffer.from(raw).toString("base64url");
+  const drop = await post(D.handleDrop, "/api/drop/new", { opens: now + 3 * 3600e3, meta, name: "Sam" }, { store: dr.store, files: dr.files, tell: async () => 0 });
+  card = await G.cardFor({}, "/d/" + drop.id, { store: dr.store, now });
+  assert.equal(card.title, "A drop from Sam"); assert.equal(card.big, "Opens in 3h");
+  assert.ok(!JSON.stringify(card).includes(meta.slice(0, 20)), "nothing of the scrambled message");
+  assert.equal((await G.cardFor({}, "/d/" + drop.id, { store: dr.store, now: now + 4 * 3600e3 })).big, "It's open");
+  assert.match(await (await D.dropPage(new Request(base + "/d/" + drop.id), {}, new URL(base + "/d/" + drop.id), { store: dr.store, now })).text(), /og\/d\/[a-z0-9]{10}\.png\?v=/);
+
+  const dare = await post(D.handleDare, "/api/dare/new", { what: "50 push-ups", by: now + 134 * 60e3, name: "Sam" }, { store: dr.store, files: dr.files, tell: async () => 0 });
+  card = await G.cardFor({}, "/dare/" + dare.code, { store: dr.store, now });
+  assert.equal(card.eye, "Sam dares you"); assert.equal(card.title, "50 push-ups"); assert.equal(card.big, "2h 14m left");
+  assert.deepEqual(card.stats, [{ n: 0, label: "took it" }, { n: 0, label: "did it" }]);
+  assert.equal((await G.cardFor({}, "/dare/" + dare.code, { store: dr.store, now: now + 200 * 60e3 })).big, "Time's up");
+  assert.match(await (await D.darePage(new Request(base + "/dare/" + dare.code), {}, new URL(base + "/dare/" + dare.code), { store: dr.store, now })).text(), /og\/dare\/[a-z0-9]{10}\.png\?v=/);
+
+  // Host pages: the template's static picture is swapped for the page's own.
+  const H = await import("../worker/hosts.js"), tpl = readFileSync(new URL("../public/at/index.html", import.meta.url), "utf8");
+  const filled = H.fillPage(tpl, { title: "Launch by Sam", description: "d", canonical: base + "/@sam/x", html: "", image: base + "/og/@sam/x.png?v=1" });
+  assert.ok(filled.includes('<meta property="og:image" content="' + base + '/og/@sam/x.png?v=1">'));
+  assert.ok(filled.includes('<meta name="twitter:image" content="' + base + '/og/@sam/x.png?v=1">'));
+  assert.ok(!filled.includes("/og.png"));
 });
