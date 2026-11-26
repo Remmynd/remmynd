@@ -104,7 +104,7 @@ export function dropStore(db) {
 }
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-const rid = () => { const a = crypto.getRandomValues(new Uint8Array(10)), abc = "abcdefghjkmnpqrstuvwxyz23456789"; return [...a].map(x => abc[x % abc.length]).join(""); };
+const rid = () => { const a = crypto.getRandomValues(new Uint8Array(10)), abc = "abcdefghjkmnpqrstuvwxyz023456789"; return [...a].map(x => abc[x & 31]).join(""); };
 const line = (v, n) => String(v || "").replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, n);
 async function readBody(request) { try { const b = JSON.parse((await request.text()).slice(0, 10000)); return b && typeof b === "object" ? b : {}; } catch { return {}; } }
 const bytesOut = obj => new Response(obj.body, { headers: { "content-type": "application/octet-stream", "cache-control": "no-store", "x-content-type-options": "nosniff",
