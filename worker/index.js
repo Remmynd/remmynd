@@ -23,6 +23,11 @@ import { handleDrop, handleDare, dropPage, darePage, runDrops } from "./drops.js
 import { adminResponse } from "./numbers.js";
 import { ogResponse } from "./og.js";
 
+// Friends and groups (remmynd Pro) run in their own Worker, bound here as PEOPLE; it asks this one who is
+// signed in, about Pro, and to push, through the internal entrypoint (worker/internal.js).
+export { Internal } from "./internal.js";
+const toPeople = (env, url) => !!env.PEOPLE && (url.pathname.startsWith("/api/people/") || url.pathname.startsWith("/f/"));
+
 const PRESETS = new Set(["example"]);
 
 export default {
@@ -48,6 +53,10 @@ export default {
     if (url.pathname === "/api/pro" || url.pathname.startsWith("/api/pro/")) return handlePro(request, env, url);
     // Deleting an account ends its website purchase first, so nothing is billed for an account that's gone.
     if (url.pathname === "/api/account/delete" && request.method === "POST") await proBeforeDelete(request, env, url).catch(() => {});
+    // ...and forgets their friends and groups, while the session still says who they are.
+    if (url.pathname === "/api/account/delete" && request.method === "POST" && env.PEOPLE)
+      await env.PEOPLE.fetch(new Request(url.origin + "/api/people/me/delete", { method: "POST", headers: { cookie: request.headers.get("cookie") || "", origin: url.origin } })).catch(() => {});
+    if (toPeople(env, url)) return env.PEOPLE.fetch(request);
     if (url.pathname.startsWith("/cal/")) return calendarResponse(request, env, url);
     // Host pages: the API, and the public pages at /@handle and /@handle/<slug>. The bare template isn't a page.
     if (url.pathname === "/api/host" || url.pathname.startsWith("/api/host/")) return handleHost(request, env, url);
