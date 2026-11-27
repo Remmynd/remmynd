@@ -2569,7 +2569,7 @@ test("sleep-safe: the 9 AM alert reads as already started", async () => {
 
 /* ---------- step 8: the website ---------- */
 
-const PAGES = ["why", "hosts", "launch", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog", "host"];
+const PAGES = ["why", "hosts", "launch", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog", "host", "pro"];
 const pageFile = p => p === "404" ? "public/404.html" : "public/" + p + "/index.html";
 const readPage = p => readFileSync(join(root, pageFile(p)), "utf8");
 const squash = s => s.replace(/\s+/g, " ").replace(/> </g, "><").trim();
@@ -4864,7 +4864,7 @@ test("Pro for hosts, launch day: alerts in your words, the day before and last c
 test("Your page inside the iPhone app: Get Pro opens Apple's sheet, never the website's checkout or its offer", () => {
   const host = readFileSync(join(root, "public/host.js"), "utf8");
   assert.ok(host.includes('if (IN_APP) { try { window.webkit.messageHandlers.remmynd.postMessage({ type: "pro" }); return; } catch (e) {} }'), "the app's own purchase sheet");
-  assert.ok(host.includes("(p.discount && !IN_APP ?"), "the website's discount isn't shown in the app, which keeps Apple's price");
+  assert.ok(host.includes("(p.early && !IN_APP ?") && host.includes("p.discount && !IN_APP ?"), "the website's early bird and discount aren't shown in the app, which keeps Apple's price");
   assert.ok(/Get Pro in the app\\?'s Settings tab\./.test(readFileSync(join(root, "public/account.js"), "utf8")), "the account sheet in the app has no checkout either");
 });
 
@@ -5494,4 +5494,60 @@ test("friends and groups: the private Worker is reached by a forward and asks th
   // The privacy page says what's kept.
   const privacy = readFileSync(new URL("../public/privacy/index.html", import.meta.url), "utf8");
   assert.ok(privacy.includes('id="people"'));
+});
+
+test("Pro early bird: 50% off the first year or first 3 months for everyone on the website, until it ends by itself", async () => {
+  const P = await import("../worker/pro.js"), H = await import("../worker/hosts.js");
+  const store = memoryStore(), base = "https://remmynd.space", day = 864e5;
+  const until = "2026-12-08T07:59:59Z", end = Date.parse(until);
+  let now = Date.parse("2026-11-27T18:00:00Z");
+  const sam = proAccount(store, "user-sam-0001", "sam@example.com", now);
+  const env = { PRO_ON: "1", POLAR_ACCESS_TOKEN: "t", POLAR_PRODUCT_MONTHLY: "prod-m", POLAR_PRODUCT_YEARLY: "prod-y", POLAR_DISCOUNT_FIRST: "disc-first",
+    EARLY_UNTIL: until, POLAR_DISCOUNT_EARLY_YEARLY: "disc-ey", POLAR_DISCOUNT_EARLY_MONTHLY: "disc-em" };
+
+  // The offer: half of each price, until the end, and only with both discounts and Polar set.
+  assert.deepEqual(P.earlyBird(env, now), { percent: 50, until: end, months: 3, yearly: "$39.99", monthly: "$4.99" });
+  assert.equal(P.earlyBird(env, end), null, "over at its end");
+  assert.equal(P.earlyBird({ ...env, POLAR_DISCOUNT_EARLY_MONTHLY: "" }, now), null);
+  assert.equal(P.earlyBird({ ...env, EARLY_UNTIL: "" }, now), null);
+  assert.equal(P.earlyBird({ ...env, EARLY_UNTIL: "soon" }, now), null);
+  assert.equal(P.earlyBird({ ...env, POLAR_ACCESS_TOKEN: "" }, now), null, "not without Polar");
+
+  // /api/pro says so, to anyone once Pro is on offer, and the first-month offer steps aside while it runs.
+  const get = async (e = env, cookie = sam, at = now) => (await P.handlePro(new Request(base + "/api/pro", { headers: cookie ? { cookie } : {} }), e, new URL(base + "/api/pro"), { store, now: at })).json();
+  let s = await get();
+  assert.equal(s.early.yearly, "$39.99");
+  assert.equal(s.discount, null);
+  assert.equal((await get(env, "")).early.until, end, "signed out too");
+  assert.equal((await get({ ...env, PRO_ON: "" })).early, null, "not before Pro is on offer");
+  assert.equal((await get(env, sam, end + 1)).early, null, "gone after the end");
+
+  // The checkout carries the right discount for each plan, and nothing after the end.
+  const asks = [];
+  const fetchFn = async (u, init) => { asks.push(JSON.parse(init.body)); return new Response(JSON.stringify({ url: "https://polar.sh/checkout/x" }), { status: 201, headers: { "content-type": "application/json" } }); };
+  const checkout = async (plan, at = now) => { const req = new Request(base + "/api/pro/checkout", { method: "POST", headers: { "content-type": "application/json", origin: base, cookie: sam }, body: JSON.stringify({ plan }) }); return (await P.handlePro(req, env, new URL(req.url), { store, now: at, fetchFn })).status; };
+  assert.equal(await checkout("yearly"), 200);
+  assert.equal(await checkout("monthly"), 200);
+  assert.equal(await checkout("yearly", end + 1), 200);
+  assert.deepEqual(asks.map(a => a.discount_id), ["disc-ey", "disc-em", undefined]);
+  assert.ok(asks.every(a => a.allow_trial === true), "the 7-day trial stays; the discount starts when it ends");
+
+  // Your page shows the early bird to a free host.
+  await H.handleHost(new Request(base + "/api/host", { method: "POST", headers: { "content-type": "application/json", origin: base, cookie: sam }, body: JSON.stringify({ handle: "sam", name: "Sam" }) }), env, new URL(base + "/api/host"), { store, now });
+  const host = await (await H.handleHost(new Request(base + "/api/host", { headers: { cookie: sam } }), env, new URL(base + "/api/host"), { store, now })).json();
+  assert.equal(host.plan.early.percent, 50);
+  assert.equal(host.plan.discount, null);
+
+  // The live settings: the end of Monday 7 December in US Pacific, and both discount ids.
+  const toml = readFileSync(join(root, "wrangler.toml"), "utf8");
+  assert.match(toml, /^EARLY_UNTIL = "2026-12-08T07:59:59Z"$/m);
+  assert.match(toml, /^POLAR_DISCOUNT_EARLY_YEARLY = "[0-9a-f-]{36}"$/m);
+  assert.match(toml, /^POLAR_DISCOUNT_EARLY_MONTHLY = "[0-9a-f-]{36}"$/m);
+
+  // The Pro page: the plans, the early bird line, and Get Pro, filled in by its script.
+  const page = readFileSync(join(root, "public/pro/index.html"), "utf8"), js = readFileSync(join(root, "public/pro-page.js"), "utf8");
+  for (const id of ["pro-early", "pro-left", "pro-y", "pro-m", "pro-y-was", "pro-m-was", "pro-get", "pro-trial"]) assert.ok(page.includes('id="' + id + '"'), id);
+  assert.ok(page.includes('<script type="module" src="/pro-page.js"></script>'));
+  assert.ok(js.includes('fetch("/api/pro"') && js.includes('import("/account.js")'));
+  assert.ok(!/free/i.test(page.replace(/<footer[\s\S]*<\/footer>/, "").replace(/<head>[\s\S]*<\/head>/, "")), "the page's own words never say free");
 });

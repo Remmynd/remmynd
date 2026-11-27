@@ -28,6 +28,8 @@
 //   POLAR_PRODUCT_MONTHLY, POLAR_PRODUCT_YEARLY   the two products' ids.
 //   POLAR_SANDBOX = "1"     talk to Polar's sandbox.
 //   POLAR_DISCOUNT_FIRST    a Polar discount id (50% off once, monthly plan) for the first-month offer; no offer without it
+//   EARLY_UNTIL, POLAR_DISCOUNT_EARLY_YEARLY, POLAR_DISCOUNT_EARLY_MONTHLY   the early bird: until that moment (ISO time),
+//                           50% off the first year (yearly) or the first 3 months (monthly) for everyone on the website
 // Local dev servers only: POLAR_API (a stand-in for Polar) and STOREKIT_TEST = "1" (Xcode's test purchases).
 import { signedIn, d1Store } from "./account.js";
 import { verifySigned } from "./apple.js";
@@ -109,10 +111,25 @@ export async function firstMonthOffer(env, store, user, now = Date.now()) {
   return why ? { percent: 50, plan: "monthly", why } : null;
 }
 
+/**
+ * The early bird, for everyone buying on the website until EARLY_UNTIL: 50% off the first year on the yearly plan, or
+ * the first 3 months on the monthly plan (two Polar discounts, which also end on their own a little after). It ends
+ * by itself, takes the place of the first-month offer while it runs, and the app keeps Apple's normal price.
+ */
+export const EARLY = { percent: 50, months: 3 };
+// What's left after 50% off, the way a checkout counts it: the discount is rounded to the cent, then taken off.
+const half = price => { const c = Math.round(Number(price.slice(1)) * 100); return "$" + ((c - Math.round(c / 2)) / 100).toFixed(2); };
+export function earlyBird(env, now = Date.now()) {
+  const until = Date.parse(env.EARLY_UNTIL || "");
+  if (!(until > now) || !env.POLAR_DISCOUNT_EARLY_YEARLY || !env.POLAR_DISCOUNT_EARLY_MONTHLY || !polarOn(env)) return null;
+  return { percent: EARLY.percent, until, months: EARLY.months, yearly: half(PLANS.yearly.price), monthly: half(PLANS.monthly.price) };
+}
+
 async function summary(store, env, user, now) {
   const rows = user ? await store.proOf(user.id) : [];
   return {
-    signedIn: !!user, ...proStatus(rows, now), offer: onOffer(env, user), web: polarOn(env), discount: await firstMonthOffer(env, store, user, now),
+    signedIn: !!user, ...proStatus(rows, now), offer: onOffer(env, user), web: polarOn(env),
+    early: onOffer(env, user) ? earlyBird(env, now) : null, discount: earlyBird(env, now) ? null : await firstMonthOffer(env, store, user, now),
     // The free trial is for an account's first purchase.
     trialOpen: rows.length === 0, trialDays: TRIAL_DAYS,
     plans: Object.fromEntries(Object.entries(PLANS).map(([k, v]) => [k, { ...v }])),
@@ -202,7 +219,8 @@ async function checkout(store, env, user, body, url, opts) {
   const plan = body.plan === "yearly" ? "yearly" : "monthly";
   const ask = { products: [plan === "yearly" ? env.POLAR_PRODUCT_YEARLY : env.POLAR_PRODUCT_MONTHLY], external_customer_id: user.id, customer_email: user.email,
     allow_trial: rows.length === 0, success_url: url.origin + "/?pro=done", metadata: { account: user.id } };
-  if (plan === "monthly" && await firstMonthOffer(env, store, user, opts.now)) ask.discount_id = env.POLAR_DISCOUNT_FIRST;
+  if (earlyBird(env, opts.now)) ask.discount_id = plan === "yearly" ? env.POLAR_DISCOUNT_EARLY_YEARLY : env.POLAR_DISCOUNT_EARLY_MONTHLY;
+  else if (plan === "monthly" && await firstMonthOffer(env, store, user, opts.now)) ask.discount_id = env.POLAR_DISCOUNT_FIRST;
   let r = await polar(env, "/v1/checkouts/", { ...opts, method: "POST", body: ask });
   // An email Polar already knows under another customer: the account's id alone still ties the purchase to it.
   if (r.status === 422) { delete ask.customer_email; r = await polar(env, "/v1/checkouts/", { ...opts, method: "POST", body: ask }); }

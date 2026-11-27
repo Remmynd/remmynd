@@ -116,9 +116,12 @@ function proBlock() {
   }
   if (IN_APP) return head + '<p class="ac-none">Get Pro in the app\'s Settings tab. Paid already? It shows here once you\'re signed in.</p><div class="ac-row"><button type="button" class="btn small" data-pro="restore">Restore</button></div>';
   if (!p.web) return "";
-  const trial = p.trialOpen ? p.trialDays + " days free, then " : "";
-  return head + '<p class="ac-none">For people who run launches. ' + esc(trial ? trial.charAt(0).toUpperCase() + trial.slice(1) : "") + esc(p.plans.monthly.price + " a month or " + p.plans.yearly.price + " a year") + '. Cancel any time.</p>' +
-    '<div class="ac-row"><button type="button" class="btn ink" data-pro="yearly">Yearly · ' + esc(p.plans.yearly.price) + '</button><button type="button" class="btn" data-pro="monthly">Monthly · ' + esc(p.plans.monthly.price) + '</button></div>' +
+  const trial = p.trialOpen ? p.trialDays + " days free, then " : "", e = p.early;
+  // The early bird (worker/pro.js earlyBird): half price to start, until its end.
+  const price = e ? '<b>Early bird, 50% off until ' + esc(day(e.until)) + '.</b> ' + esc(e.yearly + " for your first year or " + e.monthly + " a month for " + e.months + " months, then " + p.plans.yearly.price + " a year or " + p.plans.monthly.price + " a month." + (p.trialOpen ? " The first " + p.trialDays + " days cost nothing." : ""))
+    : esc((trial ? trial.charAt(0).toUpperCase() + trial.slice(1) : "") + p.plans.monthly.price + " a month or " + p.plans.yearly.price + " a year.");
+  return head + '<p class="ac-none">For people who run launches. ' + price + ' Cancel any time.</p>' +
+    '<div class="ac-row"><button type="button" class="btn ink" data-pro="yearly">Yearly · ' + esc(e ? e.yearly : p.plans.yearly.price) + '</button><button type="button" class="btn" data-pro="monthly">Monthly · ' + esc(e ? e.monthly : p.plans.monthly.price) + '</button></div>' +
     '<p class="ac-fine">Paid already, here or in the iPhone app? <button type="button" class="ac-link" data-pro="restore">Restore it</button>. Payment is handled by Polar.</p>';
 }
 async function proAct(what, button) {
