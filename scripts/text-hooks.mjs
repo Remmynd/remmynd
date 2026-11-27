@@ -8,3 +8,9 @@ export async function load(url, context, next) {
   }
   return next(url, context);
 }
+
+// The Workers runtime's own module, for the classes the Worker extends. Under Node it's a stand-in that keeps env and ctx.
+export async function resolve(specifier, context, next) {
+  if (specifier === "cloudflare:workers") return { url: "data:text/javascript,export class WorkerEntrypoint { constructor(ctx, env) { this.ctx = ctx; this.env = env; } }", shortCircuit: true };
+  return next(specifier, context);
+}
