@@ -70,6 +70,11 @@ namespace_id = "1001"
   period = 60
 
 [vars]
+# The early bird (worker/pro.js earlyBird): 50% off on the website until this moment (end of Mon 7 Dec, US Pacific).
+# The two ids are Polar discounts with no code, so only this server's checkout can apply them.
+EARLY_UNTIL = "2026-12-08T07:59:59Z"
+POLAR_DISCOUNT_EARLY_YEARLY = "d401f496-eff0-43d2-a092-ad187e371e3c"
+POLAR_DISCOUNT_EARLY_MONTHLY = "404bdebb-caf8-40e8-8845-fd9927b35b0a"
 VAPID_PUBLIC_KEY = "BL1wKLc-1cGG7qJ-NS6KxwImTFfFVmp1YppjL7mdyXNjfHOTdjx9ThEfUb1aDx_3E8ACyw2yJ_gL3txgDQeQ3wg"
 VAPID_SUBJECT = "mailto:connect@zoof04.com"
 # --- end push ---

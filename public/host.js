@@ -27,7 +27,7 @@ function planCard() {
       p.colors.map(k => '<button type="button" class="sw-' + k + '" data-color="' + k + '" aria-pressed="' + (c === k) + '" aria-label="' + k + '"></button>').join("") + '</div></div>';
   }
   return '<div class="hp-card"><div class="hp-plan"><div><span class="hp-badge">Free</span><ul><li>' + p.free.live + ' live launch at a time</li><li>No changes once someone saved it</li><li>Your first ' + p.free.reach + ' followers told each launch</li><li>Standard alerts, and the saved count</li></ul></div>' +
-    '<div class="hp-get">' + (p.discount && !IN_APP ? '<span class="hp-deal">50% off your first month</span>' : '') + '<button type="button" class="btn ink" data-upgrade>Get Pro</button></div></div></div>';
+    '<div class="hp-get">' + (p.early && !IN_APP ? '<span class="hp-deal">Early bird: 50% off</span>' : p.discount && !IN_APP ? '<span class="hp-deal">50% off your first month</span>' : '') + '<button type="button" class="btn ink" data-upgrade>Get Pro</button></div></div></div>';
 }
 
 async function api(path, body) {
