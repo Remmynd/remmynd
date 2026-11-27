@@ -21,6 +21,7 @@ import { handleApple } from "./apns.js";
 import { handleChallenge, challengePage, cleanChallenges } from "./challenges.js";
 import { handleDrop, handleDare, dropPage, darePage, runDrops } from "./drops.js";
 import { adminResponse } from "./numbers.js";
+import { ogResponse } from "./og.js";
 
 const PRESETS = new Set(["example"]);
 
@@ -81,6 +82,9 @@ export default {
 
     // The reminder card other sites show in an iframe. Never stored, logged or cached.
     if (url.pathname.startsWith("/embed/")) return embedResponse(request, env, url);
+
+    // Link-preview pictures: the live card a chat app shows for a shared page (worker/og.js).
+    if (url.pathname.startsWith("/og/")) return ogResponse(request, env, url, ctx);
 
     // The live badge: a picture that counts down, for READMEs, forums and pages. Never stored or logged.
     if (url.pathname.startsWith("/b/")) return badgeResponse(request, env, url);

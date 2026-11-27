@@ -7,6 +7,7 @@
 //                   at carries Z or an offset) it redirects to the /r/ link. Otherwise it serves the
 //                   shell and the page reads the time in the visitor's zone.
 import { decode, fromQuery, toPath, describeWhen } from "../lib/remmynd.js";
+import { ogImageURL, ogImageTags, inText } from "./ogimage.js";
 
 const MAX_PAYLOAD = 2000;
 const NO_STORE = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" };
@@ -20,8 +21,8 @@ export function readShared(pathname) {
   return decode(p);
 }
 
-/** The preview tags for a reminder, every value escaped. */
-export function previewTags(reminder, url) {
+/** The preview tags for a reminder, every value escaped. `image` is its live picture (worker/og.js). */
+export function previewTags(reminder, url, image) {
   const title = escapeHTML(reminder.title);
   const desc = escapeHTML(describeWhen(reminder.start, reminder.timeZone) + " · Tap to get reminded");
   return [
@@ -32,13 +33,24 @@ export function previewTags(reminder, url) {
     `<meta property="og:url" content="${escapeHTML(url)}">`,
     `<meta name="twitter:title" content="${title}">`,
     `<meta name="twitter:description" content="${desc}">`,
-    `<meta name="robots" content="noindex">`
-  ].join("\n");
+    `<meta name="robots" content="noindex">`,
+    image ? ogImageTags(image, reminder.title + ", " + describeWhen(reminder.start, reminder.timeZone), escapeHTML) : ""
+  ].filter(Boolean).join("\n");
 }
 
-// The tags previewTags() replaces. og:image and the rest of the head stay as they are.
+// The tags previewTags() replaces. The rest of the head stays as it is.
 const REPLACED = ["title", 'meta[name="description"]', 'meta[property="og:title"]', 'meta[property="og:description"]',
-  'meta[property="og:url"]', 'meta[name="twitter:title"]', 'meta[name="twitter:description"]', 'link[rel="canonical"]'];
+  'meta[property="og:url"]', 'meta[name="twitter:title"]', 'meta[name="twitter:description"]', 'link[rel="canonical"]',
+  'meta[property="og:image"]', 'meta[property="og:image:width"]', 'meta[property="og:image:height"]', 'meta[property="og:image:alt"]',
+  'meta[name="twitter:card"]', 'meta[name="twitter:image"]'];
+
+/** The card for a reminder's live picture: what it is, when, and how long until it starts. */
+export function reminderCard(r, now, count = 0) {
+  const start = r.start.getTime(), end = start + (r.durationMinutes || 0) * 60000;
+  const big = now >= end ? "Ended" : now >= start ? "Live now" : inText(start - now);
+  return { theme: "light", eye: r.host ? "Reminder from " + r.host : "Reminder", title: r.title, line: describeWhen(r.start, r.timeZone),
+    big, tone: now >= end ? "quiet" : now >= start ? "live" : "", stats: count >= 10 ? [{ n: count, label: "in" }] : [] };
+}
 
 async function shell(env, url) {
   return env.ASSETS.fetch(new Request(new URL("/", url)));
@@ -64,7 +76,8 @@ export async function sharedResponse(request, env, url) {
   const reminder = readShared(url.pathname);
   // A bad payload gets the plain shell; the page shows the maker.
   if (!reminder || !page.ok) return noStore(page);
-  const tags = previewTags(reminder, url.origin + url.pathname);
+  const path = url.pathname.replace(/\/+$/, "");
+  const tags = previewTags(reminder, url.origin + url.pathname, ogImageURL(url.origin, path));
   let rewriter = new HTMLRewriter();
   for (const selector of REPLACED) rewriter = rewriter.on(selector, { element(el) { el.remove(); } });
   rewriter = rewriter.on("head", { element(el) { el.append(tags, { html: true }); } });

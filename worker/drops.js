@@ -28,6 +28,7 @@
 // Everything is deleted 30 days after a drop opens or a dare closes. Files live in the private CHAT_FILES bucket under
 // drops/ and dares/.
 
+import { ogImageURL, ogImageTags, inText, leftText } from "./ogimage.js";
 import { signedIn, d1Store } from "./account.js";
 import { tellAccounts } from "./apns.js";
 import { tally } from "./numbers.js";
@@ -283,8 +284,8 @@ export async function handleDare(request, env, url, deps = {}) {
   return json({ error: "Not found." }, 404);
 }
 
-const page = (title, body, nonce) => new Response('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(title) + '</title>' +
-  '<meta property="og:title" content="' + esc(title) + '"><meta name="robots" content="noindex"><style>body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0B0B0B;color:#fff;padding:40px 16px}' +
+const page = (title, body, nonce, head = "") => new Response('<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(title) + '</title>' +
+  '<meta property="og:title" content="' + esc(title) + '"><meta name="robots" content="noindex">' + head + '<style>body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0B0B0B;color:#fff;padding:40px 16px}' +
   '.w{max-width:480px;margin:0 auto}.eye{color:#FFB52E;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:13px}h1{font-size:40px;line-height:1.08;margin:8px 0 12px}' +
   '.big{font-size:56px;font-weight:800;font-variant-numeric:tabular-nums;color:#FFB52E;margin:24px 0}.nums{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:24px 0}' +
   '.nums div{background:#1a1a1a;border-radius:16px;padding:16px}.nums b{display:block;font-size:30px;color:#FFB52E}.nums span{color:#aaa;font-size:14px}' +
@@ -294,6 +295,31 @@ const page = (title, body, nonce) => new Response('<!doctype html><html lang="en
   { status: 200, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-robots-tag": "noindex",
     "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; connect-src 'self'; img-src blob:; media-src blob:" + (nonce ? "; script-src 'nonce-" + nonce + "'" : "") } });
 const missing = (what) => { const r = page("Not found · remmynd", "<h1>There's no " + what + " here</h1><p>The link may be wrong, or it ended more than 30 days ago.</p>"); return new Response(r.body, { status: 404, headers: r.headers }); };
+
+/** The card for a drop's live picture (worker/og.js): who it's from and when it opens, never what's inside. */
+export async function dropCard(env, id, deps = {}) {
+  if (!ID.test(id) || (!env.DB && !deps.store)) return null;
+  const store = deps.store || dropStore(env.DB), now = deps.now || Date.now();
+  await store.ready();
+  const d = await store.drop(id);
+  if (!d) return null;
+  const open = d.opens <= now;
+  return { theme: "dark", eye: "Drop", title: "A drop from " + d.name, line: "Only people with this exact link can open it",
+    big: open ? "It's open" : "Opens " + inText(d.opens - now), stats: [] };
+}
+
+/** The card for a dare's live picture: the dare, the time left, how many took it and did it. No names of takers, no photos. */
+export async function dareCard(env, cd, deps = {}) {
+  if (!ID.test(cd) || (!env.DB && !deps.store)) return null;
+  const store = deps.store || dropStore(env.DB), now = deps.now || Date.now();
+  await store.ready();
+  const d = await store.dare(cd);
+  if (!d) return null;
+  const v = dareView(d, await store.takers(cd), null, now);
+  return { theme: "dark", eye: d.name + " dares you", title: d.what, line: v.closed ? "Time's up" : "Prove it with a photo before time runs out",
+    big: v.closed ? "Time's up" : leftText(d.by_at - now), tone: v.closed ? "quiet" : "",
+    stats: [{ n: v.took, label: "took it" }, { n: v.done, label: "did it" }] };
+}
 
 /** The drop's page: a countdown until it opens, then the drop itself, unscrambled in the browser with the key after the #. */
 export async function dropPage(request, env, url, deps = {}) {
@@ -308,7 +334,7 @@ export async function dropPage(request, env, url, deps = {}) {
     '<div id="c" class="big"></div><div id="out"></div>' +
     '<p><a class="btn" href="https://remmynd.space/d/' + esc(id) + '">Open in the remmynd app</a></p><p class="small" id="s">Only people with this exact link can open it. remmynd itself can\'t see what\'s inside.</p>' +
     '<script nonce="' + nonce + '">var __name = function (f) { return f; };(' + viewer.toString() + ')(' + JSON.stringify({ id, opens: d.opens, now }) + ');</script>';
-  return page("A drop from " + d.name + " · remmynd", body, nonce);
+  return page("A drop from " + d.name + " · remmynd", body, nonce, ogImageTags(ogImageURL(url.origin, "/d/" + id, now), "A drop from " + d.name, esc));
 }
 
 // Runs in the browser: the countdown, then fetch the scrambled drop and unscramble it with the key from the link. It's sent as its
@@ -357,5 +383,5 @@ export async function darePage(request, env, url, deps = {}) {
     '<p class="small">' + (v.closed ? "Time's up." : "Time left: " + (h >= 48 ? Math.floor(h / 24) + " days" : h + "h " + m + "m") + ". Prove it with a photo before then.") + '</p>' +
     '<div class="nums"><div><b>' + v.took + '</b><span>took it</span></div><div><b>' + v.done + '</b><span>did it</span></div><div><b>' + (v.closed ? v.took - v.done : v.took - v.done) + '</b><span>' + (v.closed ? "missed" : "still going") + '</span></div></div>' +
     (v.closed ? '<p class="small">Make your own dare in the remmynd app.</p>' : '<p><a class="btn" href="https://remmynd.space/dare/' + esc(cd) + '">Take the dare in remmynd</a></p><p class="small">Open this link on your iPhone with remmynd installed.</p>');
-  return page(d.name + " dares you: " + d.what, body);
+  return page(d.name + " dares you: " + d.what, body, "", ogImageTags(ogImageURL(url.origin, "/dare/" + cd, now), d.name + " dares you: " + d.what, esc));
 }

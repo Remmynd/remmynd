@@ -14,6 +14,7 @@
 // Kept: the title, length, deadline and time zone the maker chose, and for each person the first name they chose and
 // the days they checked in. Deleted a week after the challenge ends.
 
+import { ogImageURL, ogImageTags } from "./ogimage.js";
 import { signedIn, d1Store } from "./account.js";
 import { tally } from "./numbers.js";
 import { escapeHTML as esc } from "./preview.js";
@@ -194,6 +195,19 @@ export async function handleChallenge(request, env, url, deps = {}) {
   return json({ error: "Not found." }, 404);
 }
 
+/** The card for the challenge's live picture (worker/og.js), or null when there's no such challenge. Counts only, no names. */
+export async function challengeCard(env, cd, deps = {}) {
+  if (!CODE.test(cd) || (!env.DB && !deps.store)) return null;
+  const store = deps.store || challengeStore(env.DB), now = deps.now || Date.now();
+  await store.ready();
+  const c = await store.get(cd);
+  if (!c) return null;
+  const v = await view(store, c, null, now), t = v.today;
+  return { theme: "dark", eye: "Last one standing", title: c.title, line: "Check in by " + c.deadline + " every day (" + c.tz.replace(/_/g, " ") + ")",
+    big: t.index < 0 ? "Starts " + c.start : t.over ? "Finished" : "Day " + (t.index + 1) + " of " + c.days, tone: t.over ? "quiet" : "",
+    stats: [{ n: v.started, label: "started" }, { n: v.standing, label: "still in" }, { n: c.days, label: "days" }] };
+}
+
 /** The public page: the name, where it's up to, how many started and how many are still standing. No names. */
 export async function challengePage(request, env, url, deps = {}) {
   const cd = url.pathname.split("/")[2] || "";
@@ -210,12 +224,13 @@ export async function challengePage(request, env, url, deps = {}) {
     '<div class="ch-nums"><div><b>' + v.started + '</b><span>started</span></div><div><b>' + v.standing + '</b><span>still standing</span></div><div><b>' + c.days + '</b><span>days</span></div></div>' +
     (t.index <= 0 && !(t.index === 0 && !t.open) ? '<p><a class="ch-btn" href="https://remmynd.space/x/' + esc(cd) + '">Join in the remmynd app</a></p><p class="ch-small">Open this link on your iPhone with remmynd installed. Miss a day and you\'re out.</p>'
       : '<p class="ch-small">Joining has closed. Start your own in the remmynd app.</p>');
-  return new Response(shell(c.title + " · remmynd", body), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'" } });
+  const image = ogImageTags(ogImageURL(url.origin, "/x/" + cd, now), c.title + ": " + where + ", " + v.standing + " still standing", esc);
+  return new Response(shell(c.title + " · remmynd", body, image), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'" } });
 }
 
-function shell(title, body) {
+function shell(title, body, head = "") {
   return '<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>' + esc(title) + '</title>' +
-    '<meta property="og:title" content="' + esc(title) + '"><style>body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0B0B0B;color:#fff;padding:40px 16px}' +
+    '<meta property="og:title" content="' + esc(title) + '">' + head + '<style>body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0B0B0B;color:#fff;padding:40px 16px}' +
     '.w{max-width:480px;margin:0 auto}.ch-eye{color:#FFB52E;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:13px}h1{font-size:44px;line-height:1.05;margin:8px 0 12px}' +
     '.ch-where{color:#bbb}.ch-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:28px 0}.ch-nums div{background:#1a1a1a;border-radius:16px;padding:16px}' +
     '.ch-nums b{display:block;font-size:34px;color:#FFB52E;font-variant-numeric:tabular-nums}.ch-nums span{color:#aaa;font-size:14px}' +
