@@ -21,6 +21,7 @@
 
 import { validEndpoint } from "./push.js";
 import { signedIn, d1Store } from "./account.js";
+import { planFor, FREE } from "./pro.js";
 import { tally } from "./numbers.js";
 
 const DAY = 864e5;
@@ -135,7 +136,10 @@ export async function handleChat(request, env, url, deps = {}) {
     const bytes = new Uint8Array(await request.arrayBuffer());
     if (bytes.length < 29 || bytes.length > LIMITS.fileBytes) return json({ error: bytes.length < 29 ? "That file is empty." : "That file is too big." }, bytes.length < 29 ? 400 : 413);
     if (await store.fileCount(id) >= LIMITS.files) return json({ error: "This chat is full. It holds " + LIMITS.files + " photos and voice notes." }, 403);
-    if (await store.upload(s.user.id, Math.floor(now / DAY)) > LIMITS.perDay) return json({ error: "That's " + LIMITS.perDay + " photos and voice notes today. Try again tomorrow." }, 429);
+    // Free: FREE.chatFiles a day; Pro: LIMITS.perDay. Counted per account and day, with nothing about which chat.
+    const limited = (await planFor(env, accounts, s.user, now)).limited, perDay = limited ? FREE.chatFiles : LIMITS.perDay;
+    if (await store.upload(s.user.id, Math.floor(now / DAY)) > perDay)
+      return json({ error: "That's " + perDay + " photos and voice notes today. Try again tomorrow." + (limited ? " Pro sends up to " + LIMITS.perDay + " a day." : ""), ...(limited ? { need: "pro", limit: perDay } : {}) }, 429);
     const fid = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
     await bucket.put(id + "/" + fid, bytes, { httpMetadata: { contentType: "application/octet-stream" } });
     await store.addFile({ id: fid, room: id, at: now, size: bytes.length });

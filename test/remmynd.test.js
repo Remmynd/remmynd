@@ -2569,7 +2569,7 @@ test("sleep-safe: the 9 AM alert reads as already started", async () => {
 
 /* ---------- step 8: the website ---------- */
 
-const PAGES = ["why", "hosts", "launch", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog", "host"];
+const PAGES = ["why", "hosts", "pricing", "launch", "docs", "privacy", "install", "roadmap", "press", "about", "open", "blog", "blog/since-2-0", "changelog", "host"];
 const pageFile = p => p === "404" ? "public/404.html" : "public/" + p + "/index.html";
 const readPage = p => readFileSync(join(root, pageFile(p)), "utf8");
 const squash = s => s.replace(/\s+/g, " ").replace(/> </g, "><").trim();
@@ -2587,12 +2587,12 @@ test("website: every page shares one header, footer and menu", () => {
     assert.equal(footer(readPage(p)), footer(app), p + ": the footer differs from the app's");
     assert.equal(menu(readPage(p)), menu(app), p + ": the menu differs from the app's");
   }
-  // The menu: Why, For hosts, Docs, Roadmap, GitHub, and the theme switch (spec section 7).
-  assert.deepEqual([...menu(app).matchAll(/>([^<]+)<\/a>/g)].map(m => m[1]), ["Why", "For hosts", "Docs", "Roadmap", "GitHub"]);
+  // The menu: Why, For hosts, Pricing, Docs, Roadmap, GitHub, and the theme switch (spec section 7).
+  assert.deepEqual([...menu(app).matchAll(/>([^<]+)<\/a>/g)].map(m => m[1]), ["Why", "For hosts", "Pricing", "Docs", "Roadmap", "GitHub"]);
   assert.match(app, /id="menu"[\s\S]*aria-labelledby="theme-m"[\s\S]*aria-labelledby="sound-m"[\s\S]*id="install"/, "the app's menu has the theme, sound and Install");
   assert.ok(footer(app).includes('A free tool by <a href="https://zoof04.com">Zoof04 Inc.</a> MIT licence.'), "footer words, spec section 9 as changed by the owner");
 
-  const here = { why: "/why", hosts: "/hosts", docs: "/docs", roadmap: "/roadmap", install: "/install" };
+  const here = { why: "/why", hosts: "/hosts", pricing: "/pricing", docs: "/docs", roadmap: "/roadmap", install: "/install" };
   for (const p of all) {
     const html = readPage(p);
     const current = [...cut(html, /<header class="site-head">[\s\S]*?<\/header>/).matchAll(/href="([^"]+)" aria-current="page"/g)].map(m => m[1]);
@@ -2608,8 +2608,8 @@ test("website: every page shares one header, footer and menu", () => {
     // Every address on remmynd.space that a page links to exists.
     for (const [, href] of html.matchAll(/\shref="(\/[^"#]*)[^"]*"/g)) {
       // Addresses the Worker answers rather than a file; their own tests check them.
-      if (href === "/" || /^\/(changelog|stats|new|example)$/.test(href) || /^\/(embed\/example|b\/example\.svg)(\?|$)/.test(href)) continue;
-      const f = href.slice(1);
+      if (href === "/" || /^\/\?/.test(href) || /^\/(changelog|stats|new|example)$/.test(href) || /^\/(embed\/example|b\/example\.svg)(\?|$)/.test(href)) continue;
+      const f = href.split("?")[0].slice(1);
       assert.ok(existsSync(join(root, "public", f)) && statSync(join(root, "public", f)).isFile() || existsSync(join(root, "public", f, "index.html")), p + " links to " + href + ", which doesn't exist");
     }
     for (const [, id] of html.matchAll(/\shref="#([^"]+)"/g)) assert.ok(html.includes('id="' + id + '"'), p + " links to #" + id + ", which isn't on the page");
@@ -2628,6 +2628,33 @@ test("website: every page shares one header, footer and menu", () => {
   for (const k of ["t", "at", "tz", "d", "l", "n", "h"]) assert.ok(llms.includes("- `" + k + "`: "), "llms.txt explains " + k);
   // The site's styles use token names only.
   assert.doesNotMatch(readFileSync(join(root, "public/site.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, ""), /#[0-9a-f]{3,8}\b|rgba?\(/i, "site.css uses token names, not raw colours");
+});
+
+test("pricing: the page's prices, limits, trial and launch code are the server's own", async () => {
+  const P = await import("../worker/pro.js"), X = await import("../worker/challenges.js"), D = await import("../worker/drops.js"), C = await import("../worker/chat.js");
+  const html = readPage("pricing"), text = visible(html).replace(/\s+/g, " ");
+  const { monthly: m, yearly: y } = P.PLANS;
+  for (const w of [m.price + " a month", y.price + " a year", y.save, y.monthly + " a month", P.TRIAL_DAYS + " days free"]) assert.ok(text.includes(w), "/pricing says: " + w);
+  assert.equal("$" + (parseFloat(y.price.slice(1)) / 12).toFixed(2), y.monthly, "the yearly plan's monthly figure is its price over twelve");
+  // The free plan's limits and Pro's ceilings, as the server enforces them.
+  const F = P.FREE;
+  for (const w of [F.live + " live launch page, reaching your first " + F.reach + " followers", F.challenges + " challenge, " + F.drops + " drops and " + F.dares + " dares of your own at a time", F.chatFiles + " chat photos and voice notes a day",
+    "Up to " + X.CHALLENGE_LIMITS.perUser + " challenges, " + D.DROP_LIMITS.waiting + " drops and " + D.DROP_LIMITS.dares + " dares of your own at a time", C.LIMITS.perDay + " chat photos and voice notes a day"]) assert.ok(text.includes(w), "/pricing says: " + w);
+  // The launch code, its plan and its end date.
+  assert.ok(text.includes(P.LAUNCH.code) && text.includes(P.LAUNCH.endsText) && text.includes(P.LAUNCH.percent + "% off your first year"), "the launch offer as worker/pro.js LAUNCH has it");
+  assert.match(html, /<p class="offer" id="offer" hidden>/, "the offer stays hidden until /api/pro says it's on offer");
+  // Still free: the approved lines.
+  assert.ok(text.includes("Your reminder lives in the link and on your device. For phone alerts we keep only an anonymous ping time, deleted once it's sent."));
+  assert.ok(text.includes("free, with no account and no tracking"));
+  // The script: our own server only, the same code key as the account sheet, and the way into checkout the app reads.
+  const js = readFileSync(join(root, "public/pricing.js"), "utf8"), acct = readFileSync(join(root, "public/account.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8");
+  assert.doesNotMatch(js, /https?:\/\//, "pricing.js talks only to remmynd.space");
+  assert.ok(js.includes('fetch("/api/pro"') && js.includes('"/?pro=" + bill'));
+  assert.ok(js.includes('const KEY = "rm:code"') && acct.includes('const CODE_KEY = "rm:code"'), "one key for the launch code");
+  assert.ok(app.includes("m.fromLink(") && acct.includes('if (pro === "yearly" || pro === "monthly") return proStart(pro, code);'), "the app opens checkout from /?pro=");
+  assert.ok(acct.includes('href="/pricing"'), "the account sheet links to /pricing");
+  // A free limit in a chat points to /pricing.
+  assert.ok(readFileSync(join(root, "public/chat.js"), "utf8").includes('j.need === "pro"'));
 });
 
 test("website: about, open numbers and the blog", () => {
@@ -3760,7 +3787,9 @@ test("remmynd Pro on the website: Polar's checkout carries the account, and its 
 
   // Where it stands, signed out and in. Pro shows only once it's on offer: to everyone with PRO_ON, to testers before.
   let r = await call("/api/pro", undefined, { cookie: "" });
-  assert.deepEqual([r.body.signedIn, r.body.pro, r.body.offer, r.body.web, r.body.plans.monthly.price, r.body.plans.yearly.price], [false, false, true, true, "$9.99", "$79.99"]);
+  assert.deepEqual([r.body.signedIn, r.body.pro, r.body.offer, r.body.web, r.body.plans.monthly.price, r.body.plans.yearly.price], [false, false, true, true, "$7.99", "$79.99"]);
+  assert.equal(r.body.plans.yearly.save, "2 months free", "a year is ten months' price");
+  assert.ok(Math.abs(10 * parseFloat(P.PLANS.monthly.price.slice(1)) - parseFloat(P.PLANS.yearly.price.slice(1))) < 0.11, "yearly = 10 x monthly, give or take a cent");
   r = await call("/api/pro");
   assert.deepEqual([r.body.signedIn, r.body.pro, r.body.trialOpen, r.body.trialDays], [true, false, true, 7]);
   assert.match(r.body.appToken, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, "the account's token for Apple purchases is a UUID");
@@ -3778,7 +3807,7 @@ test("remmynd Pro on the website: Polar's checkout carries the account, and its 
   let q = asked.pop();
   assert.equal(q.url, "https://api.polar.sh/v1/checkouts/");
   assert.equal(q.auth, "Bearer tok");
-  assert.deepEqual(q.body, { products: ["prod-y"], external_customer_id: "u1", customer_email: "ana@example.com", allow_trial: true, success_url: base + "/?pro=done", metadata: { account: "u1" } });
+  assert.deepEqual(q.body, { products: ["prod-y"], external_customer_id: "u1", customer_email: "ana@example.com", allow_trial: true, allow_discount_codes: true, success_url: base + "/?pro=done", metadata: { account: "u1" } });
   await call("/api/pro/checkout", { plan: "monthly" }, { e: { ...env, POLAR_SANDBOX: "1", POLAR_API: "http://evil.example" } });
   assert.equal(asked.pop().url, "https://sandbox-api.polar.sh/v1/checkouts/", "the sandbox when asked; a stand-in address is ignored on the live site");
   await call("/api/pro/checkout", { plan: "monthly" }, { e: { ...env, POLAR_API: "http://localhost:8799" }, host: "http://localhost:8788" });
@@ -3788,6 +3817,31 @@ test("remmynd Pro on the website: Polar's checkout carries the account, and its 
   assert.equal(asked.pop().body.customer_email, undefined);
   polar.checkout = 201;
   assert.equal((await call("/api/pro/checkout", { plan: "monthly" }, { e: { ...env, POLAR_ACCESS_TOKEN: "" } })).status, 503);
+
+  // The launch code (Product Hunt): half off the first year, yearly only, while its discount is set here and before 2027.
+  const launchEnv = { ...env, POLAR_DISCOUNT_LAUNCH: "disc-launch" };
+  assert.equal((await call("/api/pro", undefined, { cookie: "" })).body.launch, null, "no launch offer without its discount set");
+  assert.deepEqual((await call("/api/pro", undefined, { cookie: "", e: launchEnv })).body.launch, { code: "REMMYND50", percent: 50, plan: "yearly", ends: "31 December 2026" });
+  r = await call("/api/pro/checkout", { plan: "yearly", code: " remmynd50 " }, { e: launchEnv });
+  assert.deepEqual([r.status, r.body.code, r.body.notice], [200, "REMMYND50", undefined], "any case, spaces ignored");
+  assert.equal(asked.pop().body.discount_id, "disc-launch");
+  r = await call("/api/pro/checkout", { plan: "monthly", code: "REMMYND50" }, { e: launchEnv });
+  assert.deepEqual([r.status, r.body.notice], [200, "The launch code is for the yearly plan."], "the monthly checkout still opens, at its price");
+  assert.equal(asked.pop().body.discount_id, undefined);
+  r = await call("/api/pro/checkout", { plan: "yearly", code: "FREEPRO" }, { e: launchEnv });
+  assert.equal(r.body.notice, "That code isn't on offer now.");
+  assert.equal(asked.pop().body.discount_id, undefined);
+  r = await call("/api/pro/checkout", { plan: "yearly", code: "REMMYND50" });
+  assert.equal(r.body.notice, "That code isn't on offer now.", "not set up here: the normal price");
+  assert.equal(asked.pop().body.discount_id, undefined);
+  r = await call("/api/pro/checkout", { plan: "yearly" }, { e: launchEnv });
+  assert.equal(asked.pop().body.discount_id, undefined, "no code asked for: no discount");
+  const before = now;
+  now = P.LAUNCH.ends;
+  assert.equal((await call("/api/pro", undefined, { cookie: "", e: launchEnv })).body.launch, null, "it ends with 2026");
+  await call("/api/pro/checkout", { plan: "yearly", code: "REMMYND50" }, { e: launchEnv });
+  assert.equal(asked.pop().body.discount_id, undefined);
+  now = before;
 
   // Polar's notice, signed: the trial starts and the account is Pro.
   assert.equal(await hook(notice(state([sub({ status: "trialing", current_period_end: new Date(now + 7 * day).toISOString() })]))), 202);
@@ -3855,8 +3909,8 @@ test("remmynd Pro on the website: Polar's checkout carries the account, and its 
   // The account sheet: sells it on the website only, never inside the app; the app's calls; the route; what's kept.
   const acct = readFileSync(join(root, "public/account.js"), "utf8"), nat = readFileSync(join(root, "public/native.js"), "utf8"), app = readFileSync(join(root, "public/app.js"), "utf8");
   assert.ok(acct.includes("const IN_APP = !!window.__rmNative;") && acct.includes("if (IN_APP) return head + '<p class=\"ac-none\">Get Pro in the app"), "inside the app the sheet never sells");
-  assert.ok(acct.includes('api("/api/pro/checkout", { plan: what })') && acct.includes('api("/api/pro/restore", {})') && acct.includes('api("/api/pro/portal", {})'));
-  assert.ok(app.includes('get("pro")==="done"') && app.includes("m.proDone()"), "back from checkout, the sheet asks for the purchase");
+  assert.ok(acct.includes('api("/api/pro/checkout", code ? { plan, code } : { plan })') && acct.includes('api("/api/pro/restore", {})') && acct.includes('api("/api/pro/portal", {})'));
+  assert.ok(app.includes('q.has("pro")') && app.includes("m.fromLink(q.get(\"pro\"),q.get(\"code\"))") && acct.includes('if (pro === "done") return proDone();'), "back from checkout, the sheet asks for the purchase");
   assert.ok(!nat.includes("/api/pro/portal") && !nat.includes("/api/pro/checkout"), "the app never opens the website's checkout or its payment page");
   for (const f of ["async pro()", "async proApple(jws, move, renewal)", "async proRestore(jws, move, renewal)"]) assert.ok(nat.includes(f), "the app's " + f);
   const idx = readFileSync(join(root, "worker/index.js"), "utf8");
@@ -4659,7 +4713,7 @@ test("numbers: daily totals with nothing about who, and a private page only the 
   assert.match(r.html, /<b>1,234<\/b><span>accounts<\/span>/);
   assert.match(r.html, /<b>2<\/b><span>paying for Pro<\/span>/);
   assert.match(r.html, /<b>1<\/b><span>on a Pro trial<\/span>/);
-  assert.match(r.html, /<b>\$16\.66<\/b><span>monthly revenue, estimated<\/span>/, "9.99 a month plus 79.99 a year over twelve; trials count as nothing");
+  assert.match(r.html, /<b>\$14\.66<\/b><span>monthly revenue, estimated<\/span>/, "7.99 a month plus 79.99 a year over twelve; trials count as nothing");
   assert.match(r.html, /<th scope="row">Chat messages<\/th><td>15<\/td><td>5<\/td><td class="up">\+200%<\/td><td>20<\/td>/, "this week, the week before, the change, thirty days");
   assert.match(r.html, /<th scope="row">New accounts<\/th><td>2<\/td><td>1<\/td><td class="up">\+100%<\/td>/, "new accounts come from the accounts themselves");
   assert.doesNotMatch(r.html, /owner@example\.com|someone@example\.com/i, "no one's email on the page");
@@ -4699,7 +4753,7 @@ test("Pro for hosts: free limits only once Pro is on offer, lifted by Pro, every
   env = { PRO_TESTERS: "maya@example.com" };
   r = await call("/api/host");
   assert.deepEqual([r.body.plan.pro, r.body.plan.limited, r.body.plan.full], [false, true, false]);
-  assert.deepEqual(r.body.plan.free, { live: 1, reach: 100 });
+  assert.deepEqual(r.body.plan.free, { live: 1, reach: 100, challenges: 1, drops: 3, dares: 3, chatFiles: 10 });
   assert.deepEqual(r.body.stats[a.id], { saved: 1 }, "the saved count only");
   r = await launch("Orbit 3", now + 6 * day);
   assert.deepEqual([r.status, r.body.need], [402, "pro"], "one live launch at a time");
@@ -4763,6 +4817,91 @@ test("Pro for hosts: free limits only once Pro is on offer, lifted by Pro, every
   assert.ok(src.includes("const plan = await planOf(env, store, host.user_id, now);") && src.includes("plan = await planOf(env, store, user, now)"));
   for (const c of H.BRAND_COLORS) assert.ok(css.includes(".at-brand.at-c-" + c + "{") && css.includes(".sw-" + c + "{"), c);
   assert.doesNotMatch(readFileSync(join(root, "public/host.js"), "utf8"), /style="/, "no inline styles: the page's policy would block them");
+});
+
+test("Pro for makers: the free plan caps what one person starts and runs; joining, taking and saving are never limited", async () => {
+  const P = await import("../worker/pro.js"), X = await import("../worker/challenges.js"), D = await import("../worker/drops.js"), C = await import("../worker/chat.js");
+  const base = "https://remmynd.space", day = 864e5, on = { PRO_ON: "1" };
+  let now = Date.parse("2026-11-19T02:00:00Z");
+  const accounts = memoryStore();
+  const ana = proAccount(accounts, "user-ana-0001", "ana@example.com", now), ben = proAccount(accounts, "user-ben-0001", "ben@example.com", now);
+  // Ben has Pro (a yearly plan bought on the website).
+  await accounts.putPro({ source: "polar", ref: "sub_ben", userId: "user-ben-0001", product: "yearly", until: now + 365 * day, renews: true, trial: false, updated: now });
+  const post = (handler, store, extra = {}) => async (path, body, cookie, env = on) => {
+    const req = new Request(base + path, { method: "POST", headers: { "content-type": "application/json", origin: base, cookie }, body: JSON.stringify(body || {}) });
+    const res = await handler(req, env, new URL(req.url), { store, accounts, now, ...extra });
+    return { status: res.status, body: await res.json() };
+  };
+
+  // Challenges: one you started at a time on the free plan; anyone can join any number.
+  const ch = post(X.handleChallenge, memoryChallenges());
+  const challenge = (n, cookie, env) => ch("/api/challenge/new", { title: "Club " + n, days: 7, deadline: "07:00", tz: "America/New_York", name: "Ana" }, cookie, env);
+  const first = await challenge(1, ana);
+  assert.equal(first.status, 200);
+  let r = await challenge(2, ana);
+  assert.deepEqual([r.status, r.body.need, r.body.limit], [403, "pro", 1], "a second one asks for Pro");
+  assert.match(r.body.error, /free plan runs 1 challenge/);
+  assert.equal((await challenge(2, ana, {})).status, 200, "before Pro is on offer, nobody is limited (and a self-hosted copy never is)");
+  assert.equal((await ch("/api/challenge/" + first.body.code + "/join", { name: "Ben" }, ben)).status, 200, "joining is free");
+  for (let i = 0; i < 3; i++) assert.equal((await challenge("b" + i, ben)).status, 200, "Pro runs several");
+
+  // Drops: three of yours waiting at a time; saving someone's drop is free.
+  const dm = memoryDrops(), dr = post(D.handleDrop, dm.store, { files: dm.files, tell: async () => 0 });
+  const meta = Buffer.from(crypto.getRandomValues(new Uint8Array(60))).toString("base64url");
+  const drop = cookie => dr("/api/drop/new", { opens: now + 3600e3, meta, name: "Ana" }, cookie);
+  const mine = [];
+  for (let i = 0; i < P.FREE.drops; i++) { const d = await drop(ana); assert.equal(d.status, 200); mine.push(d.body.id); }
+  r = await drop(ana);
+  assert.deepEqual([r.status, r.body.need], [403, "pro"]);
+  assert.equal((await dr("/api/drop/" + mine[0] + "/save", { on: true }, ben)).status, 200, "saving one is free");
+  for (let i = 0; i < P.FREE.drops + 1; i++) assert.equal((await drop(ben)).status, 200, "Pro keeps more waiting");
+
+  // Dares: three of yours open at a time; taking someone's dare is free.
+  const da = post(D.handleDare, dm.store, { files: dm.files, tell: async () => 0 });
+  const dare = cookie => da("/api/dare/new", { what: "50 push-ups", by: now + 9 * 3600e3, name: "Ana" }, cookie);
+  const dares = [];
+  for (let i = 0; i < P.FREE.dares; i++) { const d = await dare(ana); assert.equal(d.status, 200); dares.push(d.body.code); }
+  r = await dare(ana);
+  assert.deepEqual([r.status, r.body.need], [403, "pro"]);
+  assert.equal((await da("/api/dare/" + dares[0] + "/take", { name: "Ben" }, ben)).status, 200, "taking one is free");
+  assert.equal((await dare(ben)).status, 200);
+
+  // Chat photos and voice notes: FREE.chatFiles a day on the free plan, LIMITS.perDay with Pro.
+  const { mkdtempSync, writeFileSync } = await import("node:fs"), { tmpdir } = await import("node:os"), { pathToFileURL } = await import("node:url");
+  const dir = mkdtempSync(join(tmpdir(), "rm-chat-pro-"));
+  writeFileSync(join(dir, "chat.mjs"), readFileSync(join(root, "public/chat.js"), "utf8").replace('from "/remmynd.js"', "from " + JSON.stringify(pathToFileURL(join(root, "lib/remmynd.js")).href)));
+  const W = await import(pathToFileURL(join(dir, "chat.mjs")).href);
+  const store = memoryChat(), objects = new Map(), files = { put: async (k, v) => { objects.set(k, v); }, get: async () => null, delete: async () => {} };
+  const send = async (room, me, cookie, bytes) => {
+    const req = new Request(base + "/api/chat/" + room + "/file?me=" + me, { method: "POST", headers: { "content-type": "application/octet-stream", origin: base, cookie }, body: bytes });
+    const res = await C.handleChat(req, on, new URL(req.url), { store, accounts, files, now });
+    return { status: res.status, body: await res.json() };
+  };
+  const say = async (room, key, me) => {
+    const req = new Request(base + "/api/chat/" + room + "/post", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ body: await W.seal(key, { n: me, t: "hi" }), me, ends: now + 3600e3 }) });
+    return (await C.handleChat(req, on, new URL(req.url), { store, accounts, files, now })).status;
+  };
+  const sealedFor = async key => W.sealBytes(key, new Uint8Array(400).map((_, i) => i % 251));
+  // A fresh room per photo keeps clear of each chat's own cap: only the daily count is under test.
+  const roomN = async n => { const x = await W.derive("k:" + String(n).padStart(22, "Q")); return x; };
+  let last;
+  for (let i = 0; i <= P.FREE.chatFiles; i++) {
+    const x = await roomN(i);
+    assert.equal(await say(x.room, x.key, "ana-device-1"), 200);
+    last = await send(x.room, "ana-device-1", ana, await sealedFor(x.key));
+    if (i < P.FREE.chatFiles) assert.equal(last.status, 200);
+  }
+  assert.deepEqual([last.status, last.body.need, last.body.limit], [429, "pro", P.FREE.chatFiles], "the free plan's daily photos and voice notes");
+  for (let i = 0; i <= P.FREE.chatFiles; i++) {
+    const x = await roomN(100 + i);
+    await say(x.room, x.key, "ben-device-1");
+    assert.equal((await send(x.room, "ben-device-1", ben, await sealedFor(x.key))).status, 200, "Pro sends more");
+  }
+
+  // The plan reads the same everywhere, and a store with no purchases (a feature's own tests) never breaks a feature.
+  assert.deepEqual(await P.planFor(on, accounts, await accounts.userById("user-ben-0001"), now), { pro: true, limited: false, trial: false });
+  assert.deepEqual(await P.planFor(on, {}, { id: "x", email: "x@example.com" }, now), { pro: false, limited: true, trial: false });
+  assert.deepEqual(await P.planFor({}, {}, { id: "x", email: "x@example.com" }, now), { pro: false, limited: false, trial: false });
 });
 
 test("Pro for hosts, launch day: alerts in your words, the day before and last call, nudges, and 50% off the first month", async () => {

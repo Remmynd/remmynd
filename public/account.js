@@ -102,6 +102,12 @@ function render() {
  * Inside the app this sheet never sells it (the app's own Settings does, through Apple); it only says where it stands. */
 const IN_APP = !!window.__rmNative;
 async function loadPro() { try { PRO = await api("/api/pro"); } catch (e) { PRO = null; } return PRO; }
+/* A launch code from a link (/pricing?code=…, /?code=…) or typed, kept for this visit's checkout. The server decides
+ * whether it's on offer (worker/pro.js LAUNCH); this only remembers what was asked for. */
+const CODE_KEY = "rm:code";
+export function rememberCode(c) { c = String(c || "").replace(/\s+/g, "").toUpperCase().slice(0, 24); try { if (c) sessionStorage.setItem(CODE_KEY, c); else sessionStorage.removeItem(CODE_KEY); } catch (e) {} return c; }
+function savedCode() { try { return sessionStorage.getItem(CODE_KEY) || ""; } catch (e) { return ""; } }
+const half = price => "$" + (Math.round(parseFloat(String(price).slice(1)) * 50) / 100).toFixed(2);
 function proBlock() {
   const p = PRO;
   if (!p || !p.signedIn || (!p.pro && !p.offer)) return "";
@@ -117,20 +123,53 @@ function proBlock() {
   if (IN_APP) return head + '<p class="ac-none">Get Pro in the app\'s Settings tab. Paid already? It shows here once you\'re signed in.</p><div class="ac-row"><button type="button" class="btn small" data-pro="restore">Restore</button></div>';
   if (!p.web) return "";
   const trial = p.trialOpen ? p.trialDays + " days free, then " : "";
-  return head + '<p class="ac-none">For people who run launches. ' + esc(trial ? trial.charAt(0).toUpperCase() + trial.slice(1) : "") + esc(p.plans.monthly.price + " a month or " + p.plans.yearly.price + " a year") + '. Cancel any time.</p>' +
-    '<div class="ac-row"><button type="button" class="btn ink" data-pro="yearly">Yearly · ' + esc(p.plans.yearly.price) + '</button><button type="button" class="btn" data-pro="monthly">Monthly · ' + esc(p.plans.monthly.price) + '</button></div>' +
+  const y = p.plans.yearly, m = p.plans.monthly, launch = p.launch, coded = !!launch && savedCode() === launch.code;
+  return head + '<p class="ac-none">For people who make and run things: launches, challenges, drops and dares, without the free limits. ' + esc(trial ? trial.charAt(0).toUpperCase() + trial.slice(1) : "") + esc(m.price + " a month or " + y.price + " a year") + (y.save ? " (" + esc(y.save) + ")" : "") + '. Cancel any time. <a href="/pricing">Compare plans</a></p>' +
+    '<div class="ac-row"><button type="button" class="btn ink" data-pro="yearly">Yearly · ' + esc(coded ? half(y.price) + " first year" : y.price) + '</button><button type="button" class="btn" data-pro="monthly">Monthly · ' + esc(m.price) + '</button></div>' +
+    (launch ? (coded ? '<p class="ac-fine">Code ' + esc(launch.code) + ': ' + launch.percent + '% off your first year, then ' + esc(y.price) + ' a year. Until ' + esc(launch.ends) + '.</p>'
+      : '<p class="ac-fine">Launch offer: ' + launch.percent + '% off your first year of the yearly plan. <button type="button" class="ac-link" data-pro="code">Use code ' + esc(launch.code) + '</button></p>') : '') +
     '<p class="ac-fine">Paid already, here or in the iPhone app? <button type="button" class="ac-link" data-pro="restore">Restore it</button>. Payment is handled by Polar.</p>';
 }
+async function checkoutFor(plan) {
+  const code = plan === "yearly" ? savedCode() : "";
+  const r = await api("/api/pro/checkout", code ? { plan, code } : { plan });
+  if (r.notice) { toast(r.notice); await new Promise(res => setTimeout(res, 1400)); }
+  location.assign(r.url);
+}
 async function proAct(what, button) {
+  if (what === "code") { rememberCode(PRO && PRO.launch ? PRO.launch.code : ""); render(); toast("Code applied to the yearly plan"); return; }
   button.disabled = true;
   try {
-    if (what === "monthly" || what === "yearly") { const r = await api("/api/pro/checkout", { plan: what }); location.assign(r.url); return; }
+    if (what === "monthly" || what === "yearly") { await checkoutFor(what); return; }
     if (what === "manage") { const r = await api("/api/pro/portal", {}); location.assign(r.url); return; }
     const was = !!(PRO && PRO.pro);
     PRO = await api("/api/pro/restore", {});
     render();
     toast(PRO.pro ? (was ? "Pro is on" : "Pro is on. Restored.") : "No Pro purchase was found for this account.");
   } catch (e) { toast(e.message); button.disabled = false; if (/already have Pro/.test(e.message)) { await loadPro(); render(); } }
+}
+/* A link into Pro (app.js): /?pro=done back from paying, /?pro=yearly or monthly from /pricing, ?code= a launch code. */
+export function fromLink(pro, code) {
+  if (pro === "done") return proDone();
+  if (pro === "yearly" || pro === "monthly") return proStart(pro, code);
+  if (code) rememberCode(code);
+}
+/* From /pricing (/?pro=yearly or monthly): sign in if needed, then straight to the checkout. */
+let pendingPlan = "";
+export async function proStart(plan, code) {
+  if (code) rememberCode(code);
+  pendingPlan = plan === "monthly" ? "monthly" : "yearly";
+  await open();
+  if (ME && ME.signedIn) return goPending();
+  toast("Sign in first, then you'll go straight to checkout");
+}
+async function goPending() {
+  const plan = pendingPlan; pendingPlan = "";
+  if (!plan) return;
+  await loadPro();
+  if (PRO && PRO.pro) { render(); return toast("You already have Pro"); }
+  if (!PRO || !PRO.offer || !PRO.web) { render(); return toast("Pro isn't open here yet"); }
+  try { await checkoutFor(plan); } catch (e) { render(); toast(e.message); }
 }
 /* Back from Polar's checkout (/?pro=done): ask Polar now, so Pro shows at once even if its notice is still on its way. */
 export async function proDone() {
@@ -208,6 +247,7 @@ function signedInNow() {
   view = PASSKEYS && !(ME.passkeys || []).length ? "welcome" : "account"; render();
   toast(ME.isNew ? "Welcome. Your reminders will sync now." : "Signed in");
   sync();
+  if (pendingPlan) goPending();
 }
 async function signOut() {
   try { await api("/api/auth/signout", {}); } catch (e) {}

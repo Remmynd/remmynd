@@ -28,6 +28,9 @@
 //   POLAR_PRODUCT_MONTHLY, POLAR_PRODUCT_YEARLY   the two products' ids.
 //   POLAR_SANDBOX = "1"     talk to Polar's sandbox.
 //   POLAR_DISCOUNT_FIRST    a Polar discount id (50% off once, monthly plan) for the first-month offer; no offer without it
+//   POLAR_DISCOUNT_LAUNCH   a Polar discount id for the launch code (LAUNCH below: 50% off once, yearly plan, so the
+//                           first year). Without it the code isn't offered; with it, a yearly checkout that carries the
+//                           code (from /pricing?code=…, or typed) gets the discount until LAUNCH.ends.
 // Local dev servers only: POLAR_API (a stand-in for Polar) and STOREKIT_TEST = "1" (Xcode's test purchases).
 import { signedIn, d1Store } from "./account.js";
 import { verifySigned } from "./apple.js";
@@ -42,9 +45,20 @@ export const BUNDLE = "space.remmynd.app";
 export const TRIAL_DAYS = 7;
 /** The plans. The website's prices are set on the Polar products and the app's in App Store Connect; these are the words shown. */
 export const PLANS = {
-  monthly: { price: "$9.99", per: "month", apple: "space.remmynd.pro.monthly" },
-  yearly: { price: "$79.99", per: "year", apple: "space.remmynd.pro.yearly" }
+  monthly: { price: "$7.99", per: "month", apple: "space.remmynd.pro.monthly" },
+  // Ten months' price for twelve: two months free, the usual yearly saving.
+  yearly: { price: "$79.99", per: "year", apple: "space.remmynd.pro.yearly", save: "2 months free", monthly: "$6.67" }
 };
+/** The launch code: half off the first year of the yearly plan, on the website, until the end of 2026. */
+export const LAUNCH = { code: "REMMYND50", percent: 50, plan: "yearly", ends: Date.UTC(2027, 0, 1), endsText: "31 December 2026" };
+/** The launch code, if it's on offer here now: the discount is set and it hasn't ended. */
+export function launchOffer(env, now = Date.now()) {
+  if (!env.POLAR_DISCOUNT_LAUNCH || !polarOn(env) || now >= LAUNCH.ends) return null;
+  const { code, percent, plan, endsText } = LAUNCH;
+  return { code, percent, plan, ends: endsText };
+}
+/** Whether what someone typed is the launch code (any case, spaces ignored). */
+export const isLaunchCode = c => String(c || "").replace(/\s+/g, "").toUpperCase() === LAUNCH.code;
 const APPLE_PLAN = Object.fromEntries(Object.entries(PLANS).map(([k, v]) => [v.apple, k]));
 const enc = new TextEncoder();
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -60,8 +74,25 @@ export function proStatus(rows, now) {
   return r ? { pro: true, until: r.until, source: r.source, plan: r.product, renews: !!r.renews, trial: !!r.trial && r.until > now } : { pro: false };
 }
 
-/** What a host on the free plan gets, once Pro can be bought. */
-export const FREE = { live: 1, reach: 100 };
+/**
+ * What the free plan gets, once Pro can be bought. Making, sharing and saving reminders is never limited, and nor is
+ * joining someone else's crew, challenge or dare: the limits are on what one person makes and runs.
+ *   live        launches live at a time (host pages)       reach      followers each announcement reaches
+ *   challenges  challenges you started, running at once    drops      drops of yours waiting to open
+ *   dares       dares of yours still open                  chatFiles  photos and voice notes in chats, a day
+ * Pro lifts them to each feature's own ceiling (CHALLENGE_LIMITS, DROP_LIMITS, chat LIMITS).
+ */
+export const FREE = { live: 1, reach: 100, challenges: 1, drops: 3, dares: 3, chatFiles: 10 };
+
+/** The plan for a feature module that may run with a store that keeps no purchases (as in its own tests). */
+export async function planFor(env, store, user, now = Date.now()) {
+  if (!user) return { pro: false, limited: false, trial: false };
+  if (!store || typeof store.proOf !== "function") return { pro: false, limited: onOffer(env, user), trial: false };
+  return planOf(env, store, user, now);
+}
+/** The answer when a free limit is reached: the client shows Pro's offer (need: "pro"). */
+export const proNeeded = (message, limit) => new Response(JSON.stringify({ error: message, need: "pro", limit }),
+  { status: 403, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 /**
  * A host's plan: Pro, or free; and whether free limits apply. They apply only once Pro is on offer to that person
  * (PRO_ON, or PRO_TESTERS before that), so nobody is held back by a limit they can't yet pay to lift.
@@ -113,6 +144,7 @@ async function summary(store, env, user, now) {
   const rows = user ? await store.proOf(user.id) : [];
   return {
     signedIn: !!user, ...proStatus(rows, now), offer: onOffer(env, user), web: polarOn(env), discount: await firstMonthOffer(env, store, user, now),
+    launch: launchOffer(env, now), free: FREE,
     // The free trial is for an account's first purchase.
     trialOpen: rows.length === 0, trialDays: TRIAL_DAYS,
     plans: Object.fromEntries(Object.entries(PLANS).map(([k, v]) => [k, { ...v }])),
@@ -201,14 +233,21 @@ async function checkout(store, env, user, body, url, opts) {
   if (s.pro) throw new Refused(s.source === "apple" ? "You already have Pro through Apple. Manage it in your iPhone's Settings." : "You already have Pro.", 409, { source: s.source });
   const plan = body.plan === "yearly" ? "yearly" : "monthly";
   const ask = { products: [plan === "yearly" ? env.POLAR_PRODUCT_YEARLY : env.POLAR_PRODUCT_MONTHLY], external_customer_id: user.id, customer_email: user.email,
-    allow_trial: rows.length === 0, success_url: url.origin + "/?pro=done", metadata: { account: user.id } };
+    allow_trial: rows.length === 0, allow_discount_codes: true, success_url: url.origin + "/?pro=done", metadata: { account: user.id } };
   if (plan === "monthly" && await firstMonthOffer(env, store, user, opts.now)) ask.discount_id = env.POLAR_DISCOUNT_FIRST;
+  // The launch code: half off the first year. Asked for with a code that isn't on offer (ended, or not set up here),
+  // the checkout still opens, at the normal price, and says so.
+  let codeNote = null;
+  if (body.code != null && String(body.code).trim()) {
+    if (plan === "yearly" && isLaunchCode(body.code) && launchOffer(env, opts.now)) ask.discount_id = env.POLAR_DISCOUNT_LAUNCH;
+    else codeNote = isLaunchCode(body.code) && plan !== "yearly" ? "The launch code is for the yearly plan." : "That code isn't on offer now.";
+  }
   let r = await polar(env, "/v1/checkouts/", { ...opts, method: "POST", body: ask });
   // An email Polar already knows under another customer: the account's id alone still ties the purchase to it.
   if (r.status === 422) { delete ask.customer_email; r = await polar(env, "/v1/checkouts/", { ...opts, method: "POST", body: ask }); }
   if (!r.ok || !r.data || typeof r.data.url !== "string") throw new Refused("The checkout couldn't be opened. Try again.", 502);
   await tally(env, "pro.checkout");
-  return { url: r.data.url };
+  return { url: r.data.url, ...(ask.discount_id === env.POLAR_DISCOUNT_LAUNCH && env.POLAR_DISCOUNT_LAUNCH ? { code: LAUNCH.code } : {}), ...(codeNote ? { notice: codeNote } : {}) };
 }
 
 async function portal(env, user, url, opts) {

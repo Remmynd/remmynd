@@ -6,7 +6,16 @@ How releases are made: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## [Unreleased]
 
+### Added
+
+- remmynd Pro is open to everyone: $7.99 a month, or $79.99 a year (ten months' price for twelve), with 7 days free on a first purchase. A new /pricing page compares Free and Pro, and the menu, the footer and the account sheet link to it.
+- The launch code REMMYND50: 50% off the first year of the yearly plan on the website, until 31 December 2026. It comes from a link (/pricing?code=REMMYND50) or a tap on "Use code", and the server checks it at checkout.
+- /pricing goes straight to checkout: /?pro=yearly or /?pro=monthly signs in if needed, then opens Polar's checkout.
+
 ### Changed
+
+- Free limits now cover what one person makes, not only launches: once Pro is on offer, the free plan runs 1 challenge you started, 3 drops waiting and 3 dares open at a time, and sends 10 chat photos and voice notes a day. Pro lifts each to its own ceiling (10 challenges, 20 drops, 20 dares, 30 photos a day). Making, sharing and saving reminders, and joining someone else's crew, challenge or dare, are never limited. A self-hosted copy has no limits.
+- Pro costs $7.99 a month, down from $9.99, so the $79.99 yearly plan is exactly two months free.
 
 - Inside the iPhone app, the page no longer repeats the website's free and no-account lines: the preview of a private link says only "Reminders that make sure it happens.", and the re-plan sheet's "No account" line is left out. The website keeps its wording.
 - The app code budget is now 75 KB compressed, up from 70 KB, to make room for repeating reminders in the library, which the capture bar uses on every visit. The app-only code and the repeat logic load from their own files, only when needed.

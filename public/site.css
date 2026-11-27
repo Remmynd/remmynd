@@ -162,3 +162,22 @@ body.site{padding:0;font-size:16px;line-height:1.55}
 .log h2 span{font:400 14px var(--mono);letter-spacing:0;color:var(--muted)}
 .log h3{font:600 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .log li{font-size:16px}
+
+/* pricing (/pricing) */
+.bill{display:flex;justify-content:center;margin-bottom:18px}
+.site .offer{max-width:880px;margin:0 auto 18px;padding:14px 18px;background:var(--moment-tint);color:var(--on-moment-tint);border-radius:var(--r-row);font-size:15px;line-height:1.5;text-align:center}
+.offer code,.faq code{font:500 14px var(--mono)}
+.offer .linkish{color:var(--on-moment-tint);min-height:0}
+.plans{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));max-width:880px;margin:0 auto}
+.plan.pro{outline:2px solid var(--moment);outline-offset:-2px}
+.plan-price{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;color:var(--ink)}
+.card .plan-price{color:var(--ink)}
+.plan-price b{font:600 40px/1.05 var(--font);letter-spacing:-.03em}
+.plan-price span,.plan-fine,.plan-coded{font-size:14px;color:var(--muted)}
+.card .plan-coded{color:var(--on-moment-tint);background:var(--moment-tint);border-radius:var(--r-chip);padding:8px 12px}
+.plan-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;flex:1}
+.plan-list li{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.45}
+.plan-list svg{width:20px;height:20px;flex:none;margin-top:1px}
+.plan-list .disc{fill:var(--ink)}
+.plan .btn{width:100%}
+.faq h3{font-size:17px;margin:22px 0 6px}

@@ -70,9 +70,9 @@ VAPID_SUBJECT = "mailto:connect@zoof04.com"
 # --- end push ---
 
 # --- remmynd Pro (worker/pro.js): one status on the account, paid on the website through Polar or in the iPhone app
-# through Apple. Until PRO_ON is "1", only the accounts in PRO_TESTERS see it. Uncomment and fill in to turn it on.
+# through Apple. Until PRO_ON is "1", only the accounts in PRO_TESTERS see it. On for everyone from the 30 November 2026 launch.
 # PRO_TESTERS = "you@example.com"
-# PRO_ON = "1"
+PRO_ON = "1"
 # POLAR_SANDBOX = "1"                      # Polar's sandbox. Remove it for real payments.
 # POLAR_PRODUCT_MONTHLY = "<the monthly product's id>"
 # POLAR_PRODUCT_YEARLY = "<the yearly product's id>"
@@ -80,6 +80,8 @@ VAPID_SUBJECT = "mailto:connect@zoof04.com"
 #   POLAR_ACCESS_TOKEN     an organization access token: checkouts:write, customers:read, customer_sessions:write,
 #                          subscriptions:write
 #   POLAR_WEBHOOK_SECRET   the signing secret of the webhook that sends customer.state_changed to /api/pro/polar
+#   POLAR_DISCOUNT_LAUNCH  the id of the Polar discount behind the launch code REMMYND50: 50% off, once, the yearly
+#                          product only, code REMMYND50, ending 31 Dec 2026. Without it /pricing hides the offer.
 # Apple needs nothing here: purchases are checked against Apple's root certificate. In App Store Connect, point
 # App Store Server Notifications (version 2) at https://remmynd.space/api/pro/apple/notify.
 # Trying it on this machine: `npx wrangler dev --local-upstream localhost:8787`, so the Worker sees localhost (by
