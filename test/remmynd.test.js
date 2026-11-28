@@ -3230,6 +3230,24 @@ test("account: sign in with an emailed code, a passkey, sync, email reminders an
   jar = signin.cookie.split(";")[0];
   assert.deepEqual((await call("/api/me")).body, { signedIn: true, email: "person@example.com", emailAlerts: true, passkeys: [] });
 
+  // App Review's demo account: no email is sent, its fixed code works more than once, wrong codes lock it after 5,
+  // and with the secrets unset there's no such account.
+  devEnv = { REVIEW_EMAIL: "Review@remmynd.space", REVIEW_CODE: "246810" };
+  sent.length = 0;
+  assert.equal((await call("/api/auth/email/start", { email: "review@remmynd.space" })).status, 200);
+  assert.equal(sent.length, 0, "nothing is emailed to the demo account");
+  assert.equal((await call("/api/auth/email/verify", { email: "review@remmynd.space", code: "246810" })).status, 200);
+  assert.equal((await call("/api/auth/email/verify", { email: "review@remmynd.space", code: "246810" })).status, 200, "the same code again");
+  assert.equal((await call("/api/auth/email/verify", { email: "someone@else.com", code: "246810" })).status, 400, "only for that email");
+  for (let i = 0; i < 5; i++) assert.equal((await call("/api/auth/email/verify", { email: "review@remmynd.space", code: "111111" })).status, 400);
+  assert.equal((await call("/api/auth/email/verify", { email: "review@remmynd.space", code: "246810" })).status, 429, "locked after 5 wrong tries");
+  devEnv = { REVIEW_EMAIL: "other@remmynd.space" };
+  assert.equal(A.isReviewer(devEnv, "other@remmynd.space"), false, "no code, no demo account");
+  devEnv = {};
+  // Leave the store as the rest of this test expects: only person@example.com's account.
+  for (const [id, u] of [...store.t.users]) if (u.email === "review@remmynd.space") { store.t.users.delete(id); for (const [k, x] of [...store.t.sessions]) if (x.user_id === id) store.t.sessions.delete(k); }
+  store.t.codes.delete("review@remmynd.space");
+
   // Add a passkey, then sign in with it.
   const k = await testPasskey("ES256");
   const ro = await call("/api/passkeys/options", {});
@@ -4406,12 +4424,14 @@ test("follow: a phone or an account follows a host, hears each launch once, and 
 });
 
 function memoryChat() {
-  const t = { rooms: new Map(), msgs: [], people: [], inbox: new Map(), gone: new Map(), pings: [], files: [], uploads: new Map() };
+  const t = { rooms: new Map(), msgs: [], people: [], inbox: new Map(), gone: new Map(), pings: [], files: [], uploads: new Map(), reports: [] };
   const wipe = id => { t.files = t.files.filter(f => f.room !== id); t.rooms.delete(id); t.msgs = t.msgs.filter(m => m.room !== id); t.people = t.people.filter(p => p.room !== id); for (const k of [...t.inbox.keys()]) if (k.endsWith("|" + id)) t.inbox.delete(k); };
   return { t,
     ready: async () => {},
     room: async id => t.rooms.get(id) || null,
     isGone: async id => t.gone.has(id),
+    report: async r => { t.reports.push({ ...r }); },
+    reportsToday: async (room, since) => t.reports.filter(r => r.room === room && r.created > since).length,
     makeRoom: async (id, ends, now) => { if (!t.rooms.has(id)) t.rooms.set(id, { id, ends, created: now }); },
     count: async id => t.msgs.filter(m => m.room === id).length,
     people: async id => t.people.filter(p => p.room === id).map(p => ({ me: p.me, endpoint: p.endpoint })),
@@ -5633,4 +5653,18 @@ test("friends and groups: the private Worker is reached by a forward and asks th
   // The privacy page says what's kept.
   const privacy = readFileSync(new URL("../public/privacy/index.html", import.meta.url), "utf8");
   assert.ok(privacy.includes('id="people"'));
+});
+
+test("chat reports: anyone in the room can report someone in it, with the words their phone opened; kept for review", async () => {
+  const C = await import("../worker/chat.js");
+  const store = memoryChat(), base = "https://remmynd.space", room = "A".repeat(22);
+  const call = async body => { const req = new Request(base + "/api/chat/" + room + "/report", { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify(body) }); const r = await C.handleChat(req, {}, new URL(req.url), { store, now: 1_800_000_000_000 }); return { status: r.status, body: await r.json() }; };
+  await store.makeRoom(room, 1_900_000_000_000, 1); await store.join(room, "meAAAAAAAAAAAAAA"); await store.join(room, "themBBBBBBBBBBBB");
+  assert.equal((await call({ me: "nobodyCCCCCCCCCC", about: "themBBBBBBBBBBBB" })).status, 404, "only someone in the room");
+  const r = await call({ me: "meAAAAAAAAAAAAAA", about: "themBBBBBBBBBBBB", words: "abusive words\u0000here", reason: "Harassment" });
+  assert.deepEqual(r.body, { reported: true });
+  assert.equal(store.t.reports.length, 1);
+  assert.equal(store.t.reports[0].words, "abusive words here");
+  assert.equal(store.t.reports[0].reason, "Harassment");
+  assert.ok(C.CHAT_SCHEMA.some(s => s.includes("chat_reports")));
 });
