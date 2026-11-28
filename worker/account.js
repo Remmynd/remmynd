@@ -297,6 +297,8 @@ export async function handleAccount(request, env, url, ctx, deps = {}) {
   if (path === "/api/auth/email/start") {
     const email = cleanEmail(body.email);
     if (!email) return json({ error: "That email address doesn't look right." }, 400);
+    // App Review's demo account: no email is sent; its fixed code (REVIEW_CODE) is given to Apple in the review notes.
+    if (isReviewer(env, email)) return json({ ok: true });
     // Local testing only: with DEV_SHOW_CODE=1 in .dev.vars and no email key, the code comes back in the response.
     const dev = !mailer && env.DEV_SHOW_CODE === "1";
     if (!mailer && !dev) return json({ error: "Email isn't set up on this server yet." }, 503);
@@ -316,10 +318,22 @@ export async function handleAccount(request, env, url, ctx, deps = {}) {
   if (path === "/api/auth/email/verify") {
     const email = cleanEmail(body.email), code = String(body.code || "").replace(/\s+/g, "");
     if (!email || !/^\d{6}$/.test(code)) return json({ error: "Enter the 6-digit code from the email." }, 400);
+    const review = isReviewer(env, email);
     const c = await store.code(email);
-    if (!c || c.expires < now || c.tries >= 5) return json({ error: "That code has expired. Ask for a new one." }, 400);
-    if (c.code_hash !== await hash(email + ":" + code)) { await store.tryCode(email); return json({ error: "That code isn't right." }, 400); }
-    await store.deleteCode(email);
+    if (review) {
+      // The demo account's code never changes, so wrong guesses lock it for an hour after 5, like any code.
+      if (c && c.tries >= 5 && c.expires > now) return json({ error: "Too many tries. Try again in an hour." }, 429);
+      if (await hash(email + ":" + code) !== await hash(email + ":" + String(env.REVIEW_CODE))) {
+        if (!c || c.expires < now) await store.putCode({ email, code_hash: "review", expires: now + 3600e3, sent: now, sends: 0, window_start: now });
+        await store.tryCode(email);
+        return json({ error: "That code isn't right." }, 400);
+      }
+      if (c) await store.deleteCode(email);
+    } else {
+      if (!c || c.expires < now || c.tries >= 5) return json({ error: "That code has expired. Ask for a new one." }, 400);
+      if (c.code_hash !== await hash(email + ":" + code)) { await store.tryCode(email); return json({ error: "That code isn't right." }, 400); }
+      await store.deleteCode(email);
+    }
     let user = await store.userByEmail(email), isNew = false;
     if (!user) { user = { id: randomId(12), email, created: now, email_alerts: 1, stop_token: randomId(24) }; await store.createUser(user); isNew = true; }
     await tally(env, "account.signin");
@@ -448,4 +462,11 @@ export async function sendDueMails(env, now = Date.now(), deps = {}) {
   if (sent) await tally(env, "email.sent", sent, now);
   await store.cleanup(now);
   return { sent };
+}
+
+/** App Review's demo account: REVIEW_EMAIL signs in with the fixed 6-digit REVIEW_CODE, both Worker secrets.
+ *  With either unset, there is no such account. */
+export function isReviewer(env, email) {
+  const e = String(env.REVIEW_EMAIL || "").trim().toLowerCase(), c = String(env.REVIEW_CODE || "");
+  return !!e && /^\d{6}$/.test(c) && email === e;
 }

@@ -37,7 +37,11 @@ export const CHAT_SCHEMA = [
   "CREATE TABLE IF NOT EXISTS chat_gone (id TEXT PRIMARY KEY, until INTEGER NOT NULL)",
   "CREATE TABLE IF NOT EXISTS chat_files (id TEXT PRIMARY KEY, room TEXT NOT NULL, at INTEGER NOT NULL, size INTEGER NOT NULL)",
   "CREATE INDEX IF NOT EXISTS chat_files_room ON chat_files (room)",
-  "CREATE TABLE IF NOT EXISTS chat_uploads (user_id TEXT NOT NULL, day INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (user_id, day))"
+  "CREATE TABLE IF NOT EXISTS chat_uploads (user_id TEXT NOT NULL, day INTEGER NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (user_id, day))",
+  // Reports (App Review 1.2): the room, who in it (their random chat id), and the words the reporter's phone opened and
+  // chose to send, since the server can't read a chat itself. Reviewed by the people who run remmynd within 24 hours.
+  "CREATE TABLE IF NOT EXISTS chat_reports (id TEXT PRIMARY KEY, room TEXT NOT NULL, about TEXT NOT NULL, words TEXT NOT NULL, reason TEXT NOT NULL, created INTEGER NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS chat_reports_room ON chat_reports (room, created)"
 ];
 
 let ready = null;
@@ -50,6 +54,8 @@ export function chatStore(db) {
     ready: () => (ready ||= db.batch(CHAT_SCHEMA.map(s => db.prepare(s))).catch(e => { ready = null; throw e; })),
     room: id => one("SELECT * FROM chat_rooms WHERE id = ?", id),
     isGone: async id => !!(await one("SELECT id FROM chat_gone WHERE id = ?", id)),
+    report: r => st("INSERT INTO chat_reports (id, room, about, words, reason, created) VALUES (?, ?, ?, ?, ?, ?)", r.id, r.room, r.about, r.words, r.reason, r.created).run(),
+    reportsToday: async (room, since) => ((await one("SELECT COUNT(*) AS n FROM chat_reports WHERE room = ? AND created > ?", room, since)) || {}).n || 0,
     makeRoom: (id, ends, now) => st("INSERT OR IGNORE INTO chat_rooms (id, ends, created) VALUES (?, ?, ?)", id, ends, now).run(),
     count: async id => (await one("SELECT COUNT(*) AS n FROM chat_msgs WHERE room = ?", id)).n,
     people: id => all("SELECT me, endpoint FROM chat_people WHERE room = ?", id),
@@ -119,6 +125,20 @@ export async function handleChat(request, env, url, deps = {}) {
   await store.ready();
 
   // A file in: signed-in accounts only, a few a day, small, and only into a room that exists.
+  // A report: anyone in the room can send one, about someone in it. Kept for review; the room isn't ended by it.
+  if (parts.length === 2 && parts[1] === "report") {
+    const id = parts[0];
+    if (!ROOM.test(id)) return json({ error: "Not found." }, 404);
+    let b; try { b = await request.json(); } catch { return json({ error: "That wasn't readable." }, 400); }
+    const me = String(b.me || ""), about = String(b.about || "");
+    if (!ME.test(me) || !(await store.people(id)).some(p => p.me === me)) return json({ error: "Not found." }, 404);
+    if (about && !ME.test(about)) return json({ error: "Not found." }, 404);
+    if (await store.reportsToday(id, now - DAY) >= 20) return json({ error: "This chat has been reported a lot today. We're looking at it." }, 429);
+    const clip = v => String(v || "").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 600);
+    await store.report({ id: crypto.randomUUID(), room: id, about, words: clip(b.words), reason: clip(b.reason).slice(0, 300), created: now });
+    return json({ reported: true });
+  }
+
   if (parts.length === 2 && parts[1] === "file") {
     const id = parts[0], me = url.searchParams.get("me") || "";
     if (!ROOM.test(id)) return json({ error: "Not found." }, 404);
