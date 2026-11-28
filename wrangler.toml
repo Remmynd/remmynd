@@ -70,19 +70,17 @@ namespace_id = "1001"
   period = 60
 
 [vars]
-# The early bird (worker/pro.js earlyBird): 50% off on the website until this moment (end of Mon 7 Dec, US Pacific).
-# The two ids are Polar discounts with no code, so only this server's checkout can apply them.
-EARLY_UNTIL = "2026-12-08T07:59:59Z"
-POLAR_DISCOUNT_EARLY_YEARLY = "d401f496-eff0-43d2-a092-ad187e371e3c"
-POLAR_DISCOUNT_EARLY_MONTHLY = "404bdebb-caf8-40e8-8845-fd9927b35b0a"
+# The launch code REMMYND50 (worker/pro.js LAUNCH): the Polar discount behind it, 50% off once, yearly plan only,
+# ending 1 Jan 2027. Not a secret: the code itself is public, and only this server's checkout applies it by id.
+POLAR_DISCOUNT_LAUNCH = "a7fb72d7-c4d9-408f-b354-28dfd47bd914"
 VAPID_PUBLIC_KEY = "BL1wKLc-1cGG7qJ-NS6KxwImTFfFVmp1YppjL7mdyXNjfHOTdjx9ThEfUb1aDx_3E8ACyw2yJ_gL3txgDQeQ3wg"
 VAPID_SUBJECT = "mailto:connect@zoof04.com"
 # --- end push ---
 
 # --- remmynd Pro (worker/pro.js): one status on the account, paid on the website through Polar or in the iPhone app
-# through Apple. Until PRO_ON is "1", only the accounts in PRO_TESTERS see it. Uncomment and fill in to turn it on.
+# through Apple. Until PRO_ON is "1", only the accounts in PRO_TESTERS see it. PRO_ON is set as a secret (on since
+# 27 November 2026), so it isn't listed here: a setting here with the same name as a secret stops the deploy.
 # PRO_TESTERS = "you@example.com"
-# PRO_ON = "1"
 # POLAR_SANDBOX = "1"                      # Polar's sandbox. Remove it for real payments.
 # POLAR_PRODUCT_MONTHLY = "<the monthly product's id>"
 # POLAR_PRODUCT_YEARLY = "<the yearly product's id>"
@@ -90,6 +88,8 @@ VAPID_SUBJECT = "mailto:connect@zoof04.com"
 #   POLAR_ACCESS_TOKEN     an organization access token: checkouts:write, customers:read, customer_sessions:write,
 #                          subscriptions:write
 #   POLAR_WEBHOOK_SECRET   the signing secret of the webhook that sends customer.state_changed to /api/pro/polar
+#   POLAR_DISCOUNT_LAUNCH  the id of the Polar discount behind the launch code REMMYND50: 50% off, once, the yearly
+#                          product only, code REMMYND50, ending 31 Dec 2026. Without it /pricing hides the offer.
 # Apple needs nothing here: purchases are checked against Apple's root certificate. In App Store Connect, point
 # App Store Server Notifications (version 2) at https://remmynd.space/api/pro/apple/notify.
 # Trying it on this machine: `npx wrangler dev --local-upstream localhost:8787`, so the Worker sees localhost (by

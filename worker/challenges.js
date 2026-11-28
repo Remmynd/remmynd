@@ -16,6 +16,7 @@
 
 import { ogImageURL, ogImageTags } from "./ogimage.js";
 import { signedIn, d1Store } from "./account.js";
+import { planFor, proNeeded, FREE } from "./pro.js";
 import { tally } from "./numbers.js";
 import { escapeHTML as esc } from "./preview.js";
 
@@ -134,7 +135,8 @@ export async function handleChallenge(request, env, url, deps = {}) {
   if (request.headers.get("origin") !== url.origin) return json({ error: "Cross-site requests aren't allowed." }, 403);
   const store = deps.store || challengeStore(env.DB), now = deps.now || Date.now();
   await store.ready();
-  const s = await signedIn(request, deps.accounts || d1Store(env.DB), now);
+  const accounts = deps.accounts || d1Store(env.DB);
+  const s = await signedIn(request, accounts, now);
   if (!s) return json({ error: "Sign in to take part.", need: "signin" }, 401);
   const user = s.user.id, body = await readBody(request);
   const parts = url.pathname.replace(/\/+$/, "").split("/").slice(3);
@@ -150,7 +152,11 @@ export async function handleChallenge(request, env, url, deps = {}) {
     const start = DATE.test(String(body.start || "")) ? body.start : addDays(todayDate, 1);
     const gap = dayNumber(start) - dayNumber(todayDate);
     if (gap < 0 || gap > CHALLENGE_LIMITS.aheadDays) return json({ error: "Start it today or within the next 60 days." }, 400);
-    if (await store.madeBy(user, now) >= CHALLENGE_LIMITS.perUser) return json({ error: "That's " + CHALLENGE_LIMITS.perUser + " challenges running. Wait for one to end." }, 429);
+    const running = await store.madeBy(user, now);
+    // Free: one challenge you started at a time (joining others' is never limited). Pro: up to perUser.
+    if ((await planFor(env, accounts, s.user, now)).limited && running >= FREE.challenges)
+      return proNeeded("The free plan runs " + FREE.challenges + " challenge you started at a time. Pro runs up to " + CHALLENGE_LIMITS.perUser + ".", FREE.challenges);
+    if (running >= CHALLENGE_LIMITS.perUser) return json({ error: "That's " + CHALLENGE_LIMITS.perUser + " challenges running. Wait for one to end." }, 429);
     const c = { code: code(), user_id: user, title, days, deadline: body.deadline, tz, start, created: now };
     c.ends = deadlineAt(c, days - 1);
     if (gap === 0 && !today(c, now).open) return json({ error: "Today's check-in time has passed. Start it tomorrow." }, 400);

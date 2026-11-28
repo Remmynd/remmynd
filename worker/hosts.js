@@ -206,9 +206,8 @@ export async function handleHost(request, env, url, deps = {}) {
       const n = sent.filter(s => s.launch === v.id && /^nudge/.test(s.kind)).sort((a, b) => a.at - b.at);
       v.nudges = { sent: n.map(s => ({ at: s.at, text: s.text, reached: s.reached })), left: Math.max(0, NUDGES - n.length), next: n.length ? n[n.length - 1].at + NUDGE_GAP : 0 };
     }
-    const { firstMonthOffer, earlyBird } = await import("./pro.js");
-    const early = plan.limited ? earlyBird(env, now) : null;
-    return { signedIn: true, plan: { ...plan, full, free: FREE, colors: BRAND_COLORS, early, discount: early ? null : await firstMonthOffer(env, store, user, now) },
+    const { firstMonthOffer } = await import("./pro.js");
+    return { signedIn: true, plan: { ...plan, full, free: FREE, colors: BRAND_COLORS, discount: await firstMonthOffer(env, store, user, now) },
       host: { handle: host.handle, name: host.name, bio: host.bio, link: host.link, url: url.origin + "/@" + host.handle, followers: store.followCount ? await store.followCount(user.id) : 0, color: plan.pro && store.brandOf ? await store.brandOf(user.id) : "" },
       launches, stats };
   };

@@ -30,6 +30,7 @@
 
 import { ogImageURL, ogImageTags, inText, leftText } from "./ogimage.js";
 import { signedIn, d1Store } from "./account.js";
+import { planFor, proNeeded, FREE } from "./pro.js";
 import { tellAccounts } from "./apns.js";
 import { tally } from "./numbers.js";
 import { escapeHTML as esc } from "./preview.js";
@@ -167,7 +168,8 @@ export async function handleDrop(request, env, url, deps = {}) {
   }
   if (request.method !== "POST") return json({ error: "Use POST." }, 405);
   if (request.headers.get("origin") !== url.origin) return json({ error: "Cross-site requests aren't allowed." }, 403);
-  const s = await signedIn(request, deps.accounts || d1Store(env.DB), now), user = s ? s.user.id : null;
+  const accounts = deps.accounts || d1Store(env.DB);
+  const s = await signedIn(request, accounts, now), user = s ? s.user.id : null;
 
   // Reading a drop needs only the link: the key is in it, and before the time there's nothing to read.
   if (parts.length === 2 && parts[1] === "read") {
@@ -183,7 +185,10 @@ export async function handleDrop(request, env, url, deps = {}) {
     if (!(opens > now + 30e3 && opens <= now + DROP_LIMITS.ahead)) return json({ error: "Pick a time from a minute from now to a year ahead." }, 400);
     const meta = String(body.meta || "");
     if (!META.test(meta) || meta.length > DROP_LIMITS.meta) return json({ error: "That message is too long." }, 400);
-    if (await store.waiting(user, now) >= DROP_LIMITS.waiting) return json({ error: "That's " + DROP_LIMITS.waiting + " drops waiting to open. Wait for one to open." }, 429);
+    const waiting = await store.waiting(user, now);
+    if ((await planFor(env, accounts, s.user, now)).limited && waiting >= FREE.drops)
+      return proNeeded("The free plan keeps " + FREE.drops + " of your drops waiting at a time. Pro keeps up to " + DROP_LIMITS.waiting + ".", FREE.drops);
+    if (waiting >= DROP_LIMITS.waiting) return json({ error: "That's " + DROP_LIMITS.waiting + " drops waiting to open. Wait for one to open." }, 429);
     const d = { id: rid(), user_id: user, name: line(body.name, DROP_LIMITS.name) || "A friend", opens, meta, file: body.file ? -1 : 0, created: now };
     await store.makeDrop(d);
     await tally(env, "drop.made", 1, now);
@@ -230,7 +235,8 @@ export async function handleDare(request, env, url, deps = {}) {
   }
   if (request.method !== "POST") return json({ error: "Use POST." }, 405);
   if (request.headers.get("origin") !== url.origin) return json({ error: "Cross-site requests aren't allowed." }, 403);
-  const s = await signedIn(request, deps.accounts || d1Store(env.DB), now);
+  const accounts = deps.accounts || d1Store(env.DB);
+  const s = await signedIn(request, accounts, now);
   if (!s) return json({ error: "Sign in to take part.", need: "signin" }, 401);
   const user = s.user.id;
 
@@ -240,7 +246,11 @@ export async function handleDare(request, env, url, deps = {}) {
     if (!what) return json({ error: "Say what the dare is, like “50 push-ups”." }, 400);
     const by = Math.round(Number(body.by));
     if (!(by >= now + DROP_LIMITS.minDare && by <= now + DROP_LIMITS.maxDare)) return json({ error: "Give it from 10 minutes to 30 days." }, 400);
-    if (await store.open(user, now) >= DROP_LIMITS.dares) return json({ error: "That's " + DROP_LIMITS.dares + " dares running. Wait for one to close." }, 429);
+    const open = await store.open(user, now);
+    // Free: three dares of yours open at a time (taking others' is never limited). Pro: up to DROP_LIMITS.dares.
+    if ((await planFor(env, accounts, s.user, now)).limited && open >= FREE.dares)
+      return proNeeded("The free plan keeps " + FREE.dares + " of your dares open at a time. Pro keeps up to " + DROP_LIMITS.dares + ".", FREE.dares);
+    if (open >= DROP_LIMITS.dares) return json({ error: "That's " + DROP_LIMITS.dares + " dares running. Wait for one to close." }, 429);
     const d = { code: rid(), user_id: user, name: line(body.name, DROP_LIMITS.name) || "A friend", what, by_at: by, created: now };
     await store.makeDare(d);
     await tally(env, "dare.made", 1, now);

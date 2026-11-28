@@ -114,6 +114,9 @@ export default {
     // shared reminder links itself when it's installed (applinks). Public by design; nothing about anyone in it.
     if (url.pathname === "/.well-known/apple-app-site-association") return appSiteResponse(request);
 
+    // The Pro page moved to /pricing; links to /pro still land there.
+    if (url.pathname === "/pro" || url.pathname === "/pro/") return Response.redirect(url.origin + "/pricing", 301);
+
     // Named pages: /example → /#example
     const name = url.pathname.replace(/^\/+|\/+$/g, "");
     if (PRESETS.has(name)) return Response.redirect(url.origin + "/#" + name, 302);

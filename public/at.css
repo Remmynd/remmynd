@@ -117,18 +117,3 @@
 .hp-get{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .hp-deal{font-size:13px;font-weight:600;color:var(--on-moment-tint);background:var(--moment-tint);padding:3px 10px;border-radius:999px}
 .hp-nudge{margin-top:10px;padding-top:10px;border-top:1px solid var(--hairline)}
-
-/* The Pro page (/pro, pro-page.js) */
-.pro .pro-early{margin:18px 0 0;padding:12px 16px;border-radius:16px;background:var(--moment-tint);color:var(--on-moment-tint)}
-.pro-plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-.pro-plans .hp-card{margin-top:18px;align-content:start}
-.pro-plans .hp-badge{justify-self:start}
-.pro-price{margin:0;font-size:15px;color:var(--ink-2)}
-.pro-price b{font-size:34px;color:var(--ink);font-variant-numeric:tabular-nums;margin-right:4px}
-.pro-price s{color:var(--muted);margin-right:6px}
-.pro-then,.pro-trial,.pro-note,.pro-base{margin:0;color:var(--ink-2);font-size:14px}
-.pro-trial{margin-top:16px}
-.pro-go{margin-top:16px}
-.pro-note{margin-top:10px}
-.pro-list{margin:0;padding-left:18px;color:var(--ink-2);display:grid;gap:6px}
-.pro-base{margin-top:24px}

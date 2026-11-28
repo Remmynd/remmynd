@@ -215,6 +215,13 @@ export async function open(c, priv) {
       sb.addEventListener("click", () => import("/account.js").then(a => a.open()).catch(() => {}));
       return;
     }
+    if (j.need === "pro") {
+      // The free plan's daily photos and voice notes (worker/pro.js FREE.chatFiles): say so, and where Pro is.
+      say(j.error);
+      const p = body.querySelector(".chat-err"), a = document.createElement("a");
+      a.className = "chip"; a.href = "/pricing"; a.textContent = "See Pro"; p.append(" ", a);
+      return;
+    }
     if (!r.ok) {
       if (j.error === "Say something first.") return say("Say hello first, then send photos and voice notes.");
       return say(j.error || "Couldn't send that. Try again.");
