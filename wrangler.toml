@@ -47,6 +47,11 @@ database_id = "b0c76df1-abd8-4d65-8f0b-e3cd3d2156f2"
 
 # Vanishing chat photos and voice notes (worker/chat.js): scrambled on the device, so this bucket holds bytes
 # nobody here can read. Private: no public URL; files are served only through the Worker, and deleted with their chat.
+# Friends and groups (remmynd Pro): their own Worker, in a private repository. Deploy it before this binding.
+[[services]]
+binding = "PEOPLE"
+service = "remmynd-people"
+
 [[r2_buckets]]
 binding = "CHAT_FILES"
 bucket_name = "remmynd-chat-files"
@@ -65,14 +70,17 @@ namespace_id = "1001"
   period = 60
 
 [vars]
+# The launch code REMMYND50 (worker/pro.js LAUNCH): the Polar discount behind it, 50% off once, yearly plan only,
+# ending 1 Jan 2027. Not a secret: the code itself is public, and only this server's checkout applies it by id.
+POLAR_DISCOUNT_LAUNCH = "a7fb72d7-c4d9-408f-b354-28dfd47bd914"
 VAPID_PUBLIC_KEY = "BL1wKLc-1cGG7qJ-NS6KxwImTFfFVmp1YppjL7mdyXNjfHOTdjx9ThEfUb1aDx_3E8ACyw2yJ_gL3txgDQeQ3wg"
 VAPID_SUBJECT = "mailto:connect@zoof04.com"
 # --- end push ---
 
 # --- remmynd Pro (worker/pro.js): one status on the account, paid on the website through Polar or in the iPhone app
-# through Apple. Until PRO_ON is "1", only the accounts in PRO_TESTERS see it. On for everyone from the 30 November 2026 launch.
+# through Apple. Until PRO_ON is "1", only the accounts in PRO_TESTERS see it. PRO_ON is set as a secret (on since
+# 27 November 2026), so it isn't listed here: a setting here with the same name as a secret stops the deploy.
 # PRO_TESTERS = "you@example.com"
-PRO_ON = "1"
 # POLAR_SANDBOX = "1"                      # Polar's sandbox. Remove it for real payments.
 # POLAR_PRODUCT_MONTHLY = "<the monthly product's id>"
 # POLAR_PRODUCT_YEARLY = "<the yearly product's id>"

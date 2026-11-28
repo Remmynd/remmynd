@@ -3466,8 +3466,8 @@ test("the app: inside remmynd for iPhone, alerts go to the phone through the bri
 
 test("the app, natively: Apple's app-site file for passkeys and links, the app-only look, Talk and video calls through the bridge", async () => {
   const worker = (await import("../worker/index.js")).default, W = await import("../worker/appsite.js");
-  // The Worker's main module may export only handlers (workerd refuses anything else), so the app-site data lives apart.
-  assert.deepEqual(Object.keys(await import("../worker/index.js")).sort(), ["default"], "worker/index.js exports only its handler");
+  // The Worker's main module may export only handlers and entrypoint classes (workerd refuses anything else), so the app-site data lives apart.
+  assert.deepEqual(Object.keys(await import("../worker/index.js")).sort(), ["Internal", "default"], "worker/index.js exports only its handler and the internal entrypoint");
   // Passkeys inside remmynd for iPhone need this file: the app may use credentials for remmynd.space.
   const res = await worker.fetch(new Request("https://remmynd.space/.well-known/apple-app-site-association"), shellEnv());
   assert.equal(res.status, 200);
@@ -3475,7 +3475,7 @@ test("the app, natively: Apple's app-site file for passkeys and links, the app-o
   const site = await res.json();
   assert.deepEqual(site.webcredentials, { apps: ["TT8BA4JZW6.space.remmynd.app"] });
   assert.deepEqual(site.applinks.details[0].appIDs, ["TT8BA4JZW6.space.remmynd.app"]);
-  assert.deepEqual(site.applinks.details[0].components.map(c => c["/"]), ["/r/*", "/new", "/new/*", "/x/*", "/d/*", "/dare/*"], "shared reminders, /new, challenge, drop and dare links open in the app");
+  assert.deepEqual(site.applinks.details[0].components.map(c => c["/"]), ["/r/*", "/new", "/new/*", "/x/*", "/d/*", "/dare/*", "/f/*"], "shared reminders, /new, challenge, drop, dare and friend links open in the app");
   assert.equal(W.IOS_APP, "TT8BA4JZW6.space.remmynd.app");
   assert.equal((await worker.fetch(new Request("https://remmynd.space/.well-known/apple-app-site-association", { method: "POST" }), shellEnv())).status, 405);
   assert.doesNotMatch(JSON.stringify(site), /@|email|user/i, "nothing about anyone in it");
@@ -5582,4 +5582,55 @@ test("link previews: each shared page gets a live picture, drawn here as a PNG, 
   assert.ok(filled.includes('<meta property="og:image" content="' + base + '/og/@sam/x.png?v=1">'));
   assert.ok(filled.includes('<meta name="twitter:image" content="' + base + '/og/@sam/x.png?v=1">'));
   assert.ok(!filled.includes("/og.png"));
+});
+
+test("friends and groups: the private Worker is reached by a forward and asks this one only who, Pro and push", async () => {
+  const I = await import("../worker/internal.js");
+  const worker = (await import("../worker/index.js")).default;
+  const accounts = memoryStore(), base = "https://remmynd.space", now = Date.parse("2026-11-27T10:00:00Z");
+  const sam = proAccount(accounts, "user-sam-0001", "sam@example.com", now);
+
+  // Who: a session cookie gives the account id, nothing else; anything else gives null.
+  assert.equal(await I.whoIs({}, sam, { store: accounts, now }), "user-sam-0001");
+  assert.equal(await I.whoIs({}, "rm_s=" + "z".repeat(40), { store: accounts, now }), null);
+  assert.equal(await I.whoIs({}, "", { store: accounts, now }), null);
+  assert.equal(await I.whoIs({}, null, { store: accounts, now }), null);
+
+  // Pro: an account without a purchase has none, and an id that isn't one is refused before the database.
+  assert.deepEqual(await I.plan({}, "user-sam-0001", { store: accounts, now }), { pro: false, offer: false });
+  assert.deepEqual(await I.plan({}, "x'; DROP", { store: accounts, now }), { pro: false, offer: false });
+  assert.deepEqual(await I.plan({ PRO_ON: "1" }, "user-sam-0001", { store: accounts, now }), { pro: false, offer: true });
+
+  // Push: ids checked, at most 100, the words trimmed, extra fields only short names with plain values.
+  const sent = [];
+  const deps = { tell: async (env, users, alert, data) => { sent.push({ users, alert, data }); return users.length; } };
+  assert.equal(await I.tell({}, ["user-lee-0001", "bad id!", 5], { title: "Gym at 7", body: "x".repeat(400) }, { group: "g1", Bad: "x", obj: { a: 1 } }, deps), 1);
+  assert.deepEqual(sent[0].users, ["user-lee-0001"]);
+  assert.equal(sent[0].alert.body.length, 300);
+  assert.deepEqual(sent[0].data, { group: "g1" });
+  assert.equal(await I.tell({}, [], { title: "x" }, {}, deps), 0);
+  assert.equal(await I.tell({}, ["user-lee-0001"], null, {}, deps), 0);
+
+  // The class hands its env to the same functions.
+  assert.equal(typeof new I.Internal({}, {}).whoIs, "function");
+
+  // The forward: /api/people/* and /f/* go to the PEOPLE Worker when it's bound, and nothing else does.
+  const seen = [];
+  const PEOPLE = { fetch: async req => { seen.push(new URL(req.url).pathname + " " + req.method); return new Response("people", { status: 200 }); } };
+  const env = { PEOPLE, ASSETS: { fetch: async () => new Response("asset") } };
+  assert.equal(await (await worker.fetch(new Request(base + "/api/people/me"), env, { waitUntil() {} })).text(), "people");
+  assert.equal(await (await worker.fetch(new Request(base + "/f/abcdefgh"), env, { waitUntil() {} })).text(), "people");
+  assert.equal(await (await worker.fetch(new Request(base + "/fun"), env, { waitUntil() {} })).text(), "asset");
+  assert.deepEqual(seen, ["/api/people/me GET", "/f/abcdefgh GET"]);
+  const off = await worker.fetch(new Request(base + "/api/people/me"), { ASSETS: env.ASSETS }, { waitUntil() {} });
+  assert.notEqual(await off.text(), "people", "without the binding nothing is forwarded");
+
+  // Deleting an account tells the PEOPLE Worker first, with the same session.
+  seen.length = 0;
+  await worker.fetch(new Request(base + "/api/account/delete", { method: "POST", headers: { cookie: sam, origin: base } }), env, { waitUntil() {} }).catch(() => {});
+  assert.equal(seen[0], "/api/people/me/delete POST");
+
+  // The privacy page says what's kept.
+  const privacy = readFileSync(new URL("../public/privacy/index.html", import.meta.url), "utf8");
+  assert.ok(privacy.includes('id="people"'));
 });
